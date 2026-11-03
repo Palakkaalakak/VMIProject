@@ -294,9 +294,45 @@ def normalise(raw: dict, ticker: str) -> Fundamentals:
             aligned = [p for p in pts if p.end in fy_ends]
             fund.annual[name] = aligned[-12:]
     fund.latest_date = latest_instant
+    _drop_stale_and_derive(fund)
     if not fund.annual.get("revenue"):
         fund.warnings.append("No revenue history found in XBRL")
     return fund
+
+
+def _drop_stale_and_derive(fund: Fundamentals) -> None:
+    """Remove alias series that stopped years ago (company switched tags) and derive missing ones."""
+    rev = fund.annual.get("revenue") or fund.annual.get("net_income")
+    if rev:
+        ref_end = rev[-1].end
+        for name in list(fund.annual):
+            pts = fund.annual[name]
+            if pts and _days(pts[-1].end, ref_end) > 800:
+                del fund.annual[name]
+                fund.ttm.pop(name, None)
+                fund.quarterly.pop(name, None)
+    # Gross profit = revenue − cost of revenue (many filers do not tag GrossProfit)
+    if "gross_profit" not in fund.annual and "cost_of_revenue" in fund.annual and "revenue" in fund.annual:
+        cogs = {p.end: p.value for p in fund.annual["cost_of_revenue"]}
+        gp = [Point(end=p.end, value=p.value - cogs[p.end], fy=p.fy) for p in fund.annual["revenue"] if p.end in cogs]
+        if gp:
+            fund.annual["gross_profit"] = gp
+            if "revenue" in fund.ttm and "cost_of_revenue" in fund.ttm:
+                fund.ttm["gross_profit"] = fund.ttm["revenue"] - fund.ttm["cost_of_revenue"]
+    # Free cash flow series
+    if "cfo" in fund.annual:
+        capex = {p.end: p.value for p in fund.annual.get("capex", [])}
+        fund.annual["fcf"] = [Point(end=p.end, value=p.value - abs(capex.get(p.end, 0.0)), fy=p.fy)
+                              for p in fund.annual["cfo"]]
+        if "cfo" in fund.ttm:
+            fund.ttm["fcf"] = fund.ttm["cfo"] - abs(fund.ttm.get("capex", 0.0))
+    # EBITDA ≈ operating income + D&A
+    if "operating_income" in fund.annual:
+        da = {p.end: p.value for p in fund.annual.get("d_and_a", [])}
+        fund.annual["ebitda"] = [Point(end=p.end, value=p.value + da.get(p.end, 0.0), fy=p.fy)
+                                 for p in fund.annual["operating_income"]]
+        if "operating_income" in fund.ttm:
+            fund.ttm["ebitda"] = fund.ttm["operating_income"] + fund.ttm.get("d_and_a", 0.0)
 
 
 def fundamentals(ticker: str, force: bool = False) -> Fundamentals | None:
@@ -304,7 +340,7 @@ def fundamentals(ticker: str, force: bool = False) -> Fundamentals | None:
     if cik is None:
         return None
     cache = get_cache()
-    key = f"sec:fund:v3:{cik}"
+    key = f"sec:fund:v4:{cik}"
     if not force:
         cached = cache.get(key, get_settings().ttl_fundamentals)
         if cached:
