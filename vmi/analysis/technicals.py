@@ -146,6 +146,14 @@ def trend_state(df: pd.DataFrame, rules: TechnicalRules = RULES.technical) -> Tr
     mas = {k: (float(last[k]) if pd.notna(last[k]) else None) for k in d.columns if k.startswith(("sma", "ema"))}
     slopes = {k: _slope(d[k], rules.trend_slope_lookback) for k in mas}
     s50, s100, s150, s200 = (mas.get(f"sma{p}") for p in (50, 100, 150, 200))
+    if s200 is None and mas.get("ema20") is not None and mas.get("ema40") is not None and len(d) >= 60:
+        # Higher timeframes (monthly) rarely have 200 bars: use the 20/40 EMA pair (Lesson 6 §6.4)
+        fast, slow = mas["ema20"], mas["ema40"]
+        fs, ss = slopes.get("ema20") or 0, slopes.get("ema40") or 0
+        st = ("uptrend" if fast > slow and fs > 0 and ss > 0 and price > slow else
+              "downtrend" if fast < slow and fs < 0 and price < slow else "consolidation")
+        return TrendState(st, price, mas, slopes, fast > slow, fast < slow, False, False,
+                          ["trend from 20/40 EMA (insufficient bars for 200 SMA)"])
     stacked_up = all(v is not None for v in (s50, s100, s150, s200)) and s50 > s100 > s150 > s200
     stacked_down = all(v is not None for v in (s50, s150, s200)) and s200 > s150 > s50
     highs, lows = swing_points(d.iloc[-260:], rules.swing_window)
