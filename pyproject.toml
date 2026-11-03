@@ -1,0 +1,35 @@
+[project]
+name = "vmi"
+version = "0.1.0"
+description = "Value Momentum Investing (VMI) all-in-one toolkit: superscanner, intrinsic value engine, watchlists, options chains and multi-portfolio paper trading on top of the Interactive Brokers API."
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.27",
+  "pydantic>=2.6",
+  "pydantic-settings>=2.2",
+  "sqlalchemy>=2.0",
+  "httpx>=0.27",
+  "pandas>=2.1",
+  "numpy>=1.26",
+  "yfinance>=0.2.50",
+  "ib_async>=2.0",
+  "beautifulsoup4>=4.12",
+  "lxml>=5.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+vmi = "vmi.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["vmi*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
