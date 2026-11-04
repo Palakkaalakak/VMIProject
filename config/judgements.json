@@ -24,5 +24,9 @@
   "PLTR": {
     "method": "dcf_fcf",
     "note": "Now consistently FCF-positive with rising FCF; Adam values it on DCF rather than PSG. Speculative sizing still applies."
+  },
+  "ACGL": {
+    "method": "pb_bank",
+    "note": "Specialty (re)insurer: book value compounding is the value driver; Adam's IV (109.38) matches P/B valuation (108.4). DNI overstates because float-driven earnings are lumpy."
   }
 }
