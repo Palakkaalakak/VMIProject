@@ -100,6 +100,39 @@ def iv(r: dict, g: float, base: float, cap1: float, m6: float) -> float | None:
                             r["shares"])
 
 
+def shrink(g: float, center: float, k: float) -> float:
+    return center + k * (g - center)
+
+
+def evaluate_shrink() -> None:
+    """Grid over growth shrinkage toward a center (analyst LTG mean reversion) + base mode."""
+    rows = [r for r in json.loads(INPUTS.read_text()) if r["biz"] not in ("bank", "reit")]
+    results = []
+    for center, k, bm, hc in itertools.product([0.10, 0.11, 0.12, 0.13, 0.14], [0.4, 0.5, 0.6, 0.7, 0.8, 1.0],
+                                               ["plain", "cap1.5", "cap2.0"], [1.0, 0.97, 0.94]):
+        ratios = []
+        for r in rows:
+            g, b = growth_est(r, "robust_hist"), base_est(r, bm)
+            if g is None or not b or b <= 0 or not r["shares"]:
+                continue
+            v = iv(r, shrink(g, center, k) * hc, b, 0.40, 1.0)
+            if v and v > 0:
+                ratios.append(v / r["adam"])
+        xs = sorted(ratios)
+        n = len(xs)
+        if not n:
+            continue
+        good = sum(1 for x in xs if 0.85 <= x <= 1.05)
+        over = sum(1 for x in xs if x > 1.10)
+        med = xs[n // 2]
+        score = good - 1.5 * over - 10 * abs(med - 0.95)
+        results.append((round(score, 2), center, k, bm, hc, n, good, over, round(med, 3)))
+    results.sort(reverse=True)
+    print("score, center, k, base, haircut, n, in[0.85,1.05], >1.10, median")
+    for x in results[:12]:
+        print(x)
+
+
 def evaluate() -> None:
     rows = [r for r in json.loads(INPUTS.read_text()) if r["biz"] not in ("bank", "reit")]
     results = []
@@ -146,6 +179,8 @@ if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "eval"
     if cmd == "collect":
         collect()
+    elif cmd == "shrink":
+        evaluate_shrink()
     elif cmd == "detail":
         a = sys.argv[2:]
         detail(a[0], a[1], float(a[2]), float(a[3]), float(a[4]))
