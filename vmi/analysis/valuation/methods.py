@@ -165,11 +165,34 @@ def _dcf_family(ctx: ValuationContext, method: str, label: str, base: float | No
     return res
 
 
+def steady_base(fund: Fundamentals, concept: str, rules: VMIRules = RULES,
+                ttm_value: float | None = None) -> tuple[float | None, str]:
+    """Adam's cash-flow normalisation rule (MSFT/AMZN/GOOGL case studies): the starting figure should be
+    'similar or higher than previous years'. Sudden big jump in the last 12 months → use the prior fiscal
+    year (may not be sustainable). Sudden big plunge → use the average of the last 3–4 years.
+    Returns (value in statement currency, description)."""
+    v = rules.valuation
+    ttm = fund.last(concept) if ttm_value is None else ttm_value
+    annual = fund.series(concept)
+    if ttm is None or not annual:
+        return ttm, f"TTM {concept}"
+    last_fy = annual[-1]
+    if last_fy > 0 and ttm > v.base_jump_ratio * last_fy:
+        return last_fy, (f"last FY {concept} (TTM {ttm / last_fy:.2f}× FY = sudden jump → prior year, "
+                         f"Adam's normalisation rule)")
+    if last_fy > 0 and ttm < v.base_plunge_ratio * last_fy:
+        win = annual[-v.base_avg_years:]
+        avg = sum(win) / len(win)
+        return avg, f"{len(win)}y average {concept} (TTM plunged to {ttm / last_fy:.2f}× FY → average)"
+    return ttm, f"TTM {concept}"
+
+
 # --------------------------------------------------------------------------------------- DCF (FCF)
 def dcf_fcf(ctx: ValuationContext) -> ValuationResult:
     cfo_tr = series_trend(ctx.fund, "cfo", ctx.rules)
     reasons = [] if cfo_tr.consistent else [f"CFO not consistently increasing ({cfo_tr.reason})"]
-    return _dcf_family(ctx, "dcf_fcf", "Discounted Free Cash Flow", ctx.ttm("fcf"), "TTM free cash flow", reasons)
+    base, desc = steady_base(ctx.fund, "fcf", ctx.rules)
+    return _dcf_family(ctx, "dcf_fcf", "Discounted Free Cash Flow", ctx.money(base), desc, reasons)
 
 
 def capex_window(fund: Fundamentals, years: int = 5) -> list[float]:
@@ -200,7 +223,7 @@ def capex_is_lumpy(fund: Fundamentals, rules: VMIRules = RULES) -> bool:
 
 def normalised_fcf(fund: Fundamentals, years: int = 5) -> float | None:
     """Latest 12-month CFO − average capex of the 5 most recent 12-month periods (Lesson 5 §5.2)."""
-    cfo = fund.last("cfo")
+    cfo, _ = steady_base(fund, "cfo")
     capex = capex_window(fund, years)
     if cfo is None or not capex:
         return None
@@ -228,13 +251,15 @@ def dcf_cfo(ctx: ValuationContext) -> ValuationResult:
         reasons.append(f"CFO {cfo / ni - 1:.0%} above net income (>20% — use FCF instead)")
     if not ni or ni <= 0:
         reasons.append("net income not positive")
-    return _dcf_family(ctx, "dcf_cfo", "Discounted Cash Flow from Operations", cfo, "TTM CFO", reasons)
+    base, desc = steady_base(ctx.fund, "cfo", ctx.rules)
+    return _dcf_family(ctx, "dcf_cfo", "Discounted Cash Flow from Operations", ctx.money(base), desc, reasons)
 
 
 def discounted_net_income(ctx: ValuationContext) -> ValuationResult:
     ni_tr = series_trend(ctx.fund, "net_income", ctx.rules)
     reasons = [] if ni_tr.consistent else [f"net income not consistently increasing ({ni_tr.reason})"]
-    return _dcf_family(ctx, "dni", "Discounted Net Income", ctx.ttm("net_income"), "TTM net income", reasons)
+    base, desc = steady_base(ctx.fund, "net_income", ctx.rules)
+    return _dcf_family(ctx, "dni", "Discounted Net Income", ctx.money(base), desc, reasons)
 
 
 # --------------------------------------------------------------------------------------- multiples

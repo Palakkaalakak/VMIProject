@@ -80,6 +80,11 @@ class ValuationRules:  # Lesson 5
     cfo_max_premium_over_ni: float = 0.20  # CFO method allowed if CFO ≤ NI × 1.2
     capex_normalization_years: int = 5
     capex_spike_ratio: float = 1.5         # latest capex > 1.5× prior-4y avg ⇒ "lumpy" ⇒ normalise
+    # Adam's cash-flow normalisation (MSFT/AMZN case study): sudden big jump in the last 12 months → don't use it,
+    # use the prior fiscal year; sudden big plunge → use the average of the last few years.
+    base_jump_ratio: float = 1.30          # TTM > 1.3× last FY ⇒ "sudden big jump"
+    base_plunge_ratio: float = 0.70        # TTM < 0.7× last FY ⇒ "sudden big plunge"
+    base_avg_years: int = 4
     bank_pb_fair_low: float = 1.2
     bank_pb_fair_high: float = 1.4
     distressed_pb_max: float = 0.5
