@@ -54,3 +54,11 @@
   never by changing the general formula.
 - Haircut experiments requested: compare flat haircuts applied to (1) IV directly, (2) growth rate before the
   IV calculation, etc. Keep each variant a single fixed number.
+
+## Rule reinforcement (2026-11-04, owner was explicit)
+- NEVER STOP. After a status report, continue working in the same turn. Do not end a turn waiting for input.
+- If the autocommit watchdog is not running, START IT IMMEDIATELY (do not report and wait):
+  `setsid -f bash tools/autocommit.sh /home/user/webapp 30 > /home/user/autocommit.out 2>&1 < /dev/null`
+  Check at the start of every turn: `ps aux | grep "[a]utocommit.sh"`.
+- Negative equity (doc §3.5 / ROE §5.1): fine — even good — when profitable, NI rising, FCF rising, and the cause is
+  a large treasury-stock balance (buybacks). ROE is then "effectively infinite" → pass. Implemented in step 4.
