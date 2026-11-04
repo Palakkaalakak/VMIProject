@@ -41,3 +41,8 @@
 - The environment wipe also deletes files written minutes before it hits. Watchdog interval is 30s and
   `tools/save.sh "<msg>"` is run immediately after every significant write. Diagnostics live in `tools/`
   (never /tmp). Never use `pkill -f <pattern>` where the pattern appears in the same command line.
+
+## Calibration directive (added 2026-11-04)
+- Do NOT force valuations to match Adam with non-Adam-approved transforms (no fitted formulas on growth,
+  cash flow, etc.). Only simple FIXED conservatism adjustments are allowed (e.g. a flat −10% on IV) when we
+  consistently overestimate. Nothing complicated or overfitted. → implemented as `rules.valuation.iv_haircut`.
