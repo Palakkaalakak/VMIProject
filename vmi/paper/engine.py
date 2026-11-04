@@ -172,7 +172,7 @@ def trade_stock(pid: int, symbol: str, side: str, qty: float | None = None, doll
         p = s.get(store.Portfolio, pid)
         if not p:
             raise TradeError("portfolio not found")
-        f = fills.stock_fill(side, q.bid, q.ask, q.last or q.close, q.avg_volume)
+        f = fills.stock_fill(side, q)
         if qty is None:
             if not dollars:
                 raise TradeError("give qty or dollars")
