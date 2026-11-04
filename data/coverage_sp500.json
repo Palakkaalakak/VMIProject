@@ -1,12 +1,12 @@
 {
  "summary": {
   "total": 503,
-  "done": 300,
-  "ok": 291,
-  "gaps": 9,
+  "done": 325,
+  "ok": 315,
+  "gaps": 10,
   "gap_fields": {
+   "ratio:roe": 4,
    "capex": 3,
-   "ratio:roe": 3,
    "shares_diluted": 3,
    "revenue": 2,
    "net_income": 2,
@@ -26,7 +26,8 @@
    "GEV",
    "HONA",
    "HPQ",
-   "L"
+   "L",
+   "MCD"
   ]
  },
  "results": [
@@ -6089,6 +6090,50 @@
    "secs": 6.3
   },
   {
+   "symbol": "MA",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [
+    "inventory"
+   ],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1646,
+    "zacks": 0.1766,
+    "yahoo": null
+   },
+   "secs": 4.9
+  },
+  {
+   "symbol": "MAA",
+   "ok": true,
+   "biz": "reit",
+   "missing": [],
+   "optional_missing": [
+    "receivables",
+    "inventory",
+    "ccc"
+   ],
+   "latest_date": "2026-03-31",
+   "provenance": [
+    "sec",
+    "stockanalysis",
+    "yahoo"
+   ],
+   "growth_sources": {
+    "finviz": -0.034,
+    "zacks": null,
+    "yahoo": null
+   },
+   "secs": 6.6
+  },
+  {
    "symbol": "MAR",
    "ok": true,
    "biz": "normal",
@@ -6106,6 +6151,247 @@
     "yahoo": null
    },
    "secs": 6.4
+  },
+  {
+   "symbol": "MAS",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.09480000000000001,
+    "zacks": 0.09570000000000001,
+    "yahoo": null
+   },
+   "secs": 6.1
+  },
+  {
+   "symbol": "MCD",
+   "ok": false,
+   "biz": "normal",
+   "missing": [
+    "ratio:roe"
+   ],
+   "optional_missing": [],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.0583,
+    "zacks": 0.0682,
+    "yahoo": null
+   },
+   "secs": 6.1
+  },
+  {
+   "symbol": "MCHP",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.4717,
+    "zacks": 0.4548,
+    "yahoo": null
+   },
+   "secs": 6.1
+  },
+  {
+   "symbol": "MCK",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1399,
+    "zacks": 0.1125,
+    "yahoo": null
+   },
+   "secs": 6.7
+  },
+  {
+   "symbol": "MCO",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [
+    "inventory"
+   ],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1152,
+    "zacks": 0.11560000000000001,
+    "yahoo": null
+   },
+   "secs": 6.5
+  },
+  {
+   "symbol": "MDLZ",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.0725,
+    "zacks": 0.08220000000000001,
+    "yahoo": null
+   },
+   "secs": 5.7
+  },
+  {
+   "symbol": "MDT",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-07-31",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.07719999999999999,
+    "zacks": 0.07150000000000001,
+    "yahoo": null
+   },
+   "secs": 11.7
+  },
+  {
+   "symbol": "MET",
+   "ok": true,
+   "biz": "insurance",
+   "missing": [],
+   "optional_missing": [
+    "gross_profit",
+    "inventory",
+    "payables",
+    "current_assets",
+    "current_liabilities"
+   ],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis",
+    "yahoo"
+   ],
+   "growth_sources": {
+    "finviz": 0.1211,
+    "zacks": 0.10679999999999999,
+    "yahoo": null
+   },
+   "secs": 6.2
+  },
+  {
+   "symbol": "META",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [
+    "inventory"
+   ],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.19440000000000002,
+    "zacks": 0.1986,
+    "yahoo": null
+   },
+   "secs": 9.3
+  },
+  {
+   "symbol": "MGM",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": -0.1905,
+    "zacks": 0.1,
+    "yahoo": null
+   },
+   "secs": 5.3
+  },
+  {
+   "symbol": "MKC",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-08-31",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.0512,
+    "zacks": 0.0766,
+    "yahoo": null
+   },
+   "secs": 6.5
+  },
+  {
+   "symbol": "MLM",
+   "ok": true,
+   "biz": "cyclical",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.14,
+    "zacks": 0.1184,
+    "yahoo": null
+   },
+   "secs": 4.7
   },
   {
    "symbol": "MMM",
@@ -6127,6 +6413,27 @@
    "secs": 7.9
   },
   {
+   "symbol": "MNST",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [
+    "dps"
+   ],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1277,
+    "zacks": 0.1368,
+    "yahoo": null
+   },
+   "secs": 5.6
+  },
+  {
    "symbol": "MO",
    "ok": true,
    "biz": "normal",
@@ -6144,6 +6451,27 @@
     "yahoo": null
    },
    "secs": 5.9
+  },
+  {
+   "symbol": "MOS",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [
+    "intangibles"
+   ],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": -0.0424,
+    "zacks": 0.1027,
+    "yahoo": null
+   },
+   "secs": 5.6
   },
   {
    "symbol": "MPC",
@@ -6165,6 +6493,70 @@
    "secs": 6.4
   },
   {
+   "symbol": "MPWR",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [
+    "interest_expense",
+    "lt_debt",
+    "st_debt"
+   ],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.4839,
+    "zacks": null,
+    "yahoo": null
+   },
+   "secs": 5.8
+  },
+  {
+   "symbol": "MRK",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.0346,
+    "zacks": 0.07719999999999999,
+    "yahoo": null
+   },
+   "secs": 9.2
+  },
+  {
+   "symbol": "MRNA",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [
+    "dps",
+    "st_debt"
+   ],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.26780000000000004,
+    "zacks": 0.2152,
+    "yahoo": null
+   },
+   "secs": 5.8
+  },
+  {
    "symbol": "MRSH",
    "ok": true,
    "biz": "insurance",
@@ -6184,6 +6576,89 @@
     "yahoo": null
    },
    "secs": 5.4
+  },
+  {
+   "symbol": "MRVL",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-08-01",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.6391,
+    "zacks": 0.11,
+    "yahoo": null
+   },
+   "secs": 5.7
+  },
+  {
+   "symbol": "MS",
+   "ok": true,
+   "biz": "asset_manager",
+   "missing": [],
+   "optional_missing": [
+    "gross_profit",
+    "receivables",
+    "inventory",
+    "current_assets",
+    "current_liabilities",
+    "debt_ebitda",
+    "ccc"
+   ],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1371,
+    "zacks": 0.1167,
+    "yahoo": null
+   },
+   "secs": 6.0
+  },
+  {
+   "symbol": "MSFT",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.19640000000000002,
+    "zacks": 0.1637,
+    "yahoo": null
+   },
+   "secs": 6.3
+  },
+  {
+   "symbol": "MSI",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-07-04",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1134,
+    "zacks": 0.10550000000000001,
+    "yahoo": null
+   },
+   "secs": 5.3
   },
   {
    "symbol": "MTB",
@@ -6212,6 +6687,46 @@
     "yahoo": null
    },
    "secs": 7.7
+  },
+  {
+   "symbol": "MTD",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [
+    "dps"
+   ],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1015,
+    "zacks": 0.1048,
+    "yahoo": null
+   },
+   "secs": 3.5
+  },
+  {
+   "symbol": "MU",
+   "ok": true,
+   "biz": "speculative",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-03",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.4236,
+    "zacks": 0.32630000000000003,
+    "yahoo": null
+   },
+   "secs": 6.2
   },
   {
    "symbol": "P",
