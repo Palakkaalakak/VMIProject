@@ -26,13 +26,31 @@ from vmi.data.models import Fundamentals, Point
 
 log = logging.getLogger("vmi.fundamentals")
 
-# Concepts the VMI pipeline needs, by kind. "annual" = ≥5y history required.
-REQUIRED_ANNUAL = ("revenue", "net_income", "cfo", "capex", "operating_income", "shares_diluted", "eps_diluted")
-REQUIRED_LATEST = ("cash", "equity", "total_assets")
-REQUIRED_RATIOS = ("roe",)
+# Inputs each VMI path needs, by business type (mirrors the Step 1/4/5 exceptions + valuation table).
+# "annual" ⇒ ≥5 fiscal years of history; "latest" ⇒ current balance-sheet value; "ratio" ⇒ ratio history.
+REQUIREMENTS: dict[str, dict[str, tuple[str, ...]]] = {
+    "normal": {"annual": ("revenue", "net_income", "cfo", "capex", "operating_income", "shares_diluted",
+                          "eps_diluted"),
+               "latest": ("cash", "equity", "total_assets"), "ratio": ("roe", "roic")},
+    "bank": {"annual": ("revenue", "net_income", "shares_diluted", "eps_diluted", "equity"),
+             "latest": ("equity", "total_assets"), "ratio": ("roe",), "extra": ("cet1",)},
+    "insurance": {"annual": ("revenue", "net_income", "shares_diluted", "eps_diluted", "equity"),
+                  "latest": ("equity", "total_assets"), "ratio": ("roe",)},
+    "asset_manager": {"annual": ("revenue", "net_income", "cfo", "shares_diluted", "eps_diluted"),
+                      "latest": ("cash", "equity", "total_assets"), "ratio": ("roe",)},
+    "reit": {"annual": ("revenue", "net_income", "cfo", "shares_diluted", "dps"),
+             "latest": ("equity", "total_assets"), "ratio": ("roe",)},
+    "utility": {"annual": ("revenue", "net_income", "cfo", "capex", "shares_diluted", "eps_diluted"),
+                "latest": ("cash", "equity", "total_assets"), "ratio": ("roe",)},
+    "cyclical": {"annual": ("revenue", "net_income", "cfo", "capex", "shares_diluted"),
+                 "latest": ("cash", "equity", "total_assets"), "ratio": ("roe",)},
+    "speculative": {"annual": ("revenue", "net_income", "cfo", "shares_diluted"),
+                    "latest": ("cash", "equity"), "ratio": ()},
+}
+REQUIRED_ANNUAL = REQUIREMENTS["normal"]["annual"]
 OPTIONAL = ("gross_profit", "interest_expense", "ebitda", "dps", "receivables", "inventory", "payables",
-            "current_assets", "current_liabilities", "lt_debt", "st_debt", "goodwill", "intangibles", "roic",
-            "current_ratio", "debt_ebitda")
+            "current_assets", "current_liabilities", "lt_debt", "st_debt", "goodwill", "intangibles",
+            "current_ratio", "debt_ebitda", "ccc")
 
 
 def _merge_series(primary: list[Point], secondary: list[Point]) -> list[Point]:
@@ -216,7 +234,7 @@ def _derive(f: Fundamentals) -> None:
 def resolve(ticker: str, force: bool = False, use_stockanalysis: bool = True,
             use_yahoo: bool = True) -> Fundamentals | None:
     """Merged, provenance-tagged fundamentals for one ticker (cached as a whole)."""
-    key = f"fund:merged:v2:{ticker.upper()}"
+    key = f"fund:merged:v3:{ticker.upper()}"
     cache = get_cache()
     if not force:
         hit = cache.get(key, get_settings().ttl_fundamentals)
@@ -256,22 +274,54 @@ def resolve(ticker: str, force: bool = False, use_stockanalysis: bool = True,
     if missing_core and use_yahoo:
         _fill(base, _yahoo_statements(ticker), "yahoo")
     _derive(base)
-    base.meta["completeness"] = completeness(base)
+    _enrich_meta(base)
+    base.meta["completeness"] = completeness(base, base.meta.get("biz", "normal"))
     cache.set(key, base.to_dict())
     return base
 
 
-def completeness(f: Fundamentals) -> dict:
+def _enrich_meta(f: Fundamentals) -> None:
+    """Classification + type-specific extras (bank CET1 from FDIC)."""
+    from vmi.analysis.classify import classify
+
+    if not f.sic and f.cik:
+        meta = sec.submissions_meta(f.cik)
+        f.sic, f.sic_description = meta.get("sic"), meta.get("sicDescription", "")
+    if not f.sector or not f.industry:
+        try:
+            from vmi.data.estimates import from_yahoo
+            y = from_yahoo(f.ticker)
+            f.sector, f.industry = f.sector or y.get("sector", ""), f.industry or y.get("industry", "")
+        except Exception:
+            pass
+    rev = f.series("revenue")
+    rg = (rev[-1] / rev[-2] - 1) if len(rev) >= 2 and rev[-2] > 0 else None
+    prof_years = sum(1 for v in f.series("net_income")[-5:] if v > 0)
+    biz = classify(f.sic, f.sic_description, f.sector, f.industry, rg, prof_years).value
+    f.meta["biz"] = biz
+    if biz == "bank":
+        from vmi.data import fdic
+        cap = fdic.capital_ratios(f.name or f.ticker)
+        if cap.get("cet1") is not None:
+            f.meta["cet1"] = cap["cet1"]
+            f.meta["cet1_source"] = f"FDIC {cap.get('bank')} {cap.get('report_date')}"
+
+
+def completeness(f: Fundamentals, biz: str = "normal", min_years: int = 5) -> dict:
+    req = REQUIREMENTS.get(biz, REQUIREMENTS["normal"])
     missing = []
-    for c in REQUIRED_ANNUAL:
+    for c in req.get("annual", ()):
         n = len(f.annual.get(c, []))
-        if n < 5:
+        if n < min_years:
             missing.append(f"{c} ({n}y)")
-    for c in REQUIRED_LATEST:
+    for c in req.get("latest", ()):
         if f.latest.get(c) is None:
             missing.append(c)
-    for c in REQUIRED_RATIOS:
+    for c in req.get("ratio", ()):
         if not f.ratios.get(c):
             missing.append(f"ratio:{c}")
+    for c in req.get("extra", ()):
+        if f.meta.get(c) is None:
+            missing.append(c)
     opt_missing = [c for c in OPTIONAL if not (f.annual.get(c) or f.latest.get(c) is not None or f.ratios.get(c))]
-    return {"ok": not missing, "missing": missing, "optional_missing": opt_missing}
+    return {"ok": not missing, "biz": biz, "missing": missing, "optional_missing": opt_missing}

@@ -32,7 +32,8 @@ class RateLimiter:
 
 _limiters: dict[str, RateLimiter] = {}
 _limiters_lock = threading.Lock()
-_DEFAULT_RPS = {"data.sec.gov": 8.0, "www.sec.gov": 8.0, "finviz.com": 1.5, "api.nasdaq.com": 2.0}
+_DEFAULT_RPS = {"data.sec.gov": 8.0, "www.sec.gov": 8.0, "finviz.com": 1.5, "api.nasdaq.com": 2.0,
+                "stockanalysis.com": 4.0, "www.zacks.com": 2.0, "api.fdic.gov": 4.0, "en.wikipedia.org": 2.0}
 
 _client: httpx.Client | None = None
 
