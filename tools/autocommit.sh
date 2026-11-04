@@ -5,6 +5,9 @@ REPO_DIR="${1:-/home/user/webapp}"
 INTERVAL="${2:-30}"
 LOG=/home/user/autocommit.log
 cd "$REPO_DIR" || exit 1
+# Singleton: a second copy exits immediately (flock on a lock file held for the process lifetime).
+exec 9>/home/user/.autocommit.lock
+flock -n 9 || { echo "autocommit already running"; exit 0; }
 while true; do
   # stale lock from a killed git process blocks every future commit — clear it if older than 60s
   if [ -f .git/index.lock ] && [ $(( $(date +%s) - $(stat -c %Y .git/index.lock) )) -gt 60 ]; then rm -f .git/index.lock; fi
