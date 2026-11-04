@@ -45,6 +45,20 @@ class ValuationReport:
         return d
 
 
+WC_DISTORTION = 0.5  # share of CFO coming from working-capital swings that marks cash flow as "distorted"
+
+
+def working_capital_share(f) -> float | None:
+    """(CFO − NI − D&A − SBC) / CFO: how much of operating cash flow is working-capital movement
+    (customer deposits, float, payables stretch) rather than earnings. Fintech/marketplace float
+    (e.g. MELI's Mercado Pago) makes CFO unrepresentative of earning power."""
+    cfo, ni = f.last("cfo"), f.last("net_income")
+    if not cfo or cfo <= 0 or ni is None:
+        return None
+    da, sbc = f.last("d_and_a") or 0.0, f.last("sbc") or 0.0
+    return (cfo - ni - da - sbc) / cfo
+
+
 def candidate_methods(ctx: ValuationContext, biz: BizType) -> tuple[list[str], str]:
     f = ctx.fund
     cfo_ok = consistent(f, "cfo", ctx.rules)
@@ -65,6 +79,11 @@ def candidate_methods(ctx: ValuationContext, biz: BizType) -> tuple[list[str], s
         return ["pb_distressed", "ps_mean", "psg"], "Loss-making → Price-to-Book (≤0.5× liquidation value)"
     if biz in (BizType.CYCLICAL, BizType.UTILITY) and not (cfo_ok and ni_ok):
         return ["ps_mean", "pb_distressed", "dcf_normalized"], "Cyclical with inconsistent profits → mean Price-to-Sales"
+    wc = working_capital_share(f)
+    if cfo_ok and ni_ok and wc is not None and wc > WC_DISTORTION:
+        return (["dni", "dcf_normalized", "dcf_fcf"],
+                f"{wc:.0%} of operating cash flow is working-capital/float, not earnings → Discounted Net "
+                "Income (cash flow distorted, as for finance-type businesses)")
     if cfo_ok:
         if capex_is_lumpy(f, ctx.rules):
             return (["dcf_normalized", "dcf_fcf", "dcf_cfo", "dni"],

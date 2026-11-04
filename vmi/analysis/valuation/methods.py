@@ -34,29 +34,69 @@ class ValuationContext:
     base_cf_override: float | None = None
     notes: list[str] = field(default_factory=list)
 
+    # ----- currency (Lesson 5 §6.1: statement currency vs share-price currency)
+    @property
+    def statement_currency(self) -> str:
+        y = (self.est.extra or {}).get("yahoo") or {}
+        return (y.get("financial_currency") or self.fund.currency or "USD").upper()
+
+    @property
+    def price_currency(self) -> str:
+        y = (self.est.extra or {}).get("yahoo") or {}
+        return (y.get("currency") or "USD").upper()
+
+    @property
+    def fx(self) -> float:
+        """Multiply statement-currency amounts by this to get price-currency amounts."""
+        if self.statement_currency == self.price_currency:
+            return 1.0
+        try:
+            from vmi.data.fx import rate
+            return rate(self.statement_currency, self.price_currency)
+        except Exception:
+            self.notes.append(f"FX {self.statement_currency}->{self.price_currency} unavailable; assumed 1.0")
+            return 1.0
+
+    def money(self, v: float | None) -> float | None:
+        return None if v is None else v * self.fx
+
     # ----- shared derived inputs (Lesson 5 §4.5)
     @property
     def debt(self) -> float:
         f = self.fund
-        return abs(f.latest.get("lt_debt", 0.0)) + abs(f.latest.get("st_debt", 0.0))
+        return self.fx * (abs(f.latest.get("lt_debt", 0.0)) + abs(f.latest.get("st_debt", 0.0)))
 
     @property
     def cash(self) -> float:
         f = self.fund
-        return f.latest.get("cash", 0.0) + f.latest.get("st_investments", 0.0)
+        return self.fx * (f.latest.get("cash", 0.0) + f.latest.get("st_investments", 0.0))
 
     @property
-    def shares(self) -> float | None:
+    def filing_shares(self) -> float | None:
         f = self.fund
-        dil = f.annual.get("shares_diluted")
-        so = f.latest.get("shares_outstanding")
-        # prefer latest-quarter diluted average if available
         q = f.quarterly.get("shares_diluted")
         if q:
             return q[-1].value
+        dil = f.annual.get("shares_diluted")
         if dil:
             return dil[-1].value
-        return so
+        return f.latest.get("shares_outstanding")
+
+    @property
+    def shares(self) -> float | None:
+        """Shares in *price units*. Normally the latest diluted count; when that disagrees with
+        market-cap ÷ price by >25% (ADR ratios, multiple share classes like BRK-B) the price-implied
+        count is used so that IV is per traded unit."""
+        filing = self.filing_shares
+        y = (self.est.extra or {}).get("yahoo") or {}
+        mcap = y.get("market_cap")
+        implied = mcap / self.price if mcap and self.price else None
+        if implied and (not filing or abs(filing / implied - 1) > 0.25):
+            if filing:
+                self.notes.append(f"share count {filing / 1e6:.0f}M ≠ price-implied {implied / 1e6:.0f}M "
+                                  "(ADR ratio / share classes) — using price-implied units")
+            return implied
+        return filing
 
     @property
     def beta(self) -> float | None:
@@ -67,13 +107,19 @@ class ValuationContext:
         return self.discount_override or discount_rate(self.beta, self.rules.valuation)
 
     @property
+    def growth_choice(self):
+        from vmi.analysis.valuation.growth import choose_growth
+        return choose_growth(self.est, self.fund, self.rules)
+
+    @property
     def growth(self) -> float | None:
         if self.growth_override is not None:
             return self.growth_override
-        return self.est.eps_growth_5y
+        return self.growth_choice.value
 
     def ttm(self, concept: str) -> float | None:
-        return self.fund.last(concept)
+        """Latest 12-month value converted to price currency."""
+        return self.money(self.fund.last(concept))
 
 
 def _dcf_family(ctx: ValuationContext, method: str, label: str, base: float | None,
@@ -94,8 +140,8 @@ def _dcf_family(ctx: ValuationContext, method: str, label: str, base: float | No
     rate, shares = ctx.rate, ctx.shares
     path = growth_path(g, g6_10=ctx.growth_6_10_override, g11_20=ctx.growth_11_20_override)
     base_iv = discounted_value(base, path, rate, ctx.debt, ctx.cash, shares, ctx.rules.valuation.horizon_years)
-    low = ctx.est.long_term_growth if ctx.est.long_term_growth is not None else g
-    low = min(low, g)
+    gc = ctx.growth_choice
+    low = min(gc.low if gc.low is not None else g, g)
     cons_path = growth_path(low, g6_10=min(low, ctx.rules.growth.cap_years_6_10) * 0.85)
     cons = discounted_value(base, cons_path, rate, ctx.debt, ctx.cash, shares)
     doom_path = growth_path(low, g6_10=low * ctx.rules.valuation.doomsday_growth_factor,
@@ -108,7 +154,8 @@ def _dcf_family(ctx: ValuationContext, method: str, label: str, base: float | No
     res.inputs = {"base_cash_flow": base, "base_desc": base_desc, "debt": ctx.debt, "cash": ctx.cash,
                   "shares": shares, "beta": ctx.beta, "discount_rate": rate, "growth_1_5": path.g1_5,
                   "growth_6_10": path.g6_10, "growth_11_20": path.g11_20,
-                  "growth_sources": ctx.est.sources, "currency": ctx.fund.currency}
+                  "growth_sources": ctx.est.sources, "growth_method": gc.method, "growth_notes": gc.notes,
+                  "statement_currency": ctx.statement_currency, "fx": ctx.fx, "notes": list(ctx.notes)}
     return res
 
 
@@ -157,7 +204,7 @@ def normalised_fcf(fund: Fundamentals, years: int = 5) -> float | None:
 def dcf_normalized(ctx: ValuationContext) -> ValuationResult:
     cfo_tr = series_trend(ctx.fund, "cfo", ctx.rules)
     reasons = [] if cfo_tr.consistent else [f"CFO not consistently increasing ({cfo_tr.reason})"]
-    base = normalised_fcf(ctx.fund, ctx.rules.valuation.capex_normalization_years)
+    base = ctx.money(normalised_fcf(ctx.fund, ctx.rules.valuation.capex_normalization_years))
     r = _dcf_family(ctx, "dcf_normalized", "DCF — Normalised capex (CFO − 5y avg capex)", base,
                     "normalised FCF", reasons)
     r.extra["capex_5y"] = capex_window(ctx.fund, ctx.rules.valuation.capex_normalization_years)
@@ -224,7 +271,7 @@ def tangible_book(fund: Fundamentals) -> float | None:
 def _pb_core(ctx: ValuationContext, method: str, label: str, tangible: bool) -> ValuationResult:
     res = ValuationResult(method, label, applicable=True)
     shares = ctx.shares
-    book = tangible_book(ctx.fund) if tangible else ctx.fund.latest.get("equity")
+    book = ctx.money(tangible_book(ctx.fund) if tangible else ctx.fund.latest.get("equity"))
     if not book or not shares or book <= 0:
         res.applicable = False
         res.reasons.append("book value not positive")
