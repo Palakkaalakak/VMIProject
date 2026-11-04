@@ -100,7 +100,7 @@ class ValuationRules:  # Lesson 5
     # Adam's published IVs (tests/fixtures/adam_reference.txt). Rationale: we lack FactSet; free
     # consensus runs higher on average, so a flat cut keeps us on the conservative side. Not fitted per
     # company. 0 disables it. See docs/CALIBRATION.md.
-    iv_haircut: float = 0.0
+    iv_haircut: float = 0.10
 
 
 @dataclass(frozen=True)
