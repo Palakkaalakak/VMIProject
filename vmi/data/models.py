@@ -35,6 +35,11 @@ class Fundamentals:
     latest_date: str = ""
     source: str = "sec"
     warnings: list[str] = field(default_factory=list)
+    # provider-computed ratio histories (roe, roic, current_ratio, debt_ebitda, pb, ps …), oldest→newest
+    ratios: dict[str, list[Point]] = field(default_factory=dict)
+    # concept -> provenance ("sec", "stockanalysis", "yahoo", "derived:<how>")
+    provenance: dict[str, str] = field(default_factory=dict)
+    meta: dict[str, Any] = field(default_factory=dict)
 
     def series(self, concept: str) -> list[float]:
         return [p.value for p in self.annual.get(concept, [])]
@@ -58,7 +63,9 @@ class Fundamentals:
         d = dict(d)
         d["annual"] = {k: [Point(**p) for p in v] for k, v in d.get("annual", {}).items()}
         d["quarterly"] = {k: [Point(**p) for p in v] for k, v in d.get("quarterly", {}).items()}
-        return cls(**d)
+        d["ratios"] = {k: [Point(**p) for p in v] for k, v in d.get("ratios", {}).items()}
+        known = set(cls.__dataclass_fields__)
+        return cls(**{k: v for k, v in d.items() if k in known})
 
 
 @dataclass
