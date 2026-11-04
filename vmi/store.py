@@ -1,0 +1,189 @@
+"""Persistence (SQLite via SQLAlchemy 2.0). Portfolios, positions, trades, watchlists, alerts,
+per-ticker valuation overrides and scan results. One module = one schema; business logic lives elsewhere.
+"""
+from __future__ import annotations
+
+import json
+from datetime import datetime, timezone
+from typing import Any
+
+from sqlalchemy import (JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint,
+                        create_engine, select)
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
+
+from vmi.config import get_settings
+
+
+def now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Portfolio(Base):
+    __tablename__ = "portfolios"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(80), unique=True)
+    style: Mapped[str] = mapped_column(String(30), default="balanced")   # growth|defensive|balanced|dividend|speculative
+    cash: Mapped[float] = mapped_column(Float, default=100_000.0)
+    starting_cash: Mapped[float] = mapped_column(Float, default=100_000.0)
+    target_positions: Mapped[int] = mapped_column(Integer, default=20)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    positions: Mapped[list["Position"]] = relationship(back_populates="portfolio", cascade="all, delete-orphan")
+    trades: Mapped[list["Trade"]] = relationship(back_populates="portfolio", cascade="all, delete-orphan")
+
+
+class Position(Base):
+    __tablename__ = "positions"
+    __table_args__ = (UniqueConstraint("portfolio_id", "key"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolios.id"))
+    key: Mapped[str] = mapped_column(String(80))            # "AAPL" or "AAPL 20261218 250 P"
+    symbol: Mapped[str] = mapped_column(String(20))
+    sec_type: Mapped[str] = mapped_column(String(5), default="STK")   # STK | OPT
+    expiry: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    strike: Mapped[float | None] = mapped_column(Float, nullable=True)
+    right: Mapped[str | None] = mapped_column(String(1), nullable=True)
+    multiplier: Mapped[int] = mapped_column(Integer, default=1)
+    qty: Mapped[float] = mapped_column(Float, default=0.0)          # negative = short (options)
+    avg_cost: Mapped[float] = mapped_column(Float, default=0.0)     # per share / per option share
+    realized_pnl: Mapped[float] = mapped_column(Float, default=0.0)
+    tranches_filled: Mapped[int] = mapped_column(Integer, default=0)
+    meta: Mapped[dict] = mapped_column(JSON, default=dict)          # category, IV at entry, plan …
+    portfolio: Mapped[Portfolio] = relationship(back_populates="positions")
+
+
+class Trade(Base):
+    __tablename__ = "trades"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolios.id"))
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    key: Mapped[str] = mapped_column(String(80))
+    symbol: Mapped[str] = mapped_column(String(20))
+    sec_type: Mapped[str] = mapped_column(String(5), default="STK")
+    side: Mapped[str] = mapped_column(String(4))                    # BUY | SELL
+    qty: Mapped[float] = mapped_column(Float)
+    price: Mapped[float] = mapped_column(Float)                     # fill price per share
+    mid: Mapped[float] = mapped_column(Float)
+    slippage: Mapped[float] = mapped_column(Float, default=0.0)     # $ total
+    liquidity: Mapped[str] = mapped_column(String(10), default="liquid")
+    multiplier: Mapped[int] = mapped_column(Integer, default=1)
+    note: Mapped[str] = mapped_column(Text, default="")
+    portfolio: Mapped[Portfolio] = relationship(back_populates="trades")
+
+
+class Watchlist(Base):
+    __tablename__ = "watchlists"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(80), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    items: Mapped[list["WatchItem"]] = relationship(back_populates="watchlist", cascade="all, delete-orphan")
+
+
+class WatchItem(Base):
+    __tablename__ = "watch_items"
+    __table_args__ = (UniqueConstraint("watchlist_id", "symbol"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    watchlist_id: Mapped[int] = mapped_column(ForeignKey("watchlists.id"))
+    symbol: Mapped[str] = mapped_column(String(20))
+    intrinsic_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    iv_source: Mapped[str] = mapped_column(String(20), default="manual")   # manual | auto
+    supports: Mapped[list] = mapped_column(JSON, default=list)             # buy levels, high → low
+    notes: Mapped[str] = mapped_column(Text, default="")
+    last_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    last_checked: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    triggered: Mapped[list] = mapped_column(JSON, default=list)            # levels already alerted
+    watchlist: Mapped[Watchlist] = relationship(back_populates="items")
+
+
+class Alert(Base):
+    __tablename__ = "alerts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    symbol: Mapped[str] = mapped_column(String(20))
+    kind: Mapped[str] = mapped_column(String(30))       # buy_level | below_iv | parabolic | exit_rule
+    message: Mapped[str] = mapped_column(Text)
+    price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    seen: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class Override(Base):
+    """Per-ticker human-in-the-loop valuation overrides (growth, method, biz type, moat, IV …)."""
+    __tablename__ = "overrides"
+    symbol: Mapped[str] = mapped_column(String(20), primary_key=True)
+    data: Mapped[dict] = mapped_column(JSON, default=dict)
+    note: Mapped[str] = mapped_column(Text, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class ScanRun(Base):
+    __tablename__ = "scan_runs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    universe: Mapped[str] = mapped_column(String(30))
+    params: Mapped[dict] = mapped_column(JSON, default=dict)
+    funnel: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(20), default="running")
+    results: Mapped[list] = mapped_column(JSON, default=list)
+
+
+_engine = None
+_Session: sessionmaker | None = None
+
+
+def engine():
+    global _engine, _Session
+    if _engine is None:
+        _engine = create_engine(get_settings().database_url, future=True,
+                                connect_args={"check_same_thread": False, "timeout": 30})
+        Base.metadata.create_all(_engine)
+        _Session = sessionmaker(_engine, expire_on_commit=False)
+    return _engine
+
+
+def session() -> Session:
+    engine()
+    assert _Session is not None
+    return _Session()
+
+
+# ------------------------------------------------------------------------------------- overrides
+def get_override(symbol: str) -> dict:
+    with session() as s:
+        o = s.get(Override, symbol.upper())
+        return dict(o.data) if o else {}
+
+
+def set_override(symbol: str, data: dict, note: str = "") -> dict:
+    clean = {k: v for k, v in data.items() if v not in (None, "")}
+    with session() as s:
+        o = s.get(Override, symbol.upper())
+        if o is None:
+            o = Override(symbol=symbol.upper(), data=clean, note=note)
+            s.add(o)
+        else:
+            o.data, o.note = clean, note or o.note
+        s.commit()
+        return dict(o.data)
+
+
+def all_overrides() -> dict[str, dict]:
+    with session() as s:
+        return {o.symbol: {"data": o.data, "note": o.note} for o in s.scalars(select(Override))}
+
+
+def add_alert(symbol: str, kind: str, message: str, price: float | None = None) -> None:
+    with session() as s:
+        s.add(Alert(symbol=symbol, kind=kind, message=message, price=price))
+        s.commit()
+
+
+def to_dict(obj: Any) -> dict:
+    out = {}
+    for c in obj.__table__.columns:
+        v = getattr(obj, c.name)
+        out[c.name] = v.isoformat() if isinstance(v, datetime) else v
+    return out
