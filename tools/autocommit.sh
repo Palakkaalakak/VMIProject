@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# Autocommit watchdog: commits + pushes every INTERVAL seconds.
-# If push fails (e.g. GitHub disconnected), keeps committing locally and retries push each cycle.
+# Autocommit watchdog: commits + pushes every INTERVAL seconds. Survives git lock files and push failures.
+# Keeps committing locally and retries push each cycle (e.g. while GitHub is disconnected).
 REPO_DIR="${1:-/home/user/webapp}"
-INTERVAL="${2:-45}"
+INTERVAL="${2:-30}"
+LOG=/home/user/autocommit.log
 cd "$REPO_DIR" || exit 1
 while true; do
-  if [ -n "$(git status --porcelain)" ]; then
-    git add -A >/dev/null 2>&1
-    git commit -q -m "autosave: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >/dev/null 2>&1
+  # stale lock from a killed git process blocks every future commit — clear it if older than 60s
+  if [ -f .git/index.lock ] && [ $(( $(date +%s) - $(stat -c %Y .git/index.lock) )) -gt 60 ]; then rm -f .git/index.lock; fi
+  if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+    git add -A >/dev/null 2>&1 && git commit -q -m "autosave: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >/dev/null 2>&1
   fi
-  if [ -n "$(git log origin/main..main --oneline 2>/dev/null)" ] || ! git rev-parse origin/main >/dev/null 2>&1; then
-    timeout 60 git push -q origin main >/dev/null 2>&1 || echo "$(date -u) push failed, will retry" >> /tmp/autocommit.log
+  if [ -n "$(git log origin/main..main --oneline 2>/dev/null)" ]; then
+    timeout 60 git push -q origin main >/dev/null 2>&1 || echo "$(date -u) push failed, will retry" >> "$LOG"
   fi
   sleep "$INTERVAL"
 done
