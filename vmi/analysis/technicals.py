@@ -232,6 +232,16 @@ def double_bottom(df: pd.DataFrame, rules: TechnicalRules = RULES.technical, loo
             "reclaim_date": str(reclaim.index[0].date()) if not reclaim.empty else None}
 
 
+def ten_year_uptrend(df: pd.DataFrame) -> bool | None:
+    """Lesson 6 §3.3 screening filter: one clear long-term uptrend on the 10-year monthly chart."""
+    monthly = resample(df.dropna(subset=["close"]), "ME")
+    if len(monthly) < 60:
+        return None
+    m = monthly["close"]
+    slope = np.polyfit(np.arange(len(m)), np.log(m.values), 1)[0]
+    return bool(slope > 0 and m.iloc[-1] / m.iloc[0] - 1 > 0.5)
+
+
 # ------------------------------------------------------------------------------------ main entry
 @dataclass
 class TechnicalReport:
@@ -263,13 +273,8 @@ def analyse(df: pd.DataFrame, intrinsic_value: float | None = None,
     td, tw, tm = trend_state(df, rules), trend_state(weekly, rules), trend_state(monthly, rules)
 
     # 10-year monthly filter (Lesson 6 §3.3): one clear long-term uptrend
-    ten_up, ten_ret = None, None
-    if len(monthly) >= 60:
-        m = monthly["close"]
-        ten_ret = float(m.iloc[-1] / m.iloc[0] - 1)
-        logp = np.log(m.values)
-        slope = np.polyfit(np.arange(len(logp)), logp, 1)[0]
-        ten_up = bool(slope > 0 and ten_ret > 0.5)
+    ten_up = ten_year_uptrend(df)
+    ten_ret = float(monthly["close"].iloc[-1] / monthly["close"].iloc[0] - 1) if len(monthly) >= 60 else None
 
     # MA personality on each timeframe (daily → SMAs only; weekly/monthly → EMAs too)
     dd, wd, md = add_mas(df, rules), add_mas(weekly, rules), add_mas(monthly, rules)

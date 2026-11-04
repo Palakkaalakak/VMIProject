@@ -56,7 +56,7 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
         raise ValueError(f"No fundamentals found for {ticker} from any source")
     est = get_estimates(ticker)
     price = market.last_price(ticker) or 0.0
-    hist = market.history(ticker, "10y") if with_technicals else None
+    hist = market.history(ticker, "10y")  # always: historical P/B, P/S valuations need it (cached)
 
     rev = f.series("revenue")
     rg = (rev[-1] / rev[-2] - 1) if len(rev) >= 2 and rev[-2] > 0 else None
@@ -64,9 +64,7 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
     biz = classify(f.sic, f.sic_description, est.sector or f.sector, est.industry or f.industry, rg, prof,
                    override=ov.get("biz_type"))
 
-    ten_up = None
-    if hist is not None and not hist.empty:
-        ten_up = T.analyse(hist).ten_year_uptrend
+    ten_up = T.ten_year_uptrend(hist) if hist is not None and not hist.empty else None
 
     s1 = S.step1_track_record(f, biz, rules)
     s2 = S.step2_growth(est, f, rules)
@@ -83,7 +81,7 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
     s6 = S.step6_price(price, iv, val.conservative_value)
 
     tech_dict = None
-    if hist is not None and not hist.empty:
+    if with_technicals and hist is not None and not hist.empty:
         tech = T.analyse(hist, intrinsic_value=iv)   # buy levels must sit below IV
         tech_dict = tech.to_dict()
         tech_dict.pop("levels", None)

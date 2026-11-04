@@ -95,8 +95,10 @@ def candidate_methods(ctx: ValuationContext, biz: BizType) -> tuple[list[str], s
                 + ("; CFO within 20% of NI so DCF-on-CFO also allowed" if cfo_close else ""))
     if ni_ok:
         return ["dni", "ps_mean"], "CFO inconsistent but net income consistent → Discounted Net Income"
-    return ["ps_mean", "pb_distressed"], ("Neither CFO nor net income consistent → fails Step 1 (do not buy); "
-                                          "mean P/S shown for reference only")
+    # Neither consistent: reference value only. Distressed P/B is reserved for genuinely loss-making
+    # companies (handled above) — never applied to a profitable business as a fallback.
+    return (["ps_mean", "dcf_fcf", "dni"],
+            "Neither CFO nor net income consistent → fails Step 1 (do not buy); mean P/S shown for reference")
 
 
 def value_company(ctx: ValuationContext, biz: BizType, force_method: str | None = None) -> ValuationReport:
