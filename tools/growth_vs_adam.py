@@ -38,7 +38,7 @@ def main() -> None:
     rows = []
     for t, a in adam.items():
         inp = inputs.get(t)
-        if not a["g"] or not inp:
+        if not a["g"] or not inp or inp.get("g") is None:
             continue
         r = {"ticker": t, "adam_g": a["g"], "our_g": round(inp["g"], 4), "g_diff_pp": round((inp["g"] - a["g"]) * 100, 1),
              "adam_iv": a["iv"], "our_iv": round(inp["our_iv_current"], 2) if inp.get("our_iv_current") else None,
