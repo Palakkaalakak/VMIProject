@@ -52,8 +52,10 @@ _TEXT_RULES: list[tuple[tuple[str, ...], BizType]] = [
     (("reit",), BizType.REIT),
     (("bank", "savings institution"), BizType.BANK),
     (("insurance",), BizType.INSURANCE),
-    (("asset management", "capital markets", "brokerage", "investment banking", "credit services",
-      "financial data & stock exchanges", "mortgage finance"), BizType.ASSET_MANAGER),
+    # NB: "Credit Services" (V, MA, AXP-style networks) and "Financial Data & Stock Exchanges" (SPGI, MCO)
+    # are deliberately NOT here — Adam values card networks / ratings agencies with DCF like normal companies.
+    (("asset management", "capital markets", "brokerage", "investment banking", "mortgage finance"),
+     BizType.ASSET_MANAGER),
     (("utilities", "utility"), BizType.UTILITY),
 ]
 

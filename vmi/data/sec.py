@@ -147,9 +147,18 @@ def _annual_flows(facts: list[dict]) -> dict[str, tuple[float, str, int | None]]
     return out
 
 
-def _quarterly_flows(facts: list[dict]) -> dict[str, float]:
-    """end-date → single-quarter value. Derives quarters from YTD cumulatives (cash-flow statements
-    are only reported YTD in 10-Qs) and Q4 = FY − 9M."""
+def _quarterly_flows(facts: list[dict], additive: bool = True) -> dict[str, float]:
+    """end-date → single-quarter value. For additive flows, derives quarters from YTD cumulatives
+    (cash-flow statements are only reported YTD in 10-Qs) and Q4 = FY − 9M. Non-additive values
+    (weighted-average shares, per-share amounts) only use directly reported ~3-month facts."""
+    if not additive:
+        direct: dict[str, tuple[float, str]] = {}
+        for f in facts:
+            if "start" in f and 80 <= _days(f["start"], f["end"]) <= 100:
+                prev = direct.get(f["end"])
+                if prev is None or f.get("filed", "") >= prev[1]:
+                    direct[f["end"]] = (float(f["val"]), f.get("filed", ""))
+        return {k: v[0] for k, v in direct.items()}
     by_start: dict[str, dict[str, tuple[float, str]]] = defaultdict(dict)
     for f in facts:
         if "start" not in f:
@@ -205,7 +214,8 @@ def _instants(facts: list[dict]) -> dict[str, float]:
     return {k: v[0] for k, v in out.items()}
 
 
-def _merge_aliases(raw: dict, tags: tuple[str, ...], units: tuple[str, ...], kind: str):
+def _merge_aliases(raw: dict, tags: tuple[str, ...], units: tuple[str, ...], kind: str,
+                   additive: bool = True):
     """Merge alias tags period-by-period (first alias with a value for that period wins)."""
     annual: dict[str, tuple[float, str, int | None]] = {}
     quarterly: dict[str, float] = {}
@@ -223,7 +233,7 @@ def _merge_aliases(raw: dict, tags: tuple[str, ...], units: tuple[str, ...], kin
         a = _annual_flows(facts)
         for k, v in a.items():
             annual.setdefault(k, v)
-        for k, v in _quarterly_flows(facts).items():
+        for k, v in _quarterly_flows(facts, additive).items():
             quarterly.setdefault(k, v)
         t = _ttm(facts, a)
         latest_end = max([f["end"] for f in facts if "start" in f] or [""])
@@ -267,7 +277,8 @@ def normalise(raw: dict, ticker: str) -> Fundamentals:
     for concepts, units, kind in groups:
         units = tuple(u.replace("USD", cur) for u in units)
         for name, tags in concepts.items():
-            annual, quarterly, instants, ttm_val = _merge_aliases(raw, tags, units, kind)
+            additive = concepts is FLOW_CONCEPTS
+            annual, quarterly, instants, ttm_val = _merge_aliases(raw, tags, units, kind, additive)
             if kind == "instant":
                 if instants:
                     end = max(instants)
@@ -340,7 +351,7 @@ def fundamentals(ticker: str, force: bool = False) -> Fundamentals | None:
     if cik is None:
         return None
     cache = get_cache()
-    key = f"sec:fund:v4:{cik}"
+    key = f"sec:fund:v5:{cik}"
     if not force:
         cached = cache.get(key, get_settings().ttl_fundamentals)
         if cached:
