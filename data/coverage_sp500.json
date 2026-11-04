@@ -1,9 +1,9 @@
 {
  "summary": {
   "total": 503,
-  "done": 275,
-  "ok": 267,
-  "gaps": 8,
+  "done": 300,
+  "ok": 291,
+  "gaps": 9,
   "gap_fields": {
    "capex": 3,
    "ratio:roe": 3,
@@ -14,7 +14,8 @@
    "beta": 2,
    "eps_diluted": 2,
    "cet1": 1,
-   "operating_income": 1
+   "operating_income": 1,
+   "growth estimate": 1
   },
   "gap_symbols": [
    "ABNB",
@@ -24,7 +25,8 @@
    "FDXF",
    "GEV",
    "HONA",
-   "HPQ"
+   "HPQ",
+   "L"
   ]
  },
  "results": [
@@ -5559,6 +5561,25 @@
    "secs": 5.4
   },
   {
+   "symbol": "KHC",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-06-27",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": -0.0641,
+    "zacks": 0.04,
+    "yahoo": null
+   },
+   "secs": 6.3
+  },
+  {
    "symbol": "KIM",
    "ok": true,
    "biz": "reit",
@@ -5585,6 +5606,51 @@
    "secs": 5.1
   },
   {
+   "symbol": "KKR",
+   "ok": true,
+   "biz": "asset_manager",
+   "missing": [],
+   "optional_missing": [
+    "gross_profit",
+    "receivables",
+    "inventory",
+    "current_assets",
+    "current_liabilities",
+    "debt_ebitda",
+    "ccc"
+   ],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1902,
+    "zacks": 0.17800000000000002,
+    "yahoo": null
+   },
+   "secs": 6.3
+  },
+  {
+   "symbol": "KLAC",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.3109,
+    "zacks": 0.21359999999999998,
+    "yahoo": null
+   },
+   "secs": 6.0
+  },
+  {
    "symbol": "KMB",
    "ok": true,
    "biz": "normal",
@@ -5599,6 +5665,25 @@
    "growth_sources": {
     "finviz": 0.0159,
     "zacks": 0.0271,
+    "yahoo": null
+   },
+   "secs": 5.7
+  },
+  {
+   "symbol": "KMI",
+   "ok": true,
+   "biz": "cyclical",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.0902,
+    "zacks": 0.09140000000000001,
     "yahoo": null
    },
    "secs": 5.7
@@ -5623,6 +5708,25 @@
    "secs": 5.0
   },
   {
+   "symbol": "KR",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-08-15",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.0658,
+    "zacks": 0.0684,
+    "yahoo": null
+   },
+   "secs": 6.8
+  },
+  {
    "symbol": "KVUE",
    "ok": true,
    "biz": "normal",
@@ -5637,6 +5741,207 @@
    "growth_sources": {
     "finviz": 0.0721,
     "zacks": null,
+    "yahoo": null
+   },
+   "secs": 6.2
+  },
+  {
+   "symbol": "L",
+   "ok": false,
+   "biz": "insurance",
+   "missing": [
+    "growth estimate"
+   ],
+   "optional_missing": [
+    "gross_profit",
+    "inventory",
+    "current_assets",
+    "current_liabilities",
+    "intangibles"
+   ],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis",
+    "yahoo"
+   ],
+   "growth_sources": {
+    "finviz": null,
+    "zacks": null,
+    "yahoo": null
+   },
+   "secs": 5.8
+  },
+  {
+   "symbol": "LDOS",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-10-02",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.0335,
+    "zacks": 0.0728,
+    "yahoo": null
+   },
+   "secs": 6.0
+  },
+  {
+   "symbol": "LEN",
+   "ok": true,
+   "biz": "cyclical",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-08-31",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": -0.08990000000000001,
+    "zacks": 0.0546,
+    "yahoo": null
+   },
+   "secs": 6.2
+  },
+  {
+   "symbol": "LH",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.0964,
+    "zacks": 0.09570000000000001,
+    "yahoo": null
+   },
+   "secs": 5.9
+  },
+  {
+   "symbol": "LHX",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-10-02",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1333,
+    "zacks": 0.1346,
+    "yahoo": null
+   },
+   "secs": 6.2
+  },
+  {
+   "symbol": "LII",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.0315,
+    "zacks": 0.08410000000000001,
+    "yahoo": null
+   },
+   "secs": 6.0
+  },
+  {
+   "symbol": "LIN",
+   "ok": true,
+   "biz": "cyclical",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.0933,
+    "zacks": 0.09449999999999999,
+    "yahoo": null
+   },
+   "secs": 5.6
+  },
+  {
+   "symbol": "LITE",
+   "ok": true,
+   "biz": "speculative",
+   "missing": [],
+   "optional_missing": [
+    "dps"
+   ],
+   "latest_date": "2026-09-26",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.841,
+    "zacks": null,
+    "yahoo": null
+   },
+   "secs": 6.2
+  },
+  {
+   "symbol": "LLY",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.3311,
+    "zacks": 0.22390000000000002,
+    "yahoo": null
+   },
+   "secs": 5.9
+  },
+  {
+   "symbol": "LMT",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-27",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1891,
+    "zacks": 0.1537,
     "yahoo": null
    },
    "secs": 6.2
@@ -5663,6 +5968,144 @@
     "yahoo": null
    },
    "secs": 5.9
+  },
+  {
+   "symbol": "LOW",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-07-31",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.0472,
+    "zacks": 0.0975,
+    "yahoo": null
+   },
+   "secs": 5.9
+  },
+  {
+   "symbol": "LRCX",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-27",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.3542,
+    "zacks": 0.2815,
+    "yahoo": null
+   },
+   "secs": 5.5
+  },
+  {
+   "symbol": "LULU",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [
+    "dps",
+    "lt_debt"
+   ],
+   "latest_date": "2026-08-02",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": -0.1364,
+    "zacks": 0.043899999999999995,
+    "yahoo": null
+   },
+   "secs": 5.9
+  },
+  {
+   "symbol": "LVS",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.0301,
+    "zacks": 0.15,
+    "yahoo": null
+   },
+   "secs": 5.2
+  },
+  {
+   "symbol": "LYB",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.5552,
+    "zacks": 0.4305,
+    "yahoo": null
+   },
+   "secs": 5.6
+  },
+  {
+   "symbol": "LYV",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [
+    "dps"
+   ],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": null,
+    "zacks": null,
+    "yahoo": null
+   },
+   "secs": 6.3
+  },
+  {
+   "symbol": "MAR",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.14150000000000001,
+    "zacks": 0.11199999999999999,
+    "yahoo": null
+   },
+   "secs": 6.4
   },
   {
    "symbol": "MMM",
@@ -5701,6 +6144,74 @@
     "yahoo": null
    },
    "secs": 5.9
+  },
+  {
+   "symbol": "MPC",
+   "ok": true,
+   "biz": "cyclical",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.4048,
+    "zacks": 0.5945,
+    "yahoo": null
+   },
+   "secs": 6.4
+  },
+  {
+   "symbol": "MRSH",
+   "ok": true,
+   "biz": "insurance",
+   "missing": [],
+   "optional_missing": [
+    "inventory"
+   ],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.0888,
+    "zacks": 0.0706,
+    "yahoo": null
+   },
+   "secs": 5.4
+  },
+  {
+   "symbol": "MTB",
+   "ok": true,
+   "biz": "bank",
+   "missing": [],
+   "optional_missing": [
+    "gross_profit",
+    "ebitda",
+    "inventory",
+    "current_assets",
+    "current_liabilities",
+    "current_ratio",
+    "debt_ebitda"
+   ],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis",
+    "yahoo"
+   ],
+   "growth_sources": {
+    "finviz": 0.1117,
+    "zacks": 0.0888,
+    "yahoo": null
+   },
+   "secs": 7.7
   },
   {
    "symbol": "P",
