@@ -20,7 +20,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 
 from vmi.config import get_settings
-from vmi.data import sec, stockanalysis
+from vmi.data import ib_fundamentals, sec, stockanalysis
 from vmi.data.cache import get_cache
 from vmi.data.models import Fundamentals, Point
 
@@ -163,6 +163,50 @@ def _fill(target: Fundamentals, donor: Fundamentals | None, tag: str) -> None:
         target.latest_date = donor.latest_date
 
 
+TTM_FLOWS = ("revenue", "net_income", "cfo", "capex", "operating_income", "interest_expense", "d_and_a",
+             "gross_profit", "cost_of_revenue", "dividends_paid", "buybacks", "sbc", "ebitda")
+
+
+def _sum_last4(q: list[Point]) -> float | None:
+    """Sum of the last four single quarters if they are contiguous (~1 year span)."""
+    if len(q) < 4:
+        return None
+    last4 = q[-4:]
+    span = _d(last4[-1].end) - _d(last4[0].end)
+    return sum(p.value for p in last4) if 250 <= span <= 300 else None
+
+
+def reconcile_ttm(f: Fundamentals, donors: list[Fundamentals | None]) -> None:
+    """Pick a robust TTM per flow from all candidates (own TTM, donor TTMs, Σ last 4 quarters): the
+    candidate closest to the median wins. Fixes XBRL YTD-pairing errors (e.g. SPGI CFO TTM 2.4B vs 5.8B)."""
+    for c in TTM_FLOWS:
+        cands: list[tuple[str, float]] = []
+        if c in f.ttm:
+            cands.append(("own", f.ttm[c]))
+        s4 = _sum_last4(f.quarterly.get(c, []))
+        if s4 is not None:
+            cands.append(("q4", s4))
+        for d in donors:
+            if d is None:
+                continue
+            if c in d.ttm:
+                cands.append((d.source, d.ttm[c]))
+            s4d = _sum_last4(d.quarterly.get(c, []))
+            if s4d is not None:
+                cands.append((d.source + ":q4", s4d))
+        if not cands:
+            continue
+        vals = sorted(v for _, v in cands)
+        n = len(vals)
+        med = vals[n // 2] if n % 2 else (vals[n // 2 - 1] + vals[n // 2]) / 2
+        best = min(cands, key=lambda kv: abs(kv[1] - med))
+        if c not in f.ttm or abs(f.ttm[c] - best[1]) > 0.03 * max(1.0, abs(best[1])):
+            f.provenance[f"ttm:{c}"] = f"reconciled:{best[0]}"
+        f.ttm[c] = best[1]
+    if "cfo" in f.ttm:
+        f.ttm["fcf"] = f.ttm["cfo"] - abs(f.ttm.get("capex", 0.0))
+
+
 def _derive(f: Fundamentals) -> None:
     """Fill computable concepts and ratio histories (ROE, ROIC, current ratio, Debt/EBITDA, CCC)."""
     A = {c: {p.end: p.value for p in pts} for c, pts in f.annual.items()}
@@ -234,17 +278,24 @@ def _derive(f: Fundamentals) -> None:
 def resolve(ticker: str, force: bool = False, use_stockanalysis: bool = True,
             use_yahoo: bool = True) -> Fundamentals | None:
     """Merged, provenance-tagged fundamentals for one ticker (cached as a whole)."""
-    key = f"fund:merged:v3:{ticker.upper()}"
+    key = f"fund:merged:v5:{ticker.upper()}"
     cache = get_cache()
     if not force:
         hit = cache.get(key, get_settings().ttl_fundamentals)
         if hit:
             return Fundamentals.from_dict(hit)
     with ThreadPoolExecutor(max_workers=3) as ex:
+        f_ib = ex.submit(ib_fundamentals.fundamentals, ticker)
         f_sec = ex.submit(sec.fundamentals, ticker)
         f_sa = ex.submit(stockanalysis.fundamentals, ticker) if use_stockanalysis else None
+        ib = f_ib.result()
         base = f_sec.result()
         sa = f_sa.result() if f_sa else None
+    if ib is not None:  # IB (Refinitiv/LSEG) first when it answers; SEC + stockanalysis fill gaps
+        if base is not None:
+            ib.cik, ib.name, ib.sic, ib.sic_description = base.cik, base.name, base.sic, base.sic_description
+            _fill(ib, base, "sec")
+        base = ib
     if base is None:
         base = sa or (_yahoo_statements(ticker) if use_yahoo else None)
         if base is None:
@@ -273,6 +324,7 @@ def resolve(ticker: str, force: bool = False, use_stockanalysis: bool = True,
     missing_core = [c for c in REQUIRED_ANNUAL if len(base.annual.get(c, [])) < 3]
     if missing_core and use_yahoo:
         _fill(base, _yahoo_statements(ticker), "yahoo")
+    reconcile_ttm(base, [sa])
     _derive(base)
     _enrich_meta(base)
     base.meta["completeness"] = completeness(base, base.meta.get("biz", "normal"))

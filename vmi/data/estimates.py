@@ -184,7 +184,37 @@ def from_yahoo(ticker: str) -> dict:
         return {}
 
 
-SOURCES: dict[str, Callable[[str], dict]] = {"finviz": from_finviz, "zacks": from_zacks, "yahoo": from_yahoo}
+def from_ib(ticker: str) -> dict:
+    from vmi.data import ib_fundamentals
+
+    try:
+        return ib_fundamentals.estimates(ticker)
+    except Exception:
+        return {}
+
+
+def from_stockanalysis(ticker: str) -> dict:
+    """Next-year EPS / revenue growth implied by stockanalysis' analyst forecast arrays."""
+    from vmi.data import stockanalysis
+
+    out: dict = {}
+    try:
+        fc = stockanalysis.forecast(ticker)
+        f = stockanalysis.fundamentals(ticker)
+    except Exception:
+        return out
+    eps, rev = fc.get("eps") or [], fc.get("revenue") or []
+    n_eps = len(f.annual.get("eps_diluted", [])) if f else 0
+    n_rev = len(f.annual.get("revenue", [])) if f else 0
+    if n_eps and len(eps) > n_eps and eps[n_eps - 1] and eps[n_eps - 1] > 0 and eps[n_eps] > 0:
+        out["eps_growth_next_year"] = eps[n_eps] / eps[n_eps - 1] - 1
+    if n_rev and len(rev) > n_rev and rev[n_rev - 1]:
+        out["revenue_growth_next_year"] = rev[n_rev] / rev[n_rev - 1] - 1
+    return out
+
+
+SOURCES: dict[str, Callable[[str], dict]] = {"ib": from_ib, "finviz": from_finviz, "zacks": from_zacks,
+                                             "yahoo": from_yahoo, "stockanalysis": from_stockanalysis}
 
 
 def _blend(values: list[float | None]) -> float | None:
@@ -199,9 +229,11 @@ def _first(*vals):
     return None
 
 
-def get_estimates(ticker: str, sources: tuple[str, ...] = ("finviz", "zacks", "yahoo")) -> Estimates:
+def get_estimates(ticker: str,
+                  sources: tuple[str, ...] = ("ib", "finviz", "zacks", "yahoo", "stockanalysis")) -> Estimates:
     data = {name: (SOURCES[name](ticker) or {}) for name in sources if name in SOURCES}
     fv, zk, yh = data.get("finviz", {}), data.get("zacks", {}), data.get("yahoo", {})
+    ibd, sad = data.get("ib", {}), data.get("stockanalysis", {})
     est = Estimates(ticker=ticker.upper())
     est.sources = {n: {"eps_growth_5y": d.get("eps_growth_5y"),
                        "eps_growth_next_year": d.get("eps_growth_next_year")} for n, d in data.items()}
@@ -209,8 +241,8 @@ def get_estimates(ticker: str, sources: tuple[str, ...] = ("finviz", "zacks", "y
     est.eps_growth_next_year = _blend([d.get("eps_growth_next_year") for d in data.values()])
     lows = [d.get("eps_growth_5y") for d in data.values() if d.get("eps_growth_5y") is not None]
     est.long_term_growth = min(lows) if lows else None  # conservative case = lowest of the sources
-    est.revenue_growth_next_year = yh.get("revenue_growth_next_year")
-    est.beta = _first(yh.get("beta"), fv.get("beta"))
+    est.revenue_growth_next_year = _first(yh.get("revenue_growth_next_year"), sad.get("revenue_growth_next_year"))
+    est.beta = _first(ibd.get("beta"), yh.get("beta"), fv.get("beta"))
     est.pe = _first(fv.get("pe"), yh.get("pe"))
     est.forward_pe = _first(fv.get("forward_pe"), yh.get("forward_pe"))
     est.peg = _first(fv.get("peg"), yh.get("peg"))
