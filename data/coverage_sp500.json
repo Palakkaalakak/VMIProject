@@ -1,11 +1,11 @@
 {
  "summary": {
   "total": 503,
-  "done": 475,
-  "ok": 455,
-  "gaps": 20,
+  "done": 503,
+  "ok": 482,
+  "gaps": 21,
   "gap_fields": {
-   "ratio:roe": 8,
+   "ratio:roe": 9,
    "shares_diluted": 7,
    "eps_diluted": 5,
    "capex": 4,
@@ -37,7 +37,8 @@
    "TDG",
    "TKO",
    "USB",
-   "VRSN"
+   "VRSN",
+   "YUM"
   ]
  },
  "results": [
@@ -2939,6 +2940,25 @@
    "secs": 6.1
   },
   {
+   "symbol": "DIS",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-06-27",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1265,
+    "zacks": 0.1157,
+    "yahoo": null
+   },
+   "secs": 38.3
+  },
+  {
    "symbol": "DLR",
    "ok": true,
    "biz": "reit",
@@ -4586,6 +4606,25 @@
     "yahoo": null
    },
    "secs": 7.3
+  },
+  {
+   "symbol": "GWW",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.12359999999999999,
+    "zacks": 0.1219,
+    "yahoo": null
+   },
+   "secs": 50.7
   },
   {
    "symbol": "HAL",
@@ -9790,6 +9829,27 @@
    "secs": 41.0
   },
   {
+   "symbol": "V",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [
+    "inventory"
+   ],
+   "latest_date": "2026-03-31",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1356,
+    "zacks": 0.1561,
+    "yahoo": null
+   },
+   "secs": 31.3
+  },
+  {
    "symbol": "VEEV",
    "ok": true,
    "biz": "normal",
@@ -9877,6 +9937,25 @@
     "yahoo": null
    },
    "secs": 16.7
+  },
+  {
+   "symbol": "VMC",
+   "ok": true,
+   "biz": "cyclical",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1292,
+    "zacks": 0.10890000000000001,
+    "yahoo": null
+   },
+   "secs": 18.6
   },
   {
    "symbol": "VMRK",
@@ -9991,6 +10070,27 @@
    "secs": 11.5
   },
   {
+   "symbol": "VST",
+   "ok": true,
+   "biz": "utility",
+   "missing": [],
+   "optional_missing": [
+    "gross_profit"
+   ],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.7303000000000001,
+    "zacks": null,
+    "yahoo": null
+   },
+   "secs": 36.9
+  },
+  {
    "symbol": "VTR",
    "ok": true,
    "biz": "reit",
@@ -10032,6 +10132,24 @@
    "secs": 29.5
   },
   {
+   "symbol": "VYLR",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2025-12-31",
+   "provenance": [
+    "derived",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": null,
+    "zacks": null,
+    "yahoo": null
+   },
+   "secs": 36.3
+  },
+  {
    "symbol": "VZ",
    "ok": true,
    "biz": "normal",
@@ -10049,6 +10167,364 @@
     "yahoo": null
    },
    "secs": 29.5
+  },
+  {
+   "symbol": "WAB",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1664,
+    "zacks": 0.16269999999999998,
+    "yahoo": null
+   },
+   "secs": 12.2
+  },
+  {
+   "symbol": "WAT",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [
+    "dps"
+   ],
+   "latest_date": "2026-07-04",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.12240000000000001,
+    "zacks": 0.11800000000000001,
+    "yahoo": null
+   },
+   "secs": 12.3
+  },
+  {
+   "symbol": "WDAY",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [
+    "dps",
+    "inventory"
+   ],
+   "latest_date": "2026-07-31",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1895,
+    "zacks": 0.18710000000000002,
+    "yahoo": null
+   },
+   "secs": 11.7
+  },
+  {
+   "symbol": "WDC",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-10-02",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.742,
+    "zacks": 0.12,
+    "yahoo": null
+   },
+   "secs": 31.0
+  },
+  {
+   "symbol": "WEC",
+   "ok": true,
+   "biz": "utility",
+   "missing": [],
+   "optional_missing": [
+    "inventory"
+   ],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.07519999999999999,
+    "zacks": 0.0866,
+    "yahoo": null
+   },
+   "secs": 11.2
+  },
+  {
+   "symbol": "WELL",
+   "ok": true,
+   "biz": "reit",
+   "missing": [],
+   "optional_missing": [
+    "inventory"
+   ],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis",
+    "yahoo"
+   ],
+   "growth_sources": {
+    "finviz": 0.42479999999999996,
+    "zacks": 0.3206,
+    "yahoo": null
+   },
+   "secs": 21.5
+  },
+  {
+   "symbol": "WFC",
+   "ok": true,
+   "biz": "bank",
+   "missing": [],
+   "optional_missing": [
+    "gross_profit",
+    "ebitda",
+    "inventory",
+    "payables",
+    "current_assets",
+    "current_liabilities",
+    "current_ratio",
+    "debt_ebitda"
+   ],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis",
+    "yahoo"
+   ],
+   "growth_sources": {
+    "finviz": 0.13369999999999999,
+    "zacks": 0.1282,
+    "yahoo": null
+   },
+   "secs": 32.7
+  },
+  {
+   "symbol": "WM",
+   "ok": true,
+   "biz": "utility",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.0924,
+    "zacks": 0.09570000000000001,
+    "yahoo": null
+   },
+   "secs": 9.8
+  },
+  {
+   "symbol": "WMB",
+   "ok": true,
+   "biz": "cyclical",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.135,
+    "zacks": 0.19649999999999998,
+    "yahoo": null
+   },
+   "secs": 43.9
+  },
+  {
+   "symbol": "WMT",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-07-31",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1109,
+    "zacks": 0.09630000000000001,
+    "yahoo": null
+   },
+   "secs": 15.3
+  },
+  {
+   "symbol": "WRB",
+   "ok": true,
+   "biz": "insurance",
+   "missing": [],
+   "optional_missing": [
+    "gross_profit",
+    "inventory",
+    "current_assets",
+    "current_liabilities"
+   ],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis",
+    "yahoo"
+   ],
+   "growth_sources": {
+    "finviz": 0.0552,
+    "zacks": 0.0791,
+    "yahoo": null
+   },
+   "secs": 18.0
+  },
+  {
+   "symbol": "WSM",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [
+    "intangibles"
+   ],
+   "latest_date": "2026-08-02",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1056,
+    "zacks": 0.0971,
+    "yahoo": null
+   },
+   "secs": 10.7
+  },
+  {
+   "symbol": "WST",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1769,
+    "zacks": 0.1741,
+    "yahoo": null
+   },
+   "secs": 10.4
+  },
+  {
+   "symbol": "WTW",
+   "ok": true,
+   "biz": "insurance",
+   "missing": [],
+   "optional_missing": [
+    "inventory"
+   ],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.16760000000000003,
+    "zacks": 0.1745,
+    "yahoo": null
+   },
+   "secs": 41.8
+  },
+  {
+   "symbol": "WY",
+   "ok": true,
+   "biz": "reit",
+   "missing": [],
+   "optional_missing": [
+    "intangibles"
+   ],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.5454,
+    "zacks": 0.3018,
+    "yahoo": null
+   },
+   "secs": 21.1
+  },
+  {
+   "symbol": "WYNN",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.08539999999999999,
+    "zacks": 0.19510000000000002,
+    "yahoo": null
+   },
+   "secs": 16.1
+  },
+  {
+   "symbol": "XEL",
+   "ok": true,
+   "biz": "utility",
+   "missing": [],
+   "optional_missing": [
+    "goodwill",
+    "intangibles"
+   ],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1003,
+    "zacks": 0.0747,
+    "yahoo": null
+   },
+   "secs": 18.7
   },
   {
    "symbol": "XOM",
@@ -10073,6 +10549,25 @@
    "secs": 5.7
   },
   {
+   "symbol": "XYL",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-09-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.0849,
+    "zacks": 0.11,
+    "yahoo": null
+   },
+   "secs": 15.0
+  },
+  {
    "symbol": "XYZ",
    "ok": true,
    "biz": "normal",
@@ -10092,6 +10587,86 @@
     "yahoo": null
    },
    "secs": 6.6
+  },
+  {
+   "symbol": "YUM",
+   "ok": false,
+   "biz": "normal",
+   "missing": [
+    "ratio:roe"
+   ],
+   "optional_missing": [],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.08960000000000001,
+    "zacks": 0.09820000000000001,
+    "yahoo": null
+   },
+   "secs": 4.1
+  },
+  {
+   "symbol": "ZBH",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.0579,
+    "zacks": 0.0487,
+    "yahoo": null
+   },
+   "secs": 4.2
+  },
+  {
+   "symbol": "ZBRA",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [
+    "dps"
+   ],
+   "latest_date": "2026-10-03",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.1532,
+    "zacks": null,
+    "yahoo": null
+   },
+   "secs": 3.8
+  },
+  {
+   "symbol": "ZTS",
+   "ok": true,
+   "biz": "normal",
+   "missing": [],
+   "optional_missing": [],
+   "latest_date": "2026-06-30",
+   "provenance": [
+    "derived",
+    "sec",
+    "stockanalysis"
+   ],
+   "growth_sources": {
+    "finviz": 0.0181,
+    "zacks": 0.11,
+    "yahoo": null
+   },
+   "secs": 3.6
   }
  ]
 }
