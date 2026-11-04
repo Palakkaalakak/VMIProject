@@ -51,7 +51,7 @@ async function detail(box, id) {
     </section>
     <section class="card"><h3>Positions</h3><div id="pf-pos"></div></section>
     <section class="card"><h3>Trades</h3><div id="pf-trades"></div></section>`;
-  $("#pf-pos", box).appendChild(table(POS_COLS(id, () => detail(box, id)), p.positions || [], { empty: "No positions — analyse a stock and buy a tranche.", initialSort: { key: "market_value" } }));
+  $("#pf-pos", box).appendChild(table(POS_COLS, p.positions || [], { actions: posActions(id, () => detail(box, id)), empty: "No positions — analyse a stock and buy a tranche.", initialSort: { key: "market_value" } }));
   $("#pf-trades", box).appendChild(table(TRADE_COLS, trades || [], { empty: "No trades yet", initialSort: { key: "ts" } }));
   $("#pf-reset", box).addEventListener("click", (e) => confirm(`Reset ${p.name} to ${fmt.money(p.starting_cash, 0)}? All positions and trades are deleted.`) &&
     run(e.target, async () => { await api.resetPortfolio(id); detail(box, id); }));
@@ -61,7 +61,7 @@ async function detail(box, id) {
 
 const label = (r) => (r.sec_type === "OPT" ? `${r.symbol} ${fmt.expiry(r.expiry)} ${r.strike}${r.right}` : r.symbol);
 
-const POS_COLS = (pid, refresh) => [
+const POS_COLS = [
   { key: "symbol", label: "Position", render: (r) => `<a href="#/analysis/${esc(r.symbol)}"><b>${esc(label(r))}</b></a>` },
   { key: "qty", label: "Qty", cls: "num", render: (r) => fmt.num(r.qty, 4) },
   { key: "avg_cost", label: "Avg cost", cls: "num", render: (r) => fmt.money(r.avg_cost) },
@@ -71,14 +71,16 @@ const POS_COLS = (pid, refresh) => [
   { key: "return_pct", label: "Return", cls: "num", render: (r) => `<span class="${signClass(r.return_pct)}">${fmt.pct(r.return_pct)}</span>` },
   { key: "weight", label: "Weight", cls: "num", render: (r) => fmt.pct(r.weight) },
   { key: "tranches_filled", label: "Tranches", cls: "num" },
-  { key: "_act", label: "", render: (r) => r.sec_type === "STK" ? `<button class="small secondary" data-close="${esc(r.symbol)}">Sell all</button>` : "" },
-].map((c) => c.key !== "_act" ? c : { ...c, render: (r) => {
-  queueMicrotask(() => document.querySelectorAll(`[data-close="${r.symbol}"]`).forEach((b) => (b.onclick = () => run(b, async () => {
+  { key: "_act", label: "", render: (r) => r.sec_type === "STK" ? `<button class="small secondary" data-action="sellAll">Sell all</button>` : "" },
+];
+
+const posActions = (pid, refresh) => ({
+  sellAll: (r, btn) => run(btn, async () => {
     const res = await api.stockOrder(pid, { symbol: r.symbol, side: "SELL", qty: r.qty });
-    toast(`Sold ${fmt.num(r.qty, 4)} ${r.symbol} @ ${fmt.money(res.trade.price)}`, "ok"); refresh();
-  }))));
-  return r.sec_type === "STK" ? `<button class="small secondary" data-close="${esc(r.symbol)}">Sell all</button>` : "";
-} });
+    toast(`Sold ${fmt.num(r.qty, 4)} ${r.symbol} @ ${fmt.money(res.trade.price)}`, "ok");
+    refresh();
+  }),
+});
 
 const TRADE_COLS = [
   { key: "ts", label: "Time", render: (r) => esc(String(r.ts).replace("T", " ").slice(0, 19)) },

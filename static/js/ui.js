@@ -43,8 +43,10 @@ export const loading = (text = "Loading…") => `<div class="loading"><span clas
 /**
  * Sortable table. columns: [{key, label, render?(row) -> html, sort?(row) -> value, cls?}]
  * Returns an element; clicking headers re-sorts client-side (stable, nulls last).
+ * Row buttons: render `<button data-action="name">` in a cell and pass actions: {name: (row, btn) => …};
+ * clicks are delegated, so cells stay pure HTML strings.
  */
-export function table(columns, rows, { onRow, empty = "No data", initialSort } = {}) {
+export function table(columns, rows, { onRow, actions = {}, empty = "No data", initialSort } = {}) {
   const wrap = document.createElement("div");
   wrap.className = "table-wrap";
   let sortKey = initialSort?.key, desc = initialSort?.desc ?? true;
@@ -64,11 +66,15 @@ export function table(columns, rows, { onRow, empty = "No data", initialSort } =
     $$("th", wrap).forEach((th) => th.addEventListener("click", () => {
       const k = th.dataset.k; desc = sortKey === k ? !desc : true; sortKey = k; draw();
     }));
-    if (onRow) $$("tbody tr[data-i]", wrap).forEach((tr) => tr.addEventListener("click", (ev) => {
-      if (ev.target.closest("button, a, input, select")) return;
-      onRow(rows[+tr.dataset.i]);
-    }));
   };
+  wrap.addEventListener("click", (ev) => {
+    const tr = ev.target.closest("tbody tr[data-i]");
+    if (!tr) return;
+    const row = rows[+tr.dataset.i];
+    const btn = ev.target.closest("[data-action]");
+    if (btn && actions[btn.dataset.action]) return actions[btn.dataset.action](row, btn);
+    if (onRow && !ev.target.closest("button, a, input, select")) onRow(row);
+  });
   draw();
   return wrap;
 }
