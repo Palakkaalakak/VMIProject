@@ -60,7 +60,7 @@ async function detail(box, id) {
     });
   });
   $("#wl-import", box).addEventListener("click", () => importDialog(id, refresh));
-  $("#wl-check", box).addEventListener("click", (e) => run(e.target, async () => { const r = await api.checkAlerts(); toast(`Checked — ${r?.new_alerts ?? 0} new alert(s)`, "ok"); refresh(); }));
+  $("#wl-check", box).addEventListener("click", (e) => run(e.target, async () => { const r = await api.checkAlerts(); toast(`Checked — ${Array.isArray(r) ? r.length : 0} new alert(s)`, "ok"); refresh(); }));
   $("#wl-scan", box).addEventListener("click", (e) => run(e.target, async () => { await api.scanWatchlist(id); location.hash = "#/scanner"; }));
   $("#wl-del", box).addEventListener("click", (e) => confirm(`Delete ${w.name}?`) && run(e.target, async () => { await api.deleteWatchlist(id); location.hash = "#/watchlists"; }));
 }
