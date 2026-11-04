@@ -29,16 +29,17 @@ Settings come from environment variables or `.env` with the `VMI_` prefix (see `
 | 7-step analysis (track record, growth, moat, profitability, debt, price, entry) | ✅ | `vmi/analysis/steps.py`, `pipeline.py` |
 | Valuation auto-selection: DCF FCF / normalised capex / CFO, DNI, P/B (banks, distressed), P/NAV, P/S, PSG | ✅ | `vmi/analysis/valuation/` |
 | Adam's cash-flow normalisation (TTM jump → prior FY, plunge → average) | ✅ | `methods.steady_base` |
+| Split-adjusted per-share history · single reporting currency for 20-F filers | ✅ | `data/splits.py`, `data/sec.py` |
 | Negative equity from buybacks (MCD, AZO, YUM…) — doc §3.5 / §5.1 | ✅ | `vmi/analysis/negative_equity.py` |
 | Technicals: trend states, MAs, swing levels, 10-year uptrend, tranche buy levels | ✅ | `vmi/analysis/technicals.py` |
-| Superscanner (cheap/broad filters first → deep 7-step) | ✅ (needs full end-to-end run) | `vmi/scanner/funnel.py` |
+| Superscanner (cheap/broad filters first → deep 7-step; judged tickers pinned) | ✅ (list run verified; full-market run pending) | `vmi/scanner/funnel.py` |
 | Paper trading: mid + flat slippage, illiquid debuff, tranches, multi-portfolio, CSP/CC, assignment | ✅ | `vmi/paper/` |
 | Watchlists: import (Adam pipe / CSV / TradingView), auto-fill IV + levels, 60s alerts | ✅ | `vmi/watchlist/service.py` |
 | Options chain (IB → Yahoo, rows never disappear), VMI CSP/CC suggestions | ✅ | `vmi/options/chain.py` |
 | Web UI (analysis, scanner, watchlists, portfolios, options, alerts) | ✅ | `static/` |
 | Human judgement overrides (TMO, ASML, AVGO, VEEV, ACGL, PLTR) | ✅ | `config/judgements.json` |
 
-**Not done yet:** full-market scanner run benchmark; remaining calibration outliers (BKNG, NKE/LVMUY on P/S,
+**Not done yet:** full-market scanner run benchmark; remaining calibration outliers (BKNG base FCF, NKE/LVMUY on P/S,
 UNH classification); bank CET1 name matching for a few banks; companies with a short history.
 
 ## Data sources (fundamentals)

@@ -99,3 +99,11 @@ rebound estimates hitting the 40% cap) and NVO −10.5pp (consensus collapsed; A
 Remaining open outliers: BKNG 2.0 (Adam 188 vs our 378 at the same growth — base or share count differs;
 under investigation), NKE 1.9 / LVMUY 0.28 / CNSWF 0.79 (P/S mean; Adam uses DCF), VEEV 1.48, UNH 1.35 (classified
 as insurer → P/B), POOL/LIN/WM 0.5–0.7 (conservative side — acceptable per policy).
+
+## Update 2026-11-04 (evening) — split adjustment, scanner pins
+
+- **Stock splits** (`vmi/data/splits.py`): XBRL mixed pre/post-split units (BKNG 25:1 → P/E ≈ 1). Self-checking
+  per-point adjustment; NVDA/AVGO/BKNG histories now consistent. BKNG 2.01 → 1.85 (remaining gap: base FCF).
+- Latest run: **pure formula median 0.922, 14/43 within ±15%, 8 in the 0.85–1.02 target band**; with judgements
+  median 0.81, 14/43 within ±15%, 9 in band, only 8 above 1.05.
+- Scanner: tickers with a judgement override bypass the cheap pre-filters and get a full deep report (TMO).
