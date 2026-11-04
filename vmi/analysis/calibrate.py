@@ -28,7 +28,8 @@ def load_reference(path: Path = REF) -> dict[str, dict]:
     return out
 
 
-def run(symbols: list[str] | None = None, with_technicals: bool = False) -> list[dict]:
+def run(symbols: list[str] | None = None, with_technicals: bool = False, judged: bool = False) -> list[dict]:
+    """judged=False → pure formula (no overrides); judged=True → with committed judgement + DB overrides."""
     from vmi.analysis.pipeline import analyse_ticker
 
     ref = load_reference()
@@ -39,7 +40,11 @@ def run(symbols: list[str] | None = None, with_technicals: bool = False) -> list
         if not r["iv"] or not sym.isalpha():
             continue
         try:
-            rep = analyse_ticker(sym, with_technicals=with_technicals)
+            ov = None
+            if judged:
+                from vmi import store
+                ov = store.get_override(sym) or None
+            rep = analyse_ticker(sym, with_technicals=with_technicals, overrides=ov)
         except Exception as exc:
             rows.append({"symbol": sym, "error": f"{type(exc).__name__}: {exc}"[:160]})
             continue
@@ -91,10 +96,11 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("symbols", nargs="*")
     ap.add_argument("--tech", action="store_true")
+    ap.add_argument("--judged", action="store_true", help="apply judgement overrides")
     a = ap.parse_args()
-    rows = run([s.upper() for s in a.symbols] or None, a.tech)
+    rows = run([s.upper() for s in a.symbols] or None, a.tech, a.judged)
     for r in rows:
         print(json.dumps(r, default=str))
     summ = summarise(rows)
     print(json.dumps(summ))
-    (get_settings().data_dir / "calibration.json").write_text(json.dumps({"summary": summ, "rows": rows}, indent=1))
+    (get_settings().data_dir / ("calibration_judged.json" if a.judged else "calibration.json")).write_text(json.dumps({"summary": summ, "rows": rows}, indent=1))
