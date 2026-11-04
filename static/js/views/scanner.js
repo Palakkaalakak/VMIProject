@@ -93,7 +93,7 @@ async function loadResults(root) {
 }
 
 const COLUMNS = [
-  { key: "symbol", label: "Ticker", render: (r) => `<b>${esc(r.symbol)}</b><div class="small muted">${esc(r.name || "")}</div>` },
+  { key: "symbol", label: "Ticker", render: (r) => `<b>${esc(r.symbol)}</b>${r.pinned ? ` <span class="badge na" title="${esc(r.pinned)}">judged</span>` : ""}<div class="small muted">${esc(r.name || "")}</div>` },
   { key: "sector", label: "Sector" },
   { key: "price", label: "Price", cls: "num", render: (r) => fmt.money(r.price) },
   { key: "intrinsic_value", label: "IV", cls: "num", render: (r) => fmt.money(r.intrinsic_value) },

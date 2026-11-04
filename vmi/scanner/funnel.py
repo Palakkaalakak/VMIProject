@@ -277,6 +277,7 @@ def compact(rep: dict, c: Candidate | None = None) -> dict:
         "steps_passed": sum(1 for v in steps.values() if v), "steps": steps,
         "trend": (tech.get("daily") or {}).get("state"), "buy_levels": [b["price"] for b in tech.get("buy_levels", [])],
         "entry_reason": tech.get("entry_reason"), "allocation_multiplier": rep.get("allocation_multiplier"),
+        "pinned": (c.notes.get("pinned") if c else None),
     }
 
 
