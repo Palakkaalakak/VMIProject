@@ -47,3 +47,33 @@ def clean(o: Any) -> Any:
 class SafeJSONResponse(JSONResponse):
     def render(self, content: Any) -> bytes:
         return json.dumps(clean(content), ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+
+
+# ---------------------------------------------------------------------------------------------------------
+# FastAPI runs jsonable_encoder on endpoint return values BEFORE the response class sees them, and that
+# encoder chokes on numpy.bool_ etc. SafeRoute wraps every endpoint so its result is cleaned first.
+import asyncio as _asyncio
+import functools as _functools
+
+from fastapi.routing import APIRoute
+from starlette.responses import Response as _Response
+
+
+def _wrap(fn):
+    if _asyncio.iscoroutinefunction(fn):
+        @_functools.wraps(fn)
+        async def aw(*a, **k):
+            r = await fn(*a, **k)
+            return r if isinstance(r, _Response) else clean(r)
+        return aw
+
+    @_functools.wraps(fn)
+    def sw(*a, **k):
+        r = fn(*a, **k)
+        return r if isinstance(r, _Response) else clean(r)
+    return sw
+
+
+class SafeRoute(APIRoute):
+    def __init__(self, path, endpoint, **kwargs):
+        super().__init__(path, _wrap(endpoint), **kwargs)

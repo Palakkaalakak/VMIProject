@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from vmi import store
+from vmi.api.jsonsafe import SafeJSONResponse, SafeRoute, clean
 from vmi.config import ROOT
 from vmi.data import ib_fundamentals, market
 from vmi.data.ib import gateway
@@ -48,7 +49,7 @@ async def lifespan(app: FastAPI):
     task.cancel()
 
 
-app = FastAPI(title="VMI Toolkit", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="VMI Toolkit", version="0.2.0", lifespan=lifespan, default_response_class=SafeJSONResponse)
 
 
 @app.exception_handler(ValueError)
@@ -62,7 +63,7 @@ async def runtime_error(_, exc: RuntimeError):
 
 
 # ======================================================================================== system
-sysr = APIRouter(prefix="/api", tags=["system"])
+sysr = APIRouter(prefix="/api", tags=["system"], route_class=SafeRoute)
 
 
 @sysr.get("/health")
@@ -90,7 +91,7 @@ def history(symbol: str, period: str = "2y", interval: str = "1d"):
 
 
 # ======================================================================================== analysis
-ar = APIRouter(prefix="/api/analysis", tags=["analysis"])
+ar = APIRouter(prefix="/api/analysis", tags=["analysis"], route_class=SafeRoute)
 
 
 @ar.get("/{symbol}")
@@ -138,7 +139,7 @@ def size(symbol: str, portfolio_id: int, multiplier: float = 1.0):
 
 
 # ======================================================================================== scanner
-sr = APIRouter(prefix="/api/scan", tags=["scanner"])
+sr = APIRouter(prefix="/api/scan", tags=["scanner"], route_class=SafeRoute)
 
 
 class ScanIn(BaseModel):
@@ -191,7 +192,7 @@ def scan_dropped():
 
 
 # ======================================================================================== portfolios
-pr = APIRouter(prefix="/api/portfolios", tags=["paper trading"])
+pr = APIRouter(prefix="/api/portfolios", tags=["paper trading"], route_class=SafeRoute)
 
 
 class PortfolioIn(BaseModel):
@@ -278,7 +279,7 @@ def option_order(pid: int, body: OptionOrder):
 
 
 # ======================================================================================== watchlists
-wr = APIRouter(prefix="/api/watchlists", tags=["watchlists"])
+wr = APIRouter(prefix="/api/watchlists", tags=["watchlists"], route_class=SafeRoute)
 
 
 class WatchlistIn(BaseModel):
@@ -356,7 +357,7 @@ def wl_scan(wid: int):
     return funnel.start_background({"universe": "list", "symbols": syms, "require_ten_year_uptrend": False})
 
 
-alr = APIRouter(prefix="/api/alerts", tags=["alerts"])
+alr = APIRouter(prefix="/api/alerts", tags=["alerts"], route_class=SafeRoute)
 
 
 @alr.get("")
@@ -379,7 +380,7 @@ def alerts_check():
 
 
 # ======================================================================================== options
-orr = APIRouter(prefix="/api/options", tags=["options"])
+orr = APIRouter(prefix="/api/options", tags=["options"], route_class=SafeRoute)
 
 
 @orr.get("/{symbol}/expirations")
