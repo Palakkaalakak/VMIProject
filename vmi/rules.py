@@ -101,6 +101,10 @@ class ValuationRules:  # Lesson 5
     # consensus runs higher on average, so a flat cut keeps us on the conservative side. Not fitted per
     # company. 0 disables it. See docs/CALIBRATION.md.
     iv_haircut: float = 0.10
+    # Alternative single knob: relative cut on consensus growth (years 1–5) BEFORE the DCF. Experiments
+    # (docs/CALIBRATION.md) show 10% here ≈ 10% on IV at the median, with marginally tighter tails.
+    # Keep ONE of the two non-zero; both 0 = pure Adam.
+    growth_haircut: float = 0.0
 
 
 @dataclass(frozen=True)

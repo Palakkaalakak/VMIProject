@@ -138,6 +138,8 @@ def _dcf_family(ctx: ValuationContext, method: str, label: str, base: float | No
         base = ctx.base_cf_override
         base_desc += " (user override)"
     rate, shares = ctx.rate, ctx.shares
+    if ctx.growth_override is None:          # user overrides are never haircut
+        g = g * (1 - ctx.rules.valuation.growth_haircut)
     path = growth_path(g, g6_10=ctx.growth_6_10_override, g11_20=ctx.growth_11_20_override)
     base_iv = discounted_value(base, path, rate, ctx.debt, ctx.cash, shares, ctx.rules.valuation.horizon_years)
     gc = ctx.growth_choice
@@ -158,6 +160,7 @@ def _dcf_family(ctx: ValuationContext, method: str, label: str, base: float | No
                   "growth_6_10": path.g6_10, "growth_11_20": path.g11_20,
                   "growth_sources": ctx.est.sources, "growth_method": gc.method, "growth_notes": gc.notes,
                   "iv_haircut": ctx.rules.valuation.iv_haircut,
+                  "growth_haircut": ctx.rules.valuation.growth_haircut,
                   "statement_currency": ctx.statement_currency, "fx": ctx.fx, "notes": list(ctx.notes)}
     return res
 
