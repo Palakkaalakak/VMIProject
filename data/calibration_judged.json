@@ -1,0 +1,729 @@
+{
+ "summary": {
+  "n": 43,
+  "median_ratio": 0.792,
+  "suggested_flat_haircut": 0.0,
+  "in_band_0.85_1.02": 5,
+  "within_15pct": 11,
+  "above_1.05": 9,
+  "below_0.75": 13
+ },
+ "rows": [
+  {
+   "symbol": "AAPL",
+   "adam_iv": 270.77,
+   "our_iv": 203.52,
+   "ratio": 0.752,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.10375000000000001,
+   "price": 345.79,
+   "our_levels": [],
+   "adam_levels": [
+    261.0,
+    246.0,
+    219.0,
+    196.0
+   ]
+  },
+  {
+   "symbol": "AMZN",
+   "adam_iv": 244.0,
+   "our_iv": 188.25,
+   "ratio": 0.772,
+   "method": "dcf_normalized",
+   "biz": "normal",
+   "growth": 0.21839999999999998,
+   "price": 268.31,
+   "our_levels": [],
+   "adam_levels": [
+    228.0,
+    200.0,
+    175.0,
+    152.0
+   ]
+  },
+  {
+   "symbol": "GOOGL",
+   "adam_iv": 374.12,
+   "our_iv": 296.27,
+   "ratio": 0.792,
+   "method": "dcf_normalized",
+   "biz": "normal",
+   "growth": 0.17885,
+   "price": 288.0,
+   "our_levels": [],
+   "adam_levels": [
+    329.0,
+    295.0,
+    271.0,
+    241.0
+   ]
+  },
+  {
+   "symbol": "MA",
+   "adam_iv": 571.0,
+   "our_iv": 636.73,
+   "ratio": 1.115,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.1709,
+   "price": 660.57,
+   "our_levels": [],
+   "adam_levels": [
+    547.0,
+    527.0,
+    501.0,
+    464.0
+   ]
+  },
+  {
+   "symbol": "META",
+   "adam_iv": 906.66,
+   "our_iv": 1084.37,
+   "ratio": 1.196,
+   "method": "dcf_normalized",
+   "biz": "normal",
+   "growth": 0.1965,
+   "price": 609.4,
+   "our_levels": [],
+   "adam_levels": [
+    644.0,
+    580.0,
+    532.0,
+    482.0
+   ]
+  },
+  {
+   "symbol": "MSFT",
+   "adam_iv": 570.31,
+   "our_iv": 568.12,
+   "ratio": 0.996,
+   "method": "dcf_normalized",
+   "biz": "normal",
+   "growth": 0.18355,
+   "price": 548.0,
+   "our_levels": [],
+   "adam_levels": [
+    513.0,
+    466.0,
+    419.0,
+    386.0,
+    356.0
+   ]
+  },
+  {
+   "symbol": "NVDA",
+   "adam_iv": 321.25,
+   "our_iv": 211.51,
+   "ratio": 0.658,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.39435000000000003,
+   "price": 199.41,
+   "our_levels": [],
+   "adam_levels": [
+    200.0,
+    169.0,
+    153.0,
+    130.0,
+    91.0
+   ]
+  },
+  {
+   "symbol": "PANW",
+   "adam_iv": 213.72,
+   "our_iv": 155.73,
+   "ratio": 0.729,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.14325,
+   "price": 350.8,
+   "our_levels": [],
+   "adam_levels": [
+    204.0,
+    166.0,
+    142.0
+   ]
+  },
+  {
+   "symbol": "SPGI",
+   "adam_iv": 517.81,
+   "our_iv": 420.22,
+   "ratio": 0.812,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.1117,
+   "price": 477.06,
+   "our_levels": [],
+   "adam_levels": [
+    480.0,
+    458.0,
+    429.0,
+    395.0
+   ]
+  },
+  {
+   "symbol": "TMO",
+   "adam_iv": 619.25,
+   "our_iv": 487.92,
+   "ratio": 0.788,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.13,
+   "price": 707.28,
+   "our_levels": [],
+   "adam_levels": [
+    555.0,
+    528.0,
+    501.0,
+    458.0,
+    415.0
+   ]
+  },
+  {
+   "symbol": "WM",
+   "adam_iv": 230.98,
+   "our_iv": 104.71,
+   "ratio": 0.453,
+   "method": "dcf_fcf",
+   "biz": "utility",
+   "growth": 0.09405,
+   "price": 236.0,
+   "our_levels": [],
+   "adam_levels": [
+    223.0,
+    213.0,
+    200.0
+   ]
+  },
+  {
+   "symbol": "ACGL",
+   "adam_iv": 109.38,
+   "our_iv": 108.38,
+   "ratio": 0.991,
+   "method": "pb_bank",
+   "biz": "insurance",
+   "growth": null,
+   "price": 108.57,
+   "our_levels": [],
+   "adam_levels": [
+    97.0,
+    91.0,
+    88.0,
+    82.0
+   ]
+  },
+  {
+   "symbol": "ASML",
+   "adam_iv": 1537.71,
+   "our_iv": 1172.68,
+   "ratio": 0.763,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.2,
+   "price": 1522.69,
+   "our_levels": [],
+   "adam_levels": [
+    1275.0,
+    1111.0,
+    931.0
+   ]
+  },
+  {
+   "symbol": "AVGO",
+   "adam_iv": 432.1,
+   "our_iv": 215.68,
+   "ratio": 0.499,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.25,
+   "price": 335.0,
+   "our_levels": [],
+   "adam_levels": [
+    366.0,
+    326.0,
+    289.0,
+    251.0
+   ]
+  },
+  {
+   "symbol": "AZO",
+   "adam_iv": 3714.0,
+   "our_iv": 3560.88,
+   "ratio": 0.959,
+   "method": "dni",
+   "biz": "normal",
+   "growth": 0.11860000000000001,
+   "price": 3331.58,
+   "our_levels": [],
+   "adam_levels": [
+    3283.0,
+    3168.0,
+    3005.0,
+    2897.0,
+    2730.0
+   ]
+  },
+  {
+   "symbol": "BABA",
+   "adam_iv": 271.09,
+   "our_iv": 26.92,
+   "ratio": 0.099,
+   "method": "dni",
+   "biz": "normal",
+   "growth": 0.13,
+   "price": 104.9,
+   "our_levels": [],
+   "adam_levels": [
+    141.0,
+    124.0,
+    104.0,
+    95.0
+   ]
+  },
+  {
+   "symbol": "BKNG",
+   "adam_iv": 188.08,
+   "our_iv": 377.83,
+   "ratio": 2.009,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.1569,
+   "price": 169.2,
+   "our_levels": [],
+   "adam_levels": [
+    184.0,
+    166.0,
+    150.0,
+    127.0
+   ]
+  },
+  {
+   "symbol": "CNSWF",
+   "adam_iv": 3837.0,
+   "our_iv": 3037.19,
+   "ratio": 0.792,
+   "method": "ps_mean",
+   "biz": "normal",
+   "growth": null,
+   "price": 2477.06,
+   "our_levels": [],
+   "adam_levels": [
+    2574.0,
+    2232.0,
+    1919.0,
+    1613.0
+   ]
+  },
+  {
+   "symbol": "CPRT",
+   "adam_iv": 45.8,
+   "our_iv": 33.34,
+   "ratio": 0.728,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.09815,
+   "price": 32.2,
+   "our_levels": [],
+   "adam_levels": [
+    42.0,
+    37.0,
+    34.0,
+    30.0,
+    26.0
+   ]
+  },
+  {
+   "symbol": "CRWD",
+   "adam_iv": 108.88,
+   "our_iv": 90.15,
+   "ratio": 0.828,
+   "method": "dcf_normalized",
+   "biz": "normal",
+   "growth": 0.2885,
+   "price": 242.62,
+   "our_levels": [],
+   "adam_levels": [
+    101.0,
+    93.0,
+    85.0,
+    75.0
+   ]
+  },
+  {
+   "symbol": "CTAS",
+   "adam_iv": 174.69,
+   "our_iv": 122.18,
+   "ratio": 0.699,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.11595,
+   "price": 225.84,
+   "our_levels": [],
+   "adam_levels": [
+    175.0,
+    168.0,
+    161.0
+   ]
+  },
+  {
+   "symbol": "DSGX",
+   "adam_iv": 104.6,
+   "our_iv": 127.73,
+   "ratio": 1.221,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.171,
+   "price": 93.78,
+   "our_levels": [],
+   "adam_levels": [
+    92.0,
+    79.0,
+    70.0,
+    61.0
+   ]
+  },
+  {
+   "symbol": "EVVTY",
+   "adam_iv": 119.9,
+   "our_iv": 124.88,
+   "ratio": 1.042,
+   "method": "ps_mean",
+   "biz": "normal",
+   "growth": null,
+   "price": 87.28,
+   "our_levels": [],
+   "adam_levels": [
+    87.0,
+    72.0,
+    66.0,
+    57.0
+   ]
+  },
+  {
+   "symbol": "FTNT",
+   "adam_iv": 143.42,
+   "our_iv": 104.37,
+   "ratio": 0.728,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.16485,
+   "price": 130.59,
+   "our_levels": [],
+   "adam_levels": [
+    121.0,
+    109.0,
+    94.0
+   ]
+  },
+  {
+   "symbol": "GE",
+   "adam_iv": 290.36,
+   "our_iv": 241.13,
+   "ratio": 0.83,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.18355,
+   "price": 329.43,
+   "our_levels": [],
+   "adam_levels": [
+    291.0,
+    280.0,
+    268.0
+   ]
+  },
+  {
+   "symbol": "HCA",
+   "adam_iv": 423.52,
+   "our_iv": 332.72,
+   "ratio": 0.786,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.0866,
+   "price": 496.17,
+   "our_levels": [],
+   "adam_levels": [
+    418.0,
+    388.0,
+    356.0
+   ]
+  },
+  {
+   "symbol": "IDXX",
+   "adam_iv": 437.5,
+   "our_iv": 403.46,
+   "ratio": 0.922,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.1361,
+   "price": 608.61,
+   "our_levels": [],
+   "adam_levels": [
+    372.0,
+    319.0,
+    255.0,
+    174.0
+   ]
+  },
+  {
+   "symbol": "ICE",
+   "adam_iv": 172.22,
+   "our_iv": 177.74,
+   "ratio": 1.032,
+   "method": "dni",
+   "biz": "asset_manager",
+   "growth": 0.13419999999999999,
+   "price": 172.41,
+   "our_levels": [],
+   "adam_levels": [
+    162.0,
+    153.0,
+    143.0,
+    125.0
+   ]
+  },
+  {
+   "symbol": "LVMUY",
+   "adam_iv": 127.0,
+   "our_iv": 35.41,
+   "ratio": 0.279,
+   "method": "ps_mean",
+   "biz": "normal",
+   "growth": null,
+   "price": 93.56,
+   "our_levels": [],
+   "adam_levels": [
+    114.0,
+    102.0,
+    82.0
+   ]
+  },
+  {
+   "symbol": "LIN",
+   "adam_iv": 496.9,
+   "our_iv": 260.79,
+   "ratio": 0.525,
+   "method": "dcf_normalized",
+   "biz": "cyclical",
+   "growth": 0.09465,
+   "price": 498.14,
+   "our_levels": [],
+   "adam_levels": [
+    487.0,
+    465.0,
+    442.0,
+    414.0
+   ]
+  },
+  {
+   "symbol": "MBGL",
+   "adam_iv": 32.09,
+   "our_iv": 22.08,
+   "ratio": 0.688,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.0849,
+   "price": 19.49,
+   "our_levels": [],
+   "adam_levels": []
+  },
+  {
+   "symbol": "MELI",
+   "adam_iv": 2284.0,
+   "our_iv": 1712.14,
+   "ratio": 0.75,
+   "method": "dni",
+   "biz": "normal",
+   "growth": 0.30824999999999997,
+   "price": 1700.83,
+   "our_levels": [],
+   "adam_levels": [
+    2023.0,
+    1835.0,
+    1645.0,
+    1481.0
+   ]
+  },
+  {
+   "symbol": "MSCI",
+   "adam_iv": 491.26,
+   "our_iv": 504.16,
+   "ratio": 1.026,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.1343,
+   "price": 651.04,
+   "our_levels": [],
+   "adam_levels": [
+    483.0,
+    457.0,
+    439.0,
+    385.0
+   ]
+  },
+  {
+   "symbol": "MSI",
+   "adam_iv": 439.49,
+   "our_iv": 341.76,
+   "ratio": 0.778,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.10945,
+   "price": 490.49,
+   "our_levels": [],
+   "adam_levels": [
+    430.0,
+    415.0,
+    388.0,
+    359.0
+   ]
+  },
+  {
+   "symbol": "NFLX",
+   "adam_iv": 81.75,
+   "our_iv": 85.9,
+   "ratio": 1.051,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.19990000000000002,
+   "price": 64.56,
+   "our_levels": [],
+   "adam_levels": [
+    75.0,
+    71.0,
+    68.0,
+    59.0
+   ]
+  },
+  {
+   "symbol": "NKE",
+   "adam_iv": 43.84,
+   "our_iv": 83.96,
+   "ratio": 1.915,
+   "method": "ps_mean",
+   "biz": "normal",
+   "growth": null,
+   "price": 40.16,
+   "our_levels": [],
+   "adam_levels": [
+    41.0
+   ]
+  },
+  {
+   "symbol": "NOW",
+   "adam_iv": 196.92,
+   "our_iv": 183.69,
+   "ratio": 0.933,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.2159,
+   "price": 111.5,
+   "our_levels": [],
+   "adam_levels": [
+    135.0,
+    121.0,
+    105.0,
+    81.0
+   ]
+  },
+  {
+   "symbol": "NVO",
+   "adam_iv": 36.58,
+   "our_iv": 42.52,
+   "ratio": 1.162,
+   "method": "dcf_normalized",
+   "biz": "normal",
+   "growth": 0.03995,
+   "price": 42.99,
+   "our_levels": [],
+   "adam_levels": [
+    68.0,
+    57.0,
+    46.0,
+    35.0
+   ]
+  },
+  {
+   "symbol": "PLTR",
+   "adam_iv": 155.83,
+   "our_iv": 58.05,
+   "ratio": 0.372,
+   "method": "dcf_fcf",
+   "biz": "speculative",
+   "growth": 0.4,
+   "price": 172.08,
+   "our_levels": [],
+   "adam_levels": [
+    142.0,
+    125.8,
+    105.2
+   ]
+  },
+  {
+   "symbol": "POOL",
+   "adam_iv": 230.0,
+   "our_iv": 113.37,
+   "ratio": 0.493,
+   "method": "dcf_normalized",
+   "biz": "normal",
+   "growth": 0.05625,
+   "price": 216.7,
+   "our_levels": [],
+   "adam_levels": [
+    196.0,
+    172.0,
+    160.0
+   ]
+  },
+  {
+   "symbol": "UNH",
+   "adam_iv": 437.59,
+   "our_iv": 591.01,
+   "ratio": 1.351,
+   "method": "pb_bank",
+   "biz": "insurance",
+   "growth": null,
+   "price": 395.47,
+   "our_levels": [],
+   "adam_levels": [
+    405.0,
+    385.0,
+    363.0
+   ]
+  },
+  {
+   "symbol": "V",
+   "adam_iv": 335.87,
+   "our_iv": 351.38,
+   "ratio": 1.046,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.14575,
+   "price": 426.97,
+   "our_levels": [],
+   "adam_levels": [
+    326.0,
+    308.0,
+    292.0
+   ]
+  },
+  {
+   "symbol": "VEEV",
+   "adam_iv": 270.0,
+   "our_iv": 399.7,
+   "ratio": 1.48,
+   "method": "dcf_fcf",
+   "biz": "normal",
+   "growth": 0.18,
+   "price": 306.39,
+   "our_levels": [],
+   "adam_levels": [
+    218.0,
+    202.0,
+    170.0,
+    151.0
+   ]
+  }
+ ]
+}
