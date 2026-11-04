@@ -177,9 +177,15 @@ def steady_base(fund: Fundamentals, concept: str, rules: VMIRules = RULES,
     if ttm is None or not annual:
         return ttm, f"TTM {concept}"
     last_fy = annual[-1]
-    if last_fy > 0 and ttm > v.base_jump_ratio * last_fy:
-        return last_fy, (f"last FY {concept} (TTM {ttm / last_fy:.2f}× FY = sudden jump → prior year, "
-                         f"Adam's normalisation rule)")
+    # "Sudden" = off the company's own trend. A steady compounder's TTM naturally runs ahead of a stale FY
+    # ("Microsoft grows very, very consistently → latest figure used as-is"), so the threshold scales with the
+    # 3-year CAGR of the fiscal-year series.
+    prior = annual[-4] if len(annual) >= 4 else None
+    cagr = (last_fy / prior) ** (1 / 3) - 1 if prior and prior > 0 and last_fy > 0 else 0.0
+    jump_at = v.base_jump_ratio * (1 + max(0.0, cagr))
+    if last_fy > 0 and ttm > jump_at * last_fy:
+        return last_fy, (f"last FY {concept} (TTM {ttm / last_fy:.2f}× FY vs trend threshold {jump_at:.2f}× = "
+                         f"sudden jump → prior year, Adam's normalisation rule)")
     if last_fy > 0 and ttm < v.base_plunge_ratio * last_fy:
         win = annual[-v.base_avg_years:]
         avg = sum(win) / len(win)
