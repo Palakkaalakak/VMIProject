@@ -38,18 +38,17 @@ def _mid(bid: float | None, ask: float | None, last: float | None) -> tuple[floa
 def stock_fill(side: str, quote: Quote, rules: ExecutionRules = RULES.execution) -> Fill:
     """Fill a stock order against a quote.
 
-    The bid/ask is only trusted during the regular session: pre/after-hours and closed-market books (Yahoo
-    especially) are thin or stale and made liquid megacaps look "illiquid" (MSFT 1.54% spread at night).
-    Outside regular hours the reference price is the last trade, the spread is the synthetic
-    `no_quote_spread_pct`, and liquidity is judged on average volume alone.
+    The bid/ask is only used when `quote.book_trusted` (real-time NBBO source, regular session). Otherwise —
+    Yahoo quotes, pre/after-hours, closed market — the reference is the last trade, the spread is the synthetic
+    `no_quote_spread_pct`, and liquidity is judged on average volume alone (no false "illiquid" megacaps).
     """
-    book_ok = quote.session == market_hours.REGULAR and bool(quote.bid and quote.ask and 0 < quote.bid <= quote.ask)
+    book_ok = quote.book_trusted
     if book_ok:
         mid, spread, basis = (quote.bid + quote.ask) / 2, quote.ask - quote.bid, "book"
     else:
         mid = quote.last or quote.close
         spread = mid * rules.no_quote_spread_pct if mid else None
-        basis = "last" if quote.session == market_hours.REGULAR else f"last ({quote.session} session)"
+        basis = f"last ({quote.source or 'unknown'}, {quote.session} session)"
     if not mid:
         raise ValueError("no price available")
     spread_pct = spread / mid

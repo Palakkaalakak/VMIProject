@@ -110,6 +110,15 @@ class Quote:
     source: str = ""
     session: str = "regular"     # regular | extended | closed (vmi.data.market_hours)
 
+    # Sources whose bid/ask is a real-time NBBO. Yahoo's bid/ask is delayed/indicative (AAPL showed a 4%
+    # "spread" mid-session), so it must never drive liquidity or fill prices.
+    REALTIME_BOOK_SOURCES = frozenset({"ib"})
+
+    @property
+    def book_trusted(self) -> bool:
+        return (self.source in self.REALTIME_BOOK_SOURCES and self.session == "regular"
+                and bool(self.bid and self.ask and 0 < self.bid <= self.ask))
+
     @property
     def mid(self) -> float | None:
         if self.bid and self.ask and self.bid > 0 and self.ask >= self.bid:
