@@ -268,12 +268,18 @@ def normalise(raw: dict, ticker: str) -> Fundamentals:
         (INSTANT_CONCEPTS, ("USD", "shares"), "instant"),
     )
     # detect reporting currency for foreign filers (20-F in non-USD)
-    for name, tags, in (("revenue", FLOW_CONCEPTS["revenue"]),):
-        for tag in tags:
-            for ns in ("us-gaap", "ifrs-full"):
-                node = raw.get("facts", {}).get(ns, {}).get(tag)
-                if node and "USD" not in node.get("units", {}) and node.get("units"):
-                    fund.currency = next(iter(node["units"]))
+    # Foreign filers (20-F) often tag a USD *convenience translation* for the latest year next to the real
+    # reporting currency (e.g. BABA: RMB for every period, USD for one). Pick the unit with the most facts
+    # across revenue/net income tags so annual, quarterly and TTM series are all in ONE currency.
+    counts: dict[str, int] = defaultdict(int)
+    for tag in FLOW_CONCEPTS["revenue"] + FLOW_CONCEPTS["net_income"]:
+        for ns in ("us-gaap", "ifrs-full"):
+            node = raw.get("facts", {}).get(ns, {}).get(tag)
+            for unit, facts in (node or {}).get("units", {}).items():
+                if "/" not in unit and len(unit) == 3:
+                    counts[unit] += len(facts)
+    if counts:
+        fund.currency = max(counts, key=counts.get)
     cur = fund.currency
     latest_instant = ""
     for concepts, units, kind in groups:
@@ -353,7 +359,7 @@ def fundamentals(ticker: str, force: bool = False) -> Fundamentals | None:
     if cik is None:
         return None
     cache = get_cache()
-    key = f"sec:fund:v6:{cik}"
+    key = f"sec:fund:v7:{cik}"
     if not force:
         cached = cache.get(key, get_settings().ttl_fundamentals)
         if cached:

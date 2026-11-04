@@ -279,7 +279,7 @@ def _derive(f: Fundamentals) -> None:
 def resolve(ticker: str, force: bool = False, use_stockanalysis: bool = True,
             use_yahoo: bool = True) -> Fundamentals | None:
     """Merged, provenance-tagged fundamentals for one ticker (cached as a whole)."""
-    key = f"fund:merged:v6:{ticker.upper()}"
+    key = f"fund:merged:v7:{ticker.upper()}"
     cache = get_cache()
     if not force:
         hit = cache.get(key, get_settings().ttl_fundamentals)
