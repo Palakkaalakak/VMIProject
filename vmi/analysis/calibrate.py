@@ -55,11 +55,33 @@ def run(symbols: list[str] | None = None, with_technicals: bool = False) -> list
     return rows
 
 
+TARGET_MEDIAN = 0.95  # we want to sit slightly BELOW Adam on average (conservative)
+DCF_METHODS = {"dcf_fcf", "dcf_normalized", "dcf_cfo", "dni"}
+
+
+def suggested_haircut(rows: list[dict]) -> float:
+    """The single flat haircut (rounded UP to the next 5%) that brings the median ours/Adam ratio of the
+    discounted-stream valuations down to TARGET_MEDIAN. Computed on un-haircut results; no per-company
+    or per-input fitting — one number for everyone."""
+    from vmi.rules import RULES
+
+    cur = RULES.valuation.iv_haircut
+    xs = sorted(r["ratio"] / (1 - cur) for r in rows if r.get("ratio") and r.get("method") in DCF_METHODS)
+    if not xs:
+        return cur
+    med = xs[len(xs) // 2]
+    if med <= TARGET_MEDIAN:
+        return 0.0
+    import math
+    return math.ceil((1 - TARGET_MEDIAN / med) * 20) / 20
+
+
 def summarise(rows: list[dict]) -> dict:
     ratios = sorted(r["ratio"] for r in rows if r.get("ratio"))
     if not ratios:
         return {}
     return {"n": len(ratios), "median_ratio": ratios[len(ratios) // 2],
+            "suggested_flat_haircut": suggested_haircut(rows),
             "in_band_0.85_1.02": sum(1 for x in ratios if 0.85 <= x <= 1.02),
             "within_15pct": sum(1 for x in ratios if 0.85 <= x <= 1.15),
             "above_1.05": sum(1 for x in ratios if x > 1.05), "below_0.75": sum(1 for x in ratios if x < 0.75)}
