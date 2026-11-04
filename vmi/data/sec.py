@@ -73,6 +73,8 @@ INSTANT_CONCEPTS: dict[str, tuple[str, ...]] = {
     "total_liabilities": ("Liabilities",),
     "equity": ("StockholdersEquity",
                "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"),
+    "treasury_stock": ("TreasuryStockValue", "TreasuryStockCommonValue"),
+    "retained_earnings": ("RetainedEarningsAccumulatedDeficit",),
     "goodwill": ("Goodwill",),
     "intangibles": ("IntangibleAssetsNetExcludingGoodwill", "FiniteLivedIntangibleAssetsNet"),
     "lt_debt": ("LongTermDebtNoncurrent", "LongTermDebtAndCapitalLeaseObligations", "LongTermDebt",
@@ -351,7 +353,7 @@ def fundamentals(ticker: str, force: bool = False) -> Fundamentals | None:
     if cik is None:
         return None
     cache = get_cache()
-    key = f"sec:fund:v5:{cik}"
+    key = f"sec:fund:v6:{cik}"
     if not force:
         cached = cache.get(key, get_settings().ttl_fundamentals)
         if cached:

@@ -92,7 +92,8 @@ def _yahoo_statements(ticker: str) -> Fundamentals | None:
                               "Inventory": "inventory", "Accounts Payable": "payables",
                               "Other Short Term Investments": "st_investments",
                               "Total Liabilities Net Minority Interest": "total_liabilities",
-                              "Ordinary Shares Number": "shares_outstanding"},
+                              "Ordinary Shares Number": "shares_outstanding",
+                              "Treasury Stock": "treasury_stock", "Retained Earnings": "retained_earnings"},
         }
         for attr, mapping in rows.items():
             try:
@@ -278,7 +279,7 @@ def _derive(f: Fundamentals) -> None:
 def resolve(ticker: str, force: bool = False, use_stockanalysis: bool = True,
             use_yahoo: bool = True) -> Fundamentals | None:
     """Merged, provenance-tagged fundamentals for one ticker (cached as a whole)."""
-    key = f"fund:merged:v5:{ticker.upper()}"
+    key = f"fund:merged:v6:{ticker.upper()}"
     cache = get_cache()
     if not force:
         hit = cache.get(key, get_settings().ttl_fundamentals)
