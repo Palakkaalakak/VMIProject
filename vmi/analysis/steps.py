@@ -14,6 +14,7 @@ from typing import Any
 
 from vmi.analysis.classify import BizType, is_no_moat_industry
 from vmi.analysis.consistency import series_trend
+from vmi.analysis import negative_equity
 from vmi.analysis.trends import falling_streak, mean, trend
 from vmi.data.models import Estimates, Fundamentals
 from vmi.rules import RULES, VMIRules
@@ -200,7 +201,13 @@ def step4_profitability(f: Fundamentals, biz: BizType, rules: VMIRules = RULES) 
             declining = falling_streak(roe_hist) >= 3
             checks.append(Check("roe_not_declining", not declining, [round(v, 3) for v in roe_hist], "not consistently declining"))
     else:
-        checks.append(Check("roe", False, None, f"≥{p.min_roe:.0%}", "ROE unavailable"))
+        ne = negative_equity.assess(f)
+        if ne.applies:
+            # Doc §5.1: ROE from negative (buyback-driven) equity is "effectively infinite" → pass if §3.5 holds
+            checks.append(Check("roe", ne.passes, "∞ (negative equity)", f"≥{p.min_roe:.0%}",
+                                "negative equity — " + "; ".join(ne.reasons)))
+        else:
+            checks.append(Check("roe", False, None, f"≥{p.min_roe:.0%}", "ROE unavailable"))
     skip_roic = biz in (BizType.BANK, BizType.INSURANCE, BizType.UTILITY)
     roic = _ratio_now(f, "roic")
     checks.append(Check("roic", None if skip_roic else (roic is not None and roic >= p.min_roic),

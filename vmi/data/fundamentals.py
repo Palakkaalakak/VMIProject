@@ -370,11 +370,16 @@ def completeness(f: Fundamentals, biz: str = "normal", min_years: int = 5) -> di
     for c in req.get("latest", ()):
         if f.latest.get(c) is None:
             missing.append(c)
+    notes = []
     for c in req.get("ratio", ()):
         if not f.ratios.get(c):
+            if c == "roe" and (f.latest.get("equity") or 0) <= 0 and "equity" in f.latest:
+                # Doc §5.1: ROE undefined/"infinite" with negative equity — judged by negative_equity.assess
+                notes.append("roe: negative equity → assessed via §3.5 rule, not a data gap")
+                continue
             missing.append(f"ratio:{c}")
     for c in req.get("extra", ()):
         if f.meta.get(c) is None:
             missing.append(c)
     opt_missing = [c for c in OPTIONAL if not (f.annual.get(c) or f.latest.get(c) is not None or f.ratios.get(c))]
-    return {"ok": not missing, "biz": biz, "missing": missing, "optional_missing": opt_missing}
+    return {"ok": not missing, "biz": biz, "missing": missing, "optional_missing": opt_missing, "notes": notes}
