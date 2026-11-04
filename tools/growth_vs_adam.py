@@ -10,7 +10,7 @@ import json
 import statistics as st
 from pathlib import Path
 
-from vmi.analysis.valuation.core import discounted_value
+from vmi.analysis.valuation.core import discounted_value, growth_path
 from vmi.rules import RULES
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,14 +27,8 @@ def load_adam() -> dict[str, dict]:
 
 
 def iv_with(inp: dict, g: float, haircut: float) -> float | None:
-    try:
-        pv = discounted_value(inp["base"], g, inp["rate"], RULES.growth)
-    except TypeError:
-        pv = discounted_value(inp["base"], g, inp["rate"])
-    pv = pv if isinstance(pv, (int, float)) else getattr(pv, "pv", None)
-    if pv is None:
-        return None
-    return (pv + inp["cash"] - inp["debt"]) / inp["shares"] * (1 - haircut)
+    v = discounted_value(inp["base"], growth_path(g), inp["rate"], inp["debt"], inp["cash"], inp["shares"])
+    return None if v is None else v * (1 - haircut)
 
 
 def main() -> None:
