@@ -26,3 +26,18 @@
   company type with contingencies (normalised capex, CFO, DNI, P/B, P/NAV, P/S, PSG); sortable by growth, ROE, etc.
 - Option chain (CC / CSP) loading in < ~40s, reliable, not disappearing.
 - Any other tool that helps given Adam's method.
+
+## IB fundamentals directive (added 2026-11-04, later message)
+- "Try to figure out a way to get fundamentals from IB still. Research deeply."
+- Research result: TWS API 10.47 (May 2026) removed reqFundamentalData + tick 47/258; servers answer
+  older clients with error 10358 since ~Apr 2026. Client Portal fundamental tags deprecated Jan 2026.
+  The app still TRIES IB first (vmi/data/ib_fundamentals.py, circuit breaker) — Refinitiv XML incl.
+  ProjLTGrowthRate is used automatically whenever IB answers — then SEC → stockanalysis → Yahoo → FDIC.
+- Calibrate intrinsic values against Adam's reference numbers (tests/fixtures/adam_reference.txt). Ours need not
+  match exactly (Adam uses FactSet growth), but should be close and CONSERVATIVE: being somewhat below Adam's IV
+  is better than being above it.
+
+## Operational rule learned (2026-11-04)
+- The environment wipe also deletes files written minutes before it hits. Watchdog interval is 30s and
+  `tools/save.sh "<msg>"` is run immediately after every significant write. Diagnostics live in `tools/`
+  (never /tmp). Never use `pkill -f <pattern>` where the pattern appears in the same command line.

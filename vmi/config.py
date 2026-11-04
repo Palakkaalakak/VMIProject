@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     ib_client_id: int = 17
     ib_market_data_type: int = 1  # 1 live, 2 frozen, 3 delayed, 4 delayed-frozen
     ib_connect_timeout: float = 4.0
+    # Optional: Client Portal Gateway base URL (e.g. https://localhost:5000/v1/api) for the
+    # Fundamentals Explorer backend. Empty = disabled.
+    ib_cp_url: str = ""
 
     # Cache TTLs (seconds)
     ttl_quote: int = 15
