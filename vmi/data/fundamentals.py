@@ -20,7 +20,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 
 from vmi.config import get_settings
-from vmi.data import ib_fundamentals, sec, stockanalysis
+from vmi.data import ib_fundamentals, sec, splits, stockanalysis
 from vmi.data.cache import get_cache
 from vmi.data.models import Fundamentals, Point
 
@@ -279,7 +279,7 @@ def _derive(f: Fundamentals) -> None:
 def resolve(ticker: str, force: bool = False, use_stockanalysis: bool = True,
             use_yahoo: bool = True) -> Fundamentals | None:
     """Merged, provenance-tagged fundamentals for one ticker (cached as a whole)."""
-    key = f"fund:merged:v7:{ticker.upper()}"
+    key = f"fund:merged:v8:{ticker.upper()}"
     cache = get_cache()
     if not force:
         hit = cache.get(key, get_settings().ttl_fundamentals)
@@ -326,6 +326,7 @@ def resolve(ticker: str, force: bool = False, use_stockanalysis: bool = True,
     if missing_core and use_yahoo:
         _fill(base, _yahoo_statements(ticker), "yahoo")
     reconcile_ttm(base, [sa])
+    base.warnings.extend(splits.adjust(base, splits.history(ticker)))
     _derive(base)
     _enrich_meta(base)
     base.meta["completeness"] = completeness(base, base.meta.get("biz", "normal"))

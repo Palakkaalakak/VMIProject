@@ -96,7 +96,10 @@ def adjust(f: Fundamentals, splits: list[tuple[str, float]]) -> list[str]:
     if adjusted_periods:
         notes.append(f"split-adjusted {len(adjusted_periods)} period(s) for splits "
                      + ", ".join(f"{r:g}:1 on {d}" for d, r in recent))
-    for c in (*SHARE_SERIES, *PER_SHARE_SERIES):
-        f.quarterly.pop(c, None) if any(factor_after(p.end, recent) != 1 for p in f.quarterly.get(c, [])) and \
-            adjusted_periods else None
+    if adjusted_periods:
+        # quarterly per-share/share series can carry the same mixed units; drop them so nothing reads stale
+        # units (valuation falls back to the adjusted annual series / price-implied share count)
+        for c in (*SHARE_SERIES, *PER_SHARE_SERIES):
+            if any(factor_after(p.end, recent) != 1 for p in f.quarterly.get(c, [])):
+                f.quarterly.pop(c, None)
     return notes
