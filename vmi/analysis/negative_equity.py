@@ -7,7 +7,8 @@ effectively infinity. ROE is infinite, which is very good."
 Rule (§3.5) — negative equity is fine, even good, as long as:
   (a) the company is making a lot of money       → TTM/latest net income > 0 and positive in ≥4 of last 5 years
   (b) profits are increasing consistently        → consistency.consistent(net_income)
-  (c) free cash flow is increasing consistently  → consistency.consistent(fcf)
+  (c) free cash flow is increasing consistently  → consistency.consistent(fcf), or a growth-capex dip with
+                                                    healthy rising CFO (doc Amazon example / §5.4 Buffett note)
   (d) the cause is buybacks                      → treasury stock ≥ the deficit, OR (for companies that retire
                                                     repurchased shares, e.g. YUM in North Carolina, so there is no
                                                     treasury line) cumulative buybacks over the history ≥ deficit.
@@ -18,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, asdict, field
 
-from vmi.analysis.consistency import consistent
+from vmi.analysis.consistency import consistent, growth_capex_dip
 from vmi.data.models import Fundamentals
 
 
@@ -33,6 +34,7 @@ class NegativeEquityAssessment:
     profits_rising: bool = False        # (b)
     fcf_rising: bool = False            # (c)
     buyback_driven: bool = False        # (d)
+    capex_note: str = ""
     passes: bool = False                # all four ⇒ ROE treated as "infinite" (pass)
     reasons: list[str] = field(default_factory=list)
 
@@ -58,6 +60,10 @@ def assess(f: Fundamentals) -> NegativeEquityAssessment:
     a.profitable = bool(ni_now and ni_now > 0 and sum(1 for v in ni_hist if v > 0) >= min(4, len(ni_hist)))
     a.profits_rising = consistent(f, "net_income")
     a.fcf_rising = consistent(f, "fcf")
+    if not a.fcf_rising:
+        ok, why = growth_capex_dip(f)   # FCF dip from growth capex with healthy CFO (Amazon rule) is acceptable
+        a.fcf_rising = ok
+        a.capex_note = why
 
     ts = f.latest.get("treasury_stock")
     if ts is None:
@@ -70,7 +76,7 @@ def assess(f: Fundamentals) -> NegativeEquityAssessment:
                             or (a.cumulative_buybacks and a.cumulative_buybacks >= a.deficit))
 
     for ok, why in ((a.profitable, "(a) makes a lot of money"), (a.profits_rising, "(b) profits rising consistently"),
-                    (a.fcf_rising, "(c) FCF rising consistently"),
+                    (a.fcf_rising, "(c) FCF rising consistently" + (f" [growth-capex check: {a.capex_note}]" if a.capex_note else "")),
                     (a.buyback_driven, "(d) caused by buybacks (treasury stock / cumulative repurchases ≥ deficit)")):
         a.reasons.append(("✓ " if ok else "✗ ") + why)
     a.passes = a.profitable and a.profits_rising and a.fcf_rising and a.buyback_driven

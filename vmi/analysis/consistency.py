@@ -45,3 +45,22 @@ def series_trend(f: Fundamentals, concept: str, rules: VMIRules = RULES) -> Tren
 
 def consistent(f: Fundamentals, concept: str, rules: VMIRules = RULES) -> bool:
     return series_trend(f, concept, rules).consistent
+
+
+def growth_capex_dip(f: Fundamentals, rules: VMIRules = RULES) -> tuple[bool, str]:
+    """Doc Lesson 5 (Amazon) + §5.4 (Buffett: growth capex isn't deducted): a falling FCF is acceptable when
+    operating cash flow is healthy and the shortfall comes from rising capex — as long as FCF is not
+    negative for more than one year. Returns (ok, explanation)."""
+    cfo, capex, fcf = (history_with_ttm(f, c, rules.track.preferred_years) for c in ("cfo", "capex", "fcf"))
+    if len(cfo) < 5 or len(capex) < 5 or len(fcf) < 5:
+        return False, "insufficient history"
+    capex = [abs(v) for v in capex]
+    lt = trend(cfo, max_down_years=len(cfo), min_years=rules.track.min_years)
+    cfo_ok = lt.slope_positive and cfo[-1] > cfo[0] and cfo[-1] > 0
+    neg_years = sum(1 for v in fcf[-RECENT_POINTS:] if v <= 0)
+    capex_up = capex[-1] > 1.25 * min(capex[-RECENT_POINTS:])
+    ok = cfo_ok and capex_up and neg_years <= 1
+    why = (f"CFO {'up' if cfo_ok else 'NOT up'} long-term ({cfo[0]:.3g}→{cfo[-1]:.3g}); capex "
+           f"{'rising' if capex_up else 'flat'} ({min(capex[-RECENT_POINTS:]):.3g}→{capex[-1]:.3g}); "
+           f"{neg_years} negative-FCF yr(s) in window")
+    return ok, why
