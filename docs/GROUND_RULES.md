@@ -62,3 +62,10 @@
   Check at the start of every turn: `ps aux | grep "[a]utocommit.sh"`.
 - Negative equity (doc §3.5 / ROE §5.1): fine — even good — when profitable, NI rising, FCF rising, and the cause is
   a large treasury-stock balance (buybacks). ROE is then "effectively infinite" → pass. Implemented in step 4.
+
+## Q: "Can we download an older IB API version for fundamental data?" (answered 2026-11-04)
+- No. Error 10358 "Fundamentals data is not allowed" is returned by IB's SERVERS, not by the client library.
+  Users on ibapi 10.46.1 + ib_async 2.1.0 (versions that still contain reqFundamentalData) started getting 10358 on
+  ~22 Apr 2026 with no code change (r/IBKR_Official thread). 10.47 then removed the method entirely. An older TWS /
+  API download therefore still hits the same server-side block. The code keeps trying IB first behind a 6h circuit
+  breaker (vmi/data/ib_fundamentals.py), so if IB ever re-enables it, it is used automatically.
