@@ -46,3 +46,11 @@
 - Do NOT force valuations to match Adam with non-Adam-approved transforms (no fitted formulas on growth,
   cash flow, etc.). Only simple FIXED conservatism adjustments are allowed (e.g. a flat −10% on IV) when we
   consistently overestimate. Nothing complicated or overfitted. → implemented as `rules.valuation.iv_haircut`.
+
+## Human-in-the-loop directive (2026-11-04)
+- The owner expects me (the AI) to USE the tool and apply judgment where data is distorted, e.g. TMO: consensus
+  growth was temporarily distorted very low while Adam kept the previous growth rate (high-quality compounder).
+  Such cases are handled with per-ticker overrides (growth / method / biz type / IV + note) stored in the DB —
+  never by changing the general formula.
+- Haircut experiments requested: compare flat haircuts applied to (1) IV directly, (2) growth rate before the
+  IV calculation, etc. Keep each variant a single fixed number.
