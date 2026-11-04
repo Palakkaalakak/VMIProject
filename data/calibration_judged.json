@@ -1,12 +1,12 @@
 {
  "summary": {
   "n": 43,
-  "median_ratio": 0.792,
+  "median_ratio": 0.812,
   "suggested_flat_haircut": 0.0,
-  "in_band_0.85_1.02": 5,
-  "within_15pct": 11,
+  "in_band_0.85_1.02": 6,
+  "within_15pct": 12,
   "above_1.05": 9,
-  "below_0.75": 13
+  "below_0.75": 12
  },
  "rows": [
   {
@@ -17,7 +17,7 @@
    "method": "dcf_fcf",
    "biz": "normal",
    "growth": 0.10375000000000001,
-   "price": 345.79,
+   "price": 346.26,
    "our_levels": [],
    "adam_levels": [
     261.0,
@@ -34,7 +34,7 @@
    "method": "dcf_normalized",
    "biz": "normal",
    "growth": 0.21839999999999998,
-   "price": 268.31,
+   "price": 268.61,
    "our_levels": [],
    "adam_levels": [
     228.0,
@@ -51,7 +51,7 @@
    "method": "dcf_normalized",
    "biz": "normal",
    "growth": 0.17885,
-   "price": 288.0,
+   "price": 287.01,
    "our_levels": [],
    "adam_levels": [
     329.0,
@@ -68,7 +68,7 @@
    "method": "dcf_fcf",
    "biz": "normal",
    "growth": 0.1709,
-   "price": 660.57,
+   "price": 662.62,
    "our_levels": [],
    "adam_levels": [
     547.0,
@@ -115,12 +115,12 @@
   {
    "symbol": "NVDA",
    "adam_iv": 321.25,
-   "our_iv": 211.51,
-   "ratio": 0.658,
+   "our_iv": 277.42,
+   "ratio": 0.864,
    "method": "dcf_fcf",
    "biz": "normal",
    "growth": 0.39435000000000003,
-   "price": 199.41,
+   "price": 203.47,
    "our_levels": [],
    "adam_levels": [
     200.0,
@@ -154,7 +154,7 @@
    "method": "dcf_fcf",
    "biz": "normal",
    "growth": 0.1117,
-   "price": 477.06,
+   "price": 478.22,
    "our_levels": [],
    "adam_levels": [
     480.0,
@@ -171,7 +171,7 @@
    "method": "dcf_fcf",
    "biz": "normal",
    "growth": 0.13,
-   "price": 707.28,
+   "price": 705.65,
    "our_levels": [],
    "adam_levels": [
     555.0,
@@ -184,12 +184,12 @@
   {
    "symbol": "WM",
    "adam_iv": 230.98,
-   "our_iv": 104.71,
-   "ratio": 0.453,
+   "our_iv": 156.01,
+   "ratio": 0.675,
    "method": "dcf_fcf",
    "biz": "utility",
    "growth": 0.09405,
-   "price": 236.0,
+   "price": 235.53,
    "our_levels": [],
    "adam_levels": [
     223.0,
@@ -205,7 +205,7 @@
    "method": "pb_bank",
    "biz": "insurance",
    "growth": null,
-   "price": 108.57,
+   "price": 108.75,
    "our_levels": [],
    "adam_levels": [
     97.0,
@@ -222,7 +222,7 @@
    "method": "dcf_fcf",
    "biz": "normal",
    "growth": 0.2,
-   "price": 1522.69,
+   "price": 1519.76,
    "our_levels": [],
    "adam_levels": [
     1275.0,
@@ -233,8 +233,8 @@
   {
    "symbol": "AVGO",
    "adam_iv": 432.1,
-   "our_iv": 215.68,
-   "ratio": 0.499,
+   "our_iv": 318.79,
+   "ratio": 0.738,
    "method": "dcf_fcf",
    "biz": "normal",
    "growth": 0.25,
@@ -255,7 +255,7 @@
    "method": "dni",
    "biz": "normal",
    "growth": 0.11860000000000001,
-   "price": 3331.58,
+   "price": 3327.65,
    "our_levels": [],
    "adam_levels": [
     3283.0,
@@ -268,12 +268,12 @@
   {
    "symbol": "BABA",
    "adam_iv": 271.09,
-   "our_iv": 26.92,
-   "ratio": 0.099,
+   "our_iv": 140.02,
+   "ratio": 0.517,
    "method": "dni",
    "biz": "normal",
    "growth": 0.13,
-   "price": 104.9,
+   "price": 105.09,
    "our_levels": [],
    "adam_levels": [
     141.0,
@@ -307,7 +307,7 @@
    "method": "ps_mean",
    "biz": "normal",
    "growth": null,
-   "price": 2477.06,
+   "price": 2481.95,
    "our_levels": [],
    "adam_levels": [
     2574.0,
@@ -342,7 +342,7 @@
    "method": "dcf_normalized",
    "biz": "normal",
    "growth": 0.2885,
-   "price": 242.62,
+   "price": 245.23,
    "our_levels": [],
    "adam_levels": [
     101.0,
@@ -375,7 +375,7 @@
    "method": "dcf_fcf",
    "biz": "normal",
    "growth": 0.171,
-   "price": 93.78,
+   "price": 93.7,
    "our_levels": [],
    "adam_levels": [
     92.0,
@@ -409,7 +409,7 @@
    "method": "dcf_fcf",
    "biz": "normal",
    "growth": 0.16485,
-   "price": 130.59,
+   "price": 127.42,
    "our_levels": [],
    "adam_levels": [
     121.0,
@@ -425,7 +425,7 @@
    "method": "dcf_fcf",
    "biz": "normal",
    "growth": 0.18355,
-   "price": 329.43,
+   "price": 330.2,
    "our_levels": [],
    "adam_levels": [
     291.0,
@@ -441,7 +441,7 @@
    "method": "dcf_fcf",
    "biz": "normal",
    "growth": 0.0866,
-   "price": 496.17,
+   "price": 496.03,
    "our_levels": [],
    "adam_levels": [
     418.0,
@@ -486,12 +486,12 @@
   {
    "symbol": "LVMUY",
    "adam_iv": 127.0,
-   "our_iv": 35.41,
-   "ratio": 0.279,
+   "our_iv": 35.33,
+   "ratio": 0.278,
    "method": "ps_mean",
    "biz": "normal",
    "growth": null,
-   "price": 93.56,
+   "price": 93.34,
    "our_levels": [],
    "adam_levels": [
     114.0,
@@ -524,7 +524,7 @@
    "method": "dcf_fcf",
    "biz": "normal",
    "growth": 0.0849,
-   "price": 19.49,
+   "price": 19.62,
    "our_levels": [],
    "adam_levels": []
   },
@@ -553,7 +553,7 @@
    "method": "dcf_fcf",
    "biz": "normal",
    "growth": 0.1343,
-   "price": 651.04,
+   "price": 655.88,
    "our_levels": [],
    "adam_levels": [
     483.0,
@@ -570,7 +570,7 @@
    "method": "dcf_fcf",
    "biz": "normal",
    "growth": 0.10945,
-   "price": 490.49,
+   "price": 491.11,
    "our_levels": [],
    "adam_levels": [
     430.0,
@@ -604,7 +604,7 @@
    "method": "ps_mean",
    "biz": "normal",
    "growth": null,
-   "price": 40.16,
+   "price": 40.11,
    "our_levels": [],
    "adam_levels": [
     41.0
@@ -618,7 +618,7 @@
    "method": "dcf_fcf",
    "biz": "normal",
    "growth": 0.2159,
-   "price": 111.5,
+   "price": 110.97,
    "our_levels": [],
    "adam_levels": [
     135.0,
@@ -635,7 +635,7 @@
    "method": "dcf_normalized",
    "biz": "normal",
    "growth": 0.03995,
-   "price": 42.99,
+   "price": 43.17,
    "our_levels": [],
    "adam_levels": [
     68.0,
@@ -647,12 +647,12 @@
   {
    "symbol": "PLTR",
    "adam_iv": 155.83,
-   "our_iv": 58.05,
-   "ratio": 0.372,
+   "our_iv": 108.59,
+   "ratio": 0.697,
    "method": "dcf_fcf",
    "biz": "speculative",
    "growth": 0.4,
-   "price": 172.08,
+   "price": 172.02,
    "our_levels": [],
    "adam_levels": [
     142.0,
@@ -668,7 +668,7 @@
    "method": "dcf_normalized",
    "biz": "normal",
    "growth": 0.05625,
-   "price": 216.7,
+   "price": 214.54,
    "our_levels": [],
    "adam_levels": [
     196.0,
@@ -684,7 +684,7 @@
    "method": "pb_bank",
    "biz": "insurance",
    "growth": null,
-   "price": 395.47,
+   "price": 395.22,
    "our_levels": [],
    "adam_levels": [
     405.0,
@@ -700,7 +700,7 @@
    "method": "dcf_fcf",
    "biz": "normal",
    "growth": 0.14575,
-   "price": 426.97,
+   "price": 427.89,
    "our_levels": [],
    "adam_levels": [
     326.0,
@@ -716,7 +716,7 @@
    "method": "dcf_fcf",
    "biz": "normal",
    "growth": 0.18,
-   "price": 306.39,
+   "price": 303.66,
    "our_levels": [],
    "adam_levels": [
     218.0,
