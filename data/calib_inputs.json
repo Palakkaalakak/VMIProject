@@ -263,7 +263,7 @@
   "cfo": 4553000000.0,
   "ni": 307000000.0,
   "cfo_ok": true,
-  "ni_ok": false,
+  "ni_ok": true,
   "g5": {
    "ib": null,
    "finviz": 0.136,
@@ -331,11 +331,11 @@
   "currency": "USD",
   "fcf": 7596000000.0,
   "norm": 7649000000.0,
-  "lumpy": true,
+  "lumpy": false,
   "cfo": 9324000000.0,
   "ni": 7072000000.0,
-  "cfo_ok": true,
-  "ni_ok": true,
+  "cfo_ok": false,
+  "ni_ok": false,
   "g5": {
    "ib": null,
    "finviz": 0.1023,
@@ -371,7 +371,7 @@
   "cfo": 6565000000.0,
   "ni": 3070000000.0,
   "cfo_ok": true,
-  "ni_ok": false,
+  "ni_ok": true,
   "g5": {
    "ib": null,
    "finviz": 0.0924,
@@ -407,7 +407,7 @@
   "cfo": 6100000000.0,
   "ni": 4692000000.0,
   "cfo_ok": true,
-  "ni_ok": false,
+  "ni_ok": true,
   "g5": {
    "ib": null,
    "finviz": 0.0264,
@@ -463,8 +463,8 @@
   "rev_next": 0.2899,
   "beta": 1.325,
   "rate": 0.072,
-  "debt": 4390900000.0,
-  "cash": 13321900000.0,
+  "debt": 4946378208.482265,
+  "cash": 15007209423.029423,
   "shares": 383500000.0
  },
  {
@@ -514,7 +514,7 @@
   "lumpy": true,
   "cfo": 3249117000.0,
   "ni": 2572777000.0,
-  "cfo_ok": true,
+  "cfo_ok": false,
   "ni_ok": true,
   "g5": {
    "ib": null,
@@ -571,8 +571,8 @@
   "rev_next": 0.1263,
   "beta": 0.401,
   "rate": 0.0587,
-  "debt": 18128000000.0,
-  "cash": 19836000000.0,
+  "debt": 2721635854.4826508,
+  "cash": 2978065357.9831123,
   "shares": 2415500000.0
  },
  {
@@ -695,7 +695,7 @@
   "cfo": 2016615000.0,
   "ni": 58460000.0,
   "cfo_ok": true,
-  "ni_ok": false,
+  "ni_ok": true,
   "g5": {
    "ib": null,
    "finviz": 0.3096,
@@ -824,7 +824,7 @@
   "beta": 0.6,
   "rate": 0.0597,
   "debt": 0.0,
-  "cash": 817951000.0,
+  "cash": 921427270.4926729,
   "shares": 202786174.0
  },
  {
@@ -874,8 +874,8 @@
   "lumpy": false,
   "cfo": 9451000000.0,
   "ni": 9103000000.0,
-  "cfo_ok": false,
-  "ni_ok": false,
+  "cfo_ok": true,
+  "ni_ok": true,
   "g5": {
    "ib": null,
    "finviz": 0.18710000000000002,
@@ -902,7 +902,7 @@
  {
   "s": "HCA",
   "adam": 423.52,
-  "price": 462.8599853515625,
+  "price": 487.47,
   "biz": "normal",
   "currency": "USD",
   "fcf": 5973000000.0,
@@ -910,8 +910,8 @@
   "lumpy": false,
   "cfo": 11169000000.0,
   "ni": 6776000000.0,
-  "cfo_ok": false,
-  "ni_ok": false,
+  "cfo_ok": true,
+  "ni_ok": true,
   "g5": {
    "ib": null,
    "finviz": 0.0739,
@@ -1039,9 +1039,9 @@
   "rev_next": 0.045900002,
   "beta": 0.898,
   "rate": 0.0623,
-  "debt": 19052000000.0,
-  "cash": 12202000000.0,
-  "shares": 494957592.0
+  "debt": 21462205385.684967,
+  "cash": 13745634585.142136,
+  "shares": 2463314626.679302
  },
  {
   "s": "LIN",
@@ -1127,7 +1127,7 @@
   "cfo": 13905000000.0,
   "ni": 1863000000.0,
   "cfo_ok": true,
-  "ni_ok": false,
+  "ni_ok": true,
   "g5": {
    "ib": null,
    "finviz": 0.2433,
@@ -1234,7 +1234,7 @@
   "lumpy": false,
   "cfo": 12307938000.0,
   "ni": 14766653000.0,
-  "cfo_ok": false,
+  "cfo_ok": true,
   "ni_ok": true,
   "g5": {
    "ib": null,
@@ -1363,8 +1363,8 @@
   "rev_next": 0.012999999,
   "beta": 0.372,
   "rate": 0.0585,
-  "debt": 118670000000.0,
-  "cash": 46352000000.0,
+  "debt": 17882087492.346764,
+  "cash": 6984667729.377747,
   "shares": 4416886543.0
  },
  {
@@ -1411,10 +1411,10 @@
   "currency": "USD",
   "fcf": 441948000.0,
   "norm": 444429400.0,
-  "lumpy": false,
+  "lumpy": true,
   "cfo": 499931000.0,
   "ni": 395948000.0,
-  "cfo_ok": false,
+  "cfo_ok": true,
   "ni_ok": false,
   "g5": {
    "ib": null,
@@ -1447,11 +1447,11 @@
   "currency": "USD",
   "fcf": 22826000000.0,
   "norm": 22859400000.0,
-  "lumpy": true,
+  "lumpy": false,
   "cfo": 26195000000.0,
   "ni": 15884000000.0,
-  "cfo_ok": true,
-  "ni_ok": true,
+  "cfo_ok": false,
+  "ni_ok": false,
   "g5": {
    "ib": null,
    "finviz": 0.18469999999999998,
@@ -1486,7 +1486,7 @@
   "lumpy": false,
   "cfo": 22756000000.0,
   "ni": 22236000000.0,
-  "cfo_ok": false,
+  "cfo_ok": true,
   "ni_ok": true,
   "g5": {
    "ib": null,
