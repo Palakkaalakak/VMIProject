@@ -12,6 +12,7 @@ import pandas as pd
 from vmi.config import get_settings
 from vmi.data.cache import get_cache
 from vmi.data.ib import gateway
+from vmi.data import market_hours
 from vmi.data.models import Quote
 
 log = logging.getLogger("vmi.market")
@@ -128,7 +129,7 @@ def _yahoo_quote(symbol: str) -> Quote:
     import yfinance as yf
 
     t = yf.Ticker(_yf_symbol(symbol))
-    last = bid = ask = close = vol = avgv = None
+    last = bid = ask = close = vol = avgv = state = None
     try:
         fi = t.fast_info
         last = float(fi["lastPrice"]) if fi.get("lastPrice") else None
@@ -141,14 +142,13 @@ def _yahoo_quote(symbol: str) -> Quote:
         info = t.info or {}
         bid = info.get("bid") or None
         ask = info.get("ask") or None
-        if bid and ask and (ask < bid or ask / bid > 1.2):  # yahoo returns junk after hours
-            bid = ask = None
+        state = info.get("marketState")
         last = last or info.get("regularMarketPrice") or info.get("currentPrice")
         avgv = avgv or info.get("averageVolume")
     except Exception:
         pass
     return Quote(symbol=symbol, last=last, bid=bid, ask=ask, close=close, volume=vol, avg_volume=avgv,
-                 ts=time.time(), source="yahoo")
+                 ts=time.time(), source="yahoo", session=market_hours.session_from_provider(state))
 
 
 def last_price(symbol: str) -> float | None:

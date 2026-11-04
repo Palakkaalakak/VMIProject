@@ -24,6 +24,7 @@ from collections import OrderedDict
 from typing import Any
 
 from vmi.config import get_settings
+from vmi.data import market_hours
 from vmi.data.models import OptionQuote, Quote
 
 log = logging.getLogger("vmi.ib")
@@ -152,7 +153,8 @@ class IBGateway:
             while time.time() < end and not (_clean(t.bid) and _clean(t.ask)) and not _clean(t.last):
                 await asyncio.sleep(0.1)
             return Quote(symbol=symbol, last=_clean(t.last), bid=_clean(t.bid), ask=_clean(t.ask),
-                         close=_clean(t.close), volume=_clean(t.volume), ts=time.time(), source="ib")
+                         close=_clean(t.close), volume=_clean(t.volume), ts=time.time(), source="ib",
+                         session=market_hours.session_now())
         return self.call(run, timeout=wait + 10)
 
     def history(self, symbol: str, duration: str = "10 Y", bar: str = "1 day") -> list[dict]:

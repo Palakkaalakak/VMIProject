@@ -108,6 +108,7 @@ class Quote:
     avg_volume: float | None = None
     ts: float = 0.0
     source: str = ""
+    session: str = "regular"     # regular | extended | closed (vmi.data.market_hours)
 
     @property
     def mid(self) -> float | None:
