@@ -11,6 +11,7 @@ from typing import Callable
 
 import pandas as pd
 
+from vmi.analysis.consistency import series_trend
 from vmi.analysis.trends import mean, stdev, trend
 from vmi.analysis.valuation.core import (Scenario, ValuationResult, discount_rate, discounted_value,
                                          growth_path)
@@ -113,38 +114,53 @@ def _dcf_family(ctx: ValuationContext, method: str, label: str, base: float | No
 
 # --------------------------------------------------------------------------------------- DCF (FCF)
 def dcf_fcf(ctx: ValuationContext) -> ValuationResult:
-    cfo_tr = trend(ctx.fund.series("cfo")[-6:])
+    cfo_tr = series_trend(ctx.fund, "cfo", ctx.rules)
     reasons = [] if cfo_tr.consistent else [f"CFO not consistently increasing ({cfo_tr.reason})"]
     return _dcf_family(ctx, "dcf_fcf", "Discounted Free Cash Flow", ctx.ttm("fcf"), "TTM free cash flow", reasons)
 
 
+def capex_window(fund: Fundamentals, years: int = 5) -> list[float]:
+    """The most recent 12-month capex figures: TTM (if newer than the last FY) + preceding fiscal years."""
+    annual = [abs(v) for v in fund.series("capex")]
+    ttm = fund.ttm.get("capex")
+    last_fy = annual[-1] if annual else None
+    if ttm is not None and last_fy is not None and abs(abs(ttm) - last_fy) > 0.01 * max(1.0, last_fy):
+        return (annual + [abs(ttm)])[-years:]
+    return annual[-years:]
+
+
 def capex_is_lumpy(fund: Fundamentals, rules: VMIRules = RULES) -> bool:
-    capex = [abs(v) for v in fund.series("capex")]
-    if len(capex) < 4:
+    """Capex 'lumpy' ⇒ normalise. Only when capex is MATERIAL (≥10% of CFO) — tiny capex in asset-light
+    names (MA/V) can double without meaning anything — and either the latest 12m capex spiked ≥1.5× the
+    prior years' average, or FCF lost its uptrend while CFO kept it."""
+    win = capex_window(fund, 6)
+    if len(win) < 4:
         return False
-    latest = abs(fund.ttm.get("capex", capex[-1]))
-    prior = mean(capex[-5:-1]) or 0
-    fcf = fund.series("fcf")
-    fcf_tr = trend(fcf[-6:])
-    return (prior > 0 and latest > rules.valuation.capex_spike_ratio * prior) or not fcf_tr.consistent
+    cfo = fund.last("cfo") or 0
+    latest, prior = win[-1], mean(win[:-1]) or 0
+    if cfo <= 0 or latest < 0.10 * cfo:
+        return False
+    spike = prior > 0 and latest > rules.valuation.capex_spike_ratio * prior
+    fcf_broken = not trend(fund.series("fcf")[-6:]).consistent and series_trend(fund, "cfo", rules).consistent
+    return spike or fcf_broken
 
 
 def normalised_fcf(fund: Fundamentals, years: int = 5) -> float | None:
-    """Latest 12-month CFO − 5-year average capex (Lesson 5 §5.2)."""
+    """Latest 12-month CFO − average capex of the 5 most recent 12-month periods (Lesson 5 §5.2)."""
     cfo = fund.last("cfo")
-    capex = [abs(v) for v in fund.series("capex")[-years:]]
+    capex = capex_window(fund, years)
     if cfo is None or not capex:
         return None
     return cfo - sum(capex) / len(capex)
 
 
 def dcf_normalized(ctx: ValuationContext) -> ValuationResult:
-    cfo_tr = trend(ctx.fund.series("cfo")[-6:])
+    cfo_tr = series_trend(ctx.fund, "cfo", ctx.rules)
     reasons = [] if cfo_tr.consistent else [f"CFO not consistently increasing ({cfo_tr.reason})"]
     base = normalised_fcf(ctx.fund, ctx.rules.valuation.capex_normalization_years)
     r = _dcf_family(ctx, "dcf_normalized", "DCF — Normalised capex (CFO − 5y avg capex)", base,
                     "normalised FCF", reasons)
-    r.extra["capex_5y"] = ctx.fund.series("capex")[-5:]
+    r.extra["capex_5y"] = capex_window(ctx.fund, ctx.rules.valuation.capex_normalization_years)
     r.extra["lumpy_capex"] = capex_is_lumpy(ctx.fund, ctx.rules)
     return r
 
@@ -152,7 +168,7 @@ def dcf_normalized(ctx: ValuationContext) -> ValuationResult:
 def dcf_cfo(ctx: ValuationContext) -> ValuationResult:
     cfo, ni = ctx.ttm("cfo"), ctx.ttm("net_income")
     reasons = []
-    cfo_tr = trend(ctx.fund.series("cfo")[-6:])
+    cfo_tr = series_trend(ctx.fund, "cfo", ctx.rules)
     if not cfo_tr.consistent:
         reasons.append(f"CFO not consistently increasing ({cfo_tr.reason})")
     if cfo and ni and ni > 0 and cfo > ni * (1 + ctx.rules.valuation.cfo_max_premium_over_ni):
@@ -163,7 +179,7 @@ def dcf_cfo(ctx: ValuationContext) -> ValuationResult:
 
 
 def discounted_net_income(ctx: ValuationContext) -> ValuationResult:
-    ni_tr = trend(ctx.fund.series("net_income")[-6:])
+    ni_tr = series_trend(ctx.fund, "net_income", ctx.rules)
     reasons = [] if ni_tr.consistent else [f"net income not consistently increasing ({ni_tr.reason})"]
     return _dcf_family(ctx, "dni", "Discounted Net Income", ctx.ttm("net_income"), "TTM net income", reasons)
 

@@ -21,7 +21,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Any
 
 from vmi.analysis.classify import BizType
-from vmi.analysis.trends import trend
+from vmi.analysis.consistency import consistent
 from vmi.analysis.valuation.core import ValuationResult
 from vmi.analysis.valuation.methods import REGISTRY, ValuationContext, capex_is_lumpy
 
@@ -47,8 +47,8 @@ class ValuationReport:
 
 def candidate_methods(ctx: ValuationContext, biz: BizType) -> tuple[list[str], str]:
     f = ctx.fund
-    cfo_ok = trend(f.series("cfo")[-6:]).consistent
-    ni_ok = trend(f.series("net_income")[-6:]).consistent
+    cfo_ok = consistent(f, "cfo", ctx.rules)
+    ni_ok = consistent(f, "net_income", ctx.rules)
     ni_ttm = f.last("net_income") or 0
     cfo_ttm, ni = f.last("cfo"), f.last("net_income")
 

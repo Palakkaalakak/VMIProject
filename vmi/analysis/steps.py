@@ -13,6 +13,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Any
 
 from vmi.analysis.classify import BizType, is_no_moat_industry
+from vmi.analysis.consistency import series_trend
 from vmi.analysis.trends import falling_streak, mean, trend
 from vmi.data.models import Estimates, Fundamentals
 from vmi.rules import RULES, VMIRules
@@ -67,19 +68,18 @@ def _ratio_now(f: Fundamentals, name: str) -> float | None:
 # ------------------------------------------------------------------------------------------ STEP 1
 def step1_track_record(f: Fundamentals, biz: BizType, rules: VMIRules = RULES) -> StepResult:
     r = rules.track
-    win = r.preferred_years
     checks: list[Check] = []
     notes: list[str] = []
-    rev = trend(f.series("revenue")[-win:], r.max_down_years_5y, r.min_years)
+    rev = series_trend(f, "revenue", rules)
     checks.append(Check("revenue_consistent", rev.consistent, rev.cagr, "uptrend ≥5y", rev.reason))
-    ni = trend(f.series("net_income")[-win:], r.max_down_years_5y, r.min_years)
-    oi = trend(f.series("operating_income")[-win:], r.max_down_years_5y, r.min_years)
+    ni = series_trend(f, "net_income", rules)
+    oi = series_trend(f, "operating_income", rules)
     ni_ok = ni.consistent or oi.consistent
     checks.append(Check("earnings_consistent", ni_ok, ni.cagr if ni.consistent else oi.cagr,
                         "NI (or operating income) uptrend",
                         ni.reason if ni.consistent else f"NI: {ni.reason}; operating income: {oi.reason}"))
     ignore_cfo = biz in (BizType.BANK, BizType.CYCLICAL, BizType.INSURANCE, BizType.ASSET_MANAGER)
-    cfo = trend(f.series("cfo")[-win:], r.max_down_years_5y, r.min_years)
+    cfo = series_trend(f, "cfo", rules)
     checks.append(Check("cfo_consistent", None if ignore_cfo else cfo.consistent, cfo.cagr, "uptrend ≥5y",
                         ("ignored for " + biz.value) if ignore_cfo else cfo.reason))
     # margins
