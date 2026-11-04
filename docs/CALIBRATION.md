@@ -71,3 +71,31 @@ Each row = ONE fixed number in ONE place. ratio = ours ÷ Adam.
 | TMO | (P/S ref.) | consensus growth was temporarily distorted LOW; Adam kept the prior rate (high-quality compounder); CFO dip fails strict consistency | override method `dcf_fcf` + growth ≈ Adam's prior rate |
 | LIN, WM, CTAS | 0.58–0.78 | low beta ⇒ lowest rate, but growth sources ~9–11%; Adam uses higher FactSet growth | acceptable (conservative); override if conviction |
 | PLTR | 0.28 | speculative ⇒ PSG; Adam uses DCF on forward numbers | method override `dcf_fcf` if desired |
+
+## Update 2026-11-04 (later) — data fixes, Adam normalisation rule, judgement layer
+
+Fixes applied (all Adam-rule or data-hygiene, no fitting):
+1. **SEC currency bug** — 20-F filers tag a one-year USD convenience translation beside the real currency; we
+   mixed RMB history with a USD year. Now the dominant unit is used. BABA 0.19 → **0.96**.
+2. **Adam's cash-flow normalisation rule** (MSFT/AMZN case study): sudden big TTM jump → prior FY; sudden plunge
+   → 4y average. "Sudden" is measured against the company's own 3y trend (steady compounders keep TTM, as
+   Adam does for MSFT). ASML's TTM FCF 21.2B vs FY 11.1B is the main target (still high, see below).
+3. **Negative equity** (doc §3.5/§5.1): ROE "effectively infinite" → pass when profitable, NI rising, FCF rising
+   (or growth-capex dip with rising CFO, doc Amazon rule), and buybacks caused it. MCD/AZO/YUM/DPZ/ORLY/HLT/BKNG/
+   VRSN pass; LOW/SBUX/PM/MO/ABBV fail on profit consistency (correct per the rule).
+4. **Judgement layer** `config/judgements.json` (committed; DB overrides layer on top): TMO (growth 13% + DCF),
+   ASML 20%, AVGO 25%, VEEV 18%, ACGL P/B, PLTR DCF. Pure-formula results are always reported separately.
+
+| run | median ours/Adam | within ±15% | > 1.05 | < 0.75 |
+|---|---|---|---|---|
+| pure formula (iv −10%) | **0.922** | 13/43 | 13 | 10 |
+| with judgements | 0.81 | 12/43 | 9 | 12 |
+
+Growth input vs Adam's own "Avg. Growth Rate" (data/growth_vs_adam.json): median diff **+0.8pp**, 18/35 within
+±2pp. Feeding Adam's exact growth into our DCF raises ±15% hits from 12 → 18, so ~half the error is growth input,
+half is base cash flow / balance sheet. Biggest growth misses: ASML +18.9pp, BABA +17.3pp, AVGO +13.9pp (cyclical
+rebound estimates hitting the 40% cap) and NVO −10.5pp (consensus collapsed; Adam kept 14.5%).
+
+Remaining open outliers: BKNG 2.0 (Adam 188 vs our 378 at the same growth — base or share count differs;
+under investigation), NKE 1.9 / LVMUY 0.28 / CNSWF 0.79 (P/S mean; Adam uses DCF), VEEV 1.48, UNH 1.35 (classified
+as insurer → P/B), POOL/LIN/WM 0.5–0.7 (conservative side — acceptable per policy).

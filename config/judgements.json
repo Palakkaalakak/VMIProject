@@ -13,10 +13,6 @@
     "growth": 0.25,
     "note": "FinViz 5y EPS 65% (next-year ~62-67%) reflects the current AI ramp; not plausible as a 5-year average at this scale. Normalised to 25% (judgement)."
   },
-  "BABA": {
-    "growth": 0.13,
-    "note": "FinViz 43% is a rebound off depressed earnings (regulatory crackdown base). Zacks long-term 13% used."
-  },
   "VEEV": {
     "growth": 0.18,
     "note": "Sources disagree wildly (FinViz 12.5%, Zacks 35%); next-year estimates ~10-20%. Use 18% (judgement, between sources)."
