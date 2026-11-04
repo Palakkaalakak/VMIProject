@@ -54,7 +54,7 @@ export const api = {
   scanWatchlist: (id) => request("POST", `/api/watchlists/${id}/scan`),
   // alerts
   alerts: () => request("GET", "/api/alerts"),
-  markSeen: (ids) => request("POST", "/api/alerts/seen", { ids }),
+  markSeen: (ids) => request("POST", "/api/alerts/seen", ids ?? null),
   checkAlerts: () => request("POST", "/api/alerts/check"),
   // options
   expirations: (s) => request("GET", `/api/options/${s}/expirations`),
