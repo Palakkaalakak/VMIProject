@@ -280,6 +280,25 @@ def compact(rep: dict, c: Candidate | None = None) -> dict:
     }
 
 
+
+# ------------------------------------------------------------------------------------- judgement pins
+def _pinned_candidates(cands: list[Candidate]) -> dict[str, Candidate]:
+    """Tickers with a human judgement / DB override (e.g. TMO: distorted consensus, Adam keeps it).
+    The cheap pre-filters work on raw data and would drop them, so they always reach the deep stage,
+    where the full 7-step report (with the override applied) is the honest verdict."""
+    ov = store.all_overrides()
+    return {c.symbol: c for c in cands if c.symbol in ov}
+
+
+def _restore_pinned(cands: list[Candidate], pinned: dict[str, Candidate]) -> list[Candidate]:
+    have = {c.symbol for c in cands}
+    back = [c for sym, c in pinned.items() if sym not in have]
+    for c in back:
+        why = STATE.dropped.pop(c.symbol, "")
+        c.notes["pinned"] = f"judgement override — kept despite pre-filter ({why})" if why else "judgement override"
+    return back + cands
+
+
 # ------------------------------------------------------------------------------------------ runner
 def run(params: dict | None = None) -> dict:
     p = ScanParams.from_dict(params)
@@ -294,13 +313,18 @@ def run(params: dict | None = None) -> dict:
         s.commit()
         STATE.run_id = row.id
     cands: list[Candidate] = []
+    pinned: dict[str, Candidate] = {}
     try:
         for i, (name, fn) in enumerate(STAGES):
             STATE.stage = name
             STATE.progress = min(0.6, i / (len(STAGES) - 1) * 0.6)
             t0 = time.time()
             n_in = len(cands)
+            if name == "deep":
+                cands = _restore_pinned(cands, pinned)
             cands = fn(cands, p)
+            if name == "universe":
+                pinned = _pinned_candidates(cands)
             STATE.funnel.append({"stage": name, "in": n_in, "out": len(cands), "secs": round(time.time() - t0, 1)})
         status = "done"
     except Exception as exc:
