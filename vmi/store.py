@@ -4,6 +4,7 @@ per-ticker valuation overrides and scan results. One module = one schema; busine
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any
 
@@ -151,10 +152,30 @@ def session() -> Session:
 
 
 # ------------------------------------------------------------------------------------- overrides
+JUDGEMENTS_FILE = Path(__file__).resolve().parents[1] / "config" / "judgements.json"
+
+
+def judgements() -> dict[str, dict]:
+    """Committed per-ticker judgement overrides (config/judgements.json) — survive DB wipes."""
+    try:
+        raw = json.loads(JUDGEMENTS_FILE.read_text())
+    except (OSError, ValueError):
+        return {}
+    return {k.upper(): v for k, v in raw.items() if not k.startswith("_") and isinstance(v, dict)}
+
+
 def get_override(symbol: str) -> dict:
+    """Effective overrides = committed judgement (if any) ⊕ DB override (DB wins). `note` explains provenance."""
+    j = dict(judgements().get(symbol.upper(), {}))
     with session() as s:
         o = s.get(Override, symbol.upper())
-        return dict(o.data) if o else {}
+        db = dict(o.data) if o else {}
+        if o and o.note:
+            db["note"] = o.note
+    out = {**j, **db}
+    if out:
+        out["source"] = "db" if db and not j else "judgement" if j and not db else "judgement+db" if out else ""
+    return out
 
 
 def set_override(symbol: str, data: dict, note: str = "") -> dict:
@@ -171,8 +192,12 @@ def set_override(symbol: str, data: dict, note: str = "") -> dict:
 
 
 def all_overrides() -> dict[str, dict]:
+    out = {k: {"data": {x: y for x, y in v.items() if x != "note"}, "note": v.get("note", ""), "source": "judgement"}
+           for k, v in judgements().items()}
     with session() as s:
-        return {o.symbol: {"data": o.data, "note": o.note} for o in s.scalars(select(Override))}
+        for o in s.scalars(select(Override)):
+            out[o.symbol] = {"data": {**out.get(o.symbol, {}).get("data", {}), **o.data}, "note": o.note, "source": "db"}
+    return out
 
 
 def add_alert(symbol: str, kind: str, message: str, price: float | None = None) -> None:

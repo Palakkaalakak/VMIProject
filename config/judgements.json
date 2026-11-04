@@ -1,0 +1,9 @@
+{
+  "_doc": "Human-in-the-loop judgement overrides (ground rule: distorted data is handled per ticker, never by changing the general formula). Committed to git so they survive sandbox wipes; DB overrides (API PUT /override) layer on top. Keys: method, growth (yrs 1-5), growth_6_10, biz_type, iv_override, discount_rate, base_cf.",
+  "TMO":  {"growth": 0.13, "note": "Consensus temporarily distorted very low after the post-COVID normalisation; Adam kept the prior long-term rate (heavenly-queen compounder). Use ~13% long-run EPS growth (pre-distortion consensus band 12-15%)."},
+  "ASML": {"growth": 0.20, "note": "5y EPS estimates (FinViz 42%, Zacks 52%) are a cyclical/AI-capex rebound off a depressed base and hit the 40% cap. Normalised to ~20% (management 2030 targets imply ~high-teens revenue CAGR plus margin expansion)."},
+  "AVGO": {"growth": 0.25, "note": "FinViz 65% 5y EPS reflects the AI ramp + VMware amortisation roll-off; not sustainable for 5 years at this scale. Normalised to 25%."},
+  "BABA": {"growth": 0.13, "note": "FinViz 43% is a rebound off depressed earnings (regulatory crackdown base). Zacks long-term 13% used."},
+  "VEEV": {"growth": 0.18, "note": "Sources disagree wildly (FinViz 12.5%, Zacks 35%). Revenue guidance ~15-17% + operating leverage → 18%."},
+  "PLTR": {"method": "dcf_fcf", "note": "Now consistently FCF-positive with rising FCF; Adam values it on DCF rather than PSG. Speculative sizing still applies."}
+}
