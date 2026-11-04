@@ -96,6 +96,11 @@ class ValuationRules:  # Lesson 5
     min_discount_rate: float = 0.058       # "lowest rate in the table"
     max_discount_rate: float = 0.11        # extrapolation guard for very high betas
     doomsday_growth_factor: float = 0.5    # "growth halves after yr 5"
+    # ONE flat conservatism haircut on discounted-stream valuations (DCF/DNI), set from calibration vs
+    # Adam's published IVs (tests/fixtures/adam_reference.txt). Rationale: we lack FactSet; free
+    # consensus runs higher on average, so a flat cut keeps us on the conservative side. Not fitted per
+    # company. 0 disables it. See docs/CALIBRATION.md.
+    iv_haircut: float = 0.0
 
 
 @dataclass(frozen=True)

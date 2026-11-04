@@ -147,6 +147,8 @@ def _dcf_family(ctx: ValuationContext, method: str, label: str, base: float | No
     doom_path = growth_path(low, g6_10=low * ctx.rules.valuation.doomsday_growth_factor,
                             g11_20=ctx.rules.growth.conservative_years_11_20)
     doom = discounted_value(base, doom_path, rate, ctx.debt, ctx.cash, shares)
+    hc = 1.0 - ctx.rules.valuation.iv_haircut
+    base_iv, cons, doom = (None if v is None else v * hc for v in (base_iv, cons, doom))
     res.intrinsic_value = base_iv
     res.scenarios = [Scenario("base", base_iv, path, "avg of sources; yrs 6–10 capped at 15%; yrs 11–20 4%"),
                      Scenario("conservative", cons, cons_path, "lowest source; yrs 6–10 trimmed"),
@@ -155,6 +157,7 @@ def _dcf_family(ctx: ValuationContext, method: str, label: str, base: float | No
                   "shares": shares, "beta": ctx.beta, "discount_rate": rate, "growth_1_5": path.g1_5,
                   "growth_6_10": path.g6_10, "growth_11_20": path.g11_20,
                   "growth_sources": ctx.est.sources, "growth_method": gc.method, "growth_notes": gc.notes,
+                  "iv_haircut": ctx.rules.valuation.iv_haircut,
                   "statement_currency": ctx.statement_currency, "fx": ctx.fx, "notes": list(ctx.notes)}
     return res
 
