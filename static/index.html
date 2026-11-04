@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VMI Toolkit — Value Momentum Investing</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <header id="app-header">
+    <a href="#/analysis" class="brand">VMI<span>Toolkit</span></a>
+    <nav id="main-nav">
+      <a href="#/analysis" data-view="analysis">Analysis</a>
+      <a href="#/scanner" data-view="scanner">Superscanner</a>
+      <a href="#/watchlists" data-view="watchlists">Watchlists</a>
+      <a href="#/portfolios" data-view="portfolios">Paper portfolios</a>
+      <a href="#/options" data-view="options">Options</a>
+      <a href="#/alerts" data-view="alerts">Alerts <span id="alert-count" class="count" hidden></span></a>
+    </nav>
+    <form id="quick-search"><input id="quick-symbol" placeholder="Ticker ↵" autocomplete="off"></form>
+    <span id="conn-status" class="status" title="Interactive Brokers connection">IB …</span>
+  </header>
+  <main id="view" aria-live="polite"></main>
+  <footer class="muted small">Paper trading only — no orders are ever sent to IBKR. Not investment advice.</footer>
+  <div id="toasts"></div>
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
