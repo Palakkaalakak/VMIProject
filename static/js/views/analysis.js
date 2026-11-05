@@ -4,8 +4,7 @@ import { api } from "../api.js";
 import { $, esc, fmt, badge, loading, run, toast, signClass } from "../ui.js";
 import { state } from "../state.js";
 
-const BLENDS = ["", "lowest", "average", "median"];
-const METHODS = ["", "dcf_fcf", "dcf_normalized", "dcf_cfo", "dni", "pb_bank", "pb_distressed", "pnav_reit", "ps_mean", "psg"];
+let SCHEMA = null; // override fields, from GET /api/overrides/schema (declared once in vmi/overrides.py)
 
 /** personality = {"daily sma50": bounces, …}: show the moving average the stock respects most. */
 function personality(p) {
@@ -59,7 +58,7 @@ function header(r) {
       <div class="kpi"><span>Conservative</span><b>${fmt.money(v.conservative_value)}</b></div>
       ${verdict(r)}
     </div>
-    ${r.overrides && Object.keys(r.overrides).length ? `<p class="note">Judgement override active (${esc(r.overrides.source || "")}): ${esc(r.overrides.note || JSON.stringify(r.overrides))}</p>` : ""}
+    ${(r.overrides_applied || []).length ? `<p class="note">Judgement overrides (${esc(r.overrides.source || "")}): ${esc(r.overrides_applied.join(" · "))}${r.overrides.note ? ` — ${esc(r.overrides.note)}` : ""}</p>` : ""}
   </div>`;
 }
 
@@ -119,22 +118,73 @@ function trade(r) {
   </div>`;
 }
 
-function overrides(r) {
-  const o = r.overrides || {};
-  return `<div class="card"><h3>Judgement override</h3>
-    <p class="small muted">For distorted data only (e.g. temporarily depressed consensus). Stored per ticker; the general formula never changes.</p>
-    <form id="ov-form" class="grid">
-      <label>Growth yrs 1–5 <input name="growth" type="number" step="0.001" value="${o.growth ?? ""}" placeholder="0.13"></label>
-      <label title="How analyst sources are combined when no growth number is set">Growth blend <select name="growth_blend">${BLENDS.map((b) => `<option value="${b}" ${(o.growth_blend ?? "") === b ? "selected" : ""}>${b || "default (lowest)"}</option>`).join("")}</select></label>
-      <label>Method <select name="method">${METHODS.map((m) => `<option ${o.method === m ? "selected" : ""}>${m}</option>`).join("")}</select></label>
-      <label>Biz type <input name="biz_type" value="${esc(o.biz_type ?? "")}"></label>
-      <label>IV override <input name="iv_override" type="number" step="any" value="${o.iv_override ?? ""}"></label>
-      <label class="wide">Note (why) <input name="note" value="${esc(o.note ?? "")}"></label>
-      <button class="secondary">Save override</button>
-    </form></div>`;
+function overrides() {
+  return `<div class="card"><h3>Judgement overrides</h3>
+    <p class="small muted">For distorted data or human nuance. Stored per ticker with a reason; the general formula never
+      changes. Empty field = automatic. Same keys via CLI: <code>python -m vmi.overrides schema</code>.</p>
+    <div id="ov-body">${loading()}</div></div>`;
 }
 
-const view = (r) => `${header(r)}<div class="cols"><div>${valuation(r)}${technicals(r)}</div><div>${trade(r)}${overrides(r)}</div></div>${steps(r)}`;
+function fieldInput(f, v) {
+  const name = `name="${f.key}"`;
+  if (f.kind === "choice") {
+    return `<select ${name}>${f.choices.map((c) => `<option value="${esc(c)}" ${(v ?? "") === c ? "selected" : ""}>${esc(c || "auto")}</option>`).join("")}</select>`;
+  }
+  if (f.kind === "list_choice") {
+    return `<span class="checks">${f.choices.map((c) => `<label class="check"><input type="checkbox" ${name} value="${esc(c)}" ${(v || []).includes(c) ? "checked" : ""}>${esc(c)}</label>`).join("")}</span>`;
+  }
+  if (f.kind === "json") return `<textarea ${name} rows="2" placeholder='{"sources": [...], "grade": "wide"}'>${v ? esc(JSON.stringify(v)) : ""}</textarea>`;
+  if (f.kind === "list_number") return `<input ${name} value="${esc((v || []).join(", "))}" placeholder="405, 385, 363">`;
+  return `<input ${name} type="number" step="any" value="${v ?? ""}" placeholder="${f.kind === "percent" ? "0.13 = 13%" : "auto"}">`;
+}
+
+function overridesForm(o) {
+  const groups = [...new Set(SCHEMA.map((f) => f.group))];
+  const set = (f) => o[f.key] !== undefined && o[f.key] !== null && o[f.key] !== "";
+  const body = groups.map((g) => {
+    const fs = SCHEMA.filter((f) => f.group === g);
+    const open = g === "Growth" || fs.some(set) ? "open" : "";
+    return `<details ${open}><summary>${esc(g)}${fs.some(set) ? ` <span class="badge">${fs.filter(set).length} set</span>` : ""}</summary>
+      <div class="grid">${fs.map((f) => `<label title="${esc(f.help)}" class="${f.kind === "json" || f.kind === "list_choice" ? "wide" : ""}">${esc(f.label)}${fieldInput(f, o[f.key])}</label>`).join("")}</div></details>`;
+  }).join("");
+  return `<form id="ov-form">${body}
+    <label class="wide">Reason (always write why)<input name="note" value="${esc(o.note ?? "")}"></label>
+    <div class="inline">
+      <label class="check"><input type="checkbox" name="commit"> save to committed judgements (config/judgements.json)</label>
+      <button class="secondary">Save</button><button type="button" id="ov-clear" class="danger">Clear all</button>
+    </div></form>`;
+}
+
+function readOverrides(form) {
+  const data = {};
+  for (const f of SCHEMA) {
+    if (f.kind === "list_choice") {
+      data[f.key] = [...form.querySelectorAll(`[name="${f.key}"]:checked`)].map((x) => x.value);
+      continue;
+    }
+    const raw = form.elements[f.key]?.value?.trim() ?? "";
+    data[f.key] = raw === "" ? null : f.kind === "json" ? JSON.parse(raw) : f.kind === "number" || f.kind === "percent" ? parseFloat(raw) : raw;
+  }
+  return { data, note: form.elements.note.value, commit: form.elements.commit.checked };
+}
+
+async function bindOverrides(out, r) {
+  const box = $("#ov-body", out);
+  if (!box) return;
+  SCHEMA ||= await api.overrideSchema();
+  box.innerHTML = overridesForm(r.overrides || {});
+  const reanalyse = () => { location.hash = `#/analysis/${r.ticker}?t=${Date.now()}`; };
+  $("#ov-form", box).addEventListener("submit", (e) => {
+    e.preventDefault();
+    run(e.submitter, async () => { await api.setOverride(r.ticker, readOverrides(e.target)); toast("Overrides saved — re-analysing", "ok"); reanalyse(); });
+  });
+  $("#ov-clear", box).addEventListener("click", (e) => {
+    const commit = $("#ov-form", box).elements.commit.checked;
+    run(e.target, async () => { await api.clearOverride(r.ticker, commit); toast("Overrides cleared — re-analysing", "ok"); reanalyse(); });
+  });
+}
+
+const view = (r) => `${header(r)}<div class="cols"><div>${valuation(r)}${technicals(r)}</div><div>${trade(r)}${overrides()}</div></div>${steps(r)}`;
 
 function bind(out, r) {
   const pf = $("#trade-pf", out), mult = r.allocation_multiplier || 1;
@@ -157,11 +207,5 @@ function bind(out, r) {
       showSize();
     });
   });
-  $("#ov-form", out)?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const f = Object.fromEntries(new FormData(e.target));
-    const num = (k) => (f[k] === "" ? null : parseFloat(f[k]));
-    const body = { growth: num("growth"), growth_blend: f.growth_blend || null, iv_override: num("iv_override"), method: f.method || null, biz_type: f.biz_type || null, note: f.note || "" };
-    run(e.submitter, async () => { await api.setOverride(r.ticker, body); toast("Override saved — re-analysing", "ok"); location.hash = `#/analysis/${r.ticker}?t=${Date.now()}`; });
-  });
+  bindOverrides(out, r);
 }

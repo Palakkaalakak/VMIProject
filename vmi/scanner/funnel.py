@@ -223,8 +223,8 @@ def stage_long_term_chart(cands: list[Candidate], p: ScanParams) -> list[Candida
 def stage_deep(cands: list[Candidate], p: ScanParams) -> list[Candidate]:
     from vmi.analysis.pipeline import analyse_ticker
 
-    todo = cands[: p.deep_limit]
     overrides = store.all_overrides()
+    todo = [c for c in cands if _scan_flag(overrides, c.symbol) != "exclude"][: p.deep_limit]
     done = 0
     results: list[dict] = []
 
@@ -288,7 +288,12 @@ def _pinned_candidates(cands: list[Candidate]) -> dict[str, Candidate]:
     The cheap pre-filters work on raw data and would drop them, so they always reach the deep stage,
     where the full 7-step report (with the override applied) is the honest verdict."""
     ov = store.all_overrides()
-    return {c.symbol: c for c in cands if c.symbol in ov}
+    return {c.symbol: c for c in cands if c.symbol in ov and _scan_flag(ov, c.symbol) != "exclude"}
+
+
+def _scan_flag(overrides: dict, symbol: str) -> str:
+    """Override `scan`: "pin" (always deep-analyse), "exclude" (never show) or ""."""
+    return ((overrides.get(symbol) or {}).get("data") or {}).get("scan", "")
 
 
 def _restore_pinned(cands: list[Candidate], pinned: dict[str, Candidate]) -> list[Candidate]:

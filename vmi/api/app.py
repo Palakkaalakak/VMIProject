@@ -71,6 +71,17 @@ def health():
     return {"ok": True, "ib": gateway().info(), "ib_fundamentals": ib_fundamentals.status()}
 
 
+@sysr.get("/overrides/schema")
+def overrides_schema():
+    from vmi.overrides import schema
+    return schema()
+
+
+@sysr.get("/overrides")
+def overrides_all():
+    return store.all_overrides()
+
+
 @sysr.get("/rules")
 def rules():
     return RULES.to_dict()
@@ -101,17 +112,11 @@ def analyse(symbol: str, technicals: bool = True):
 
 
 class OverrideIn(BaseModel):
-    growth: float | None = None
-    growth_blend: str | None = None  # "lowest" | "average" | "median" (None = rules default)
-    growth_6_10: float | None = None
-    growth_11_20: float | None = None
-    discount_rate: float | None = None
-    method: str | None = None
-    biz_type: str | None = None
-    iv_override: float | None = None
-    base_cf: float | None = None
-    moat: dict | None = None
+    """Changes to apply: {key: value}; a null/empty value removes that key. Keys: GET /api/overrides/schema."""
+    data: dict = {}
     note: str = ""
+    replace: bool = False          # True: the given data replaces every existing DB override for the ticker
+    commit: bool = False           # True: write config/judgements.json (committed) instead of the database
 
 
 @ar.get("/{symbol}/override")
@@ -121,7 +126,14 @@ def get_override(symbol: str):
 
 @ar.put("/{symbol}/override")
 def put_override(symbol: str, body: OverrideIn):
-    return store.set_override(symbol, body.model_dump(exclude={"note"}), body.note)
+    from vmi.overrides import validate
+    write = store.set_judgement if body.commit else store.set_override
+    return write(symbol, validate(body.data), body.note, clear_all=body.replace)
+
+
+@ar.delete("/{symbol}/override")
+def delete_override(symbol: str, commit: bool = False):
+    return (store.set_judgement if commit else store.set_override)(symbol, None, "", clear_all=True)
 
 
 @ar.get("/{symbol}/fundamentals")

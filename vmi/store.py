@@ -178,17 +178,48 @@ def get_override(symbol: str) -> dict:
     return out
 
 
-def set_override(symbol: str, data: dict, note: str = "") -> dict:
-    clean = {k: v for k, v in data.items() if v not in (None, "")}
+def _merge(current: dict, changes: dict | None, clear_all: bool) -> dict:
+    """Apply changes to stored overrides: a None value removes that key; clear_all empties everything."""
+    out = {} if clear_all else dict(current)
+    for k, v in (changes or {}).items():
+        if v is None:
+            out.pop(k, None)
+        else:
+            out[k] = v
+    return out
+
+
+def set_override(symbol: str, data: dict | None, note: str = "", clear_all: bool = False) -> dict:
+    """Merge validated changes into the DB override for one ticker (see vmi.overrides.validate)."""
     with session() as s:
         o = s.get(Override, symbol.upper())
+        merged = _merge(dict(o.data) if o else {}, data, clear_all)
         if o is None:
-            o = Override(symbol=symbol.upper(), data=clean, note=note)
+            o = Override(symbol=symbol.upper(), data=merged, note=note)
             s.add(o)
         else:
-            o.data, o.note = clean, note or o.note
+            o.data, o.note = merged, ("" if clear_all else note or o.note)
+        if not o.data and not o.note:
+            s.delete(o)
         s.commit()
-        return dict(o.data)
+    return get_override(symbol)
+
+
+def set_judgement(symbol: str, data: dict | None, note: str = "", clear_all: bool = False) -> dict:
+    """Same as set_override, but writes the committed config/judgements.json (survives DB resets)."""
+    try:
+        raw = json.loads(JUDGEMENTS_FILE.read_text())
+    except (OSError, ValueError):
+        raw = {}
+    sym = symbol.upper()
+    entry = _merge({k: v for k, v in raw.get(sym, {}).items() if k != "note"}, data, clear_all)
+    note = "" if clear_all else (note or raw.get(sym, {}).get("note", ""))
+    if entry or note:
+        raw[sym] = {**entry, **({"note": note} if note else {})}
+    else:
+        raw.pop(sym, None)
+    JUDGEMENTS_FILE.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n")
+    return get_override(symbol)
 
 
 def all_overrides() -> dict[str, dict]:

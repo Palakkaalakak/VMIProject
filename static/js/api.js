@@ -27,6 +27,8 @@ export const api = {
   analyse: (s, technicals = true) => request("GET", `/api/analysis/${s}${qs({ technicals })}`),
   override: (s) => request("GET", `/api/analysis/${s}/override`),
   setOverride: (s, body) => request("PUT", `/api/analysis/${s}/override`, body),
+  clearOverride: (s, commit = false) => request("DELETE", `/api/analysis/${s}/override${qs({ commit })}`),
+  overrideSchema: () => request("GET", "/api/overrides/schema"),
   size: (s, portfolio_id, multiplier) => request("GET", `/api/analysis/${s}/size${qs({ portfolio_id, multiplier })}`),
   // scanner
   scanStart: (body) => request("POST", "/api/scan/start", body),

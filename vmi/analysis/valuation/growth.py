@@ -48,18 +48,19 @@ BLENDS = {
 
 
 def choose_growth(est: Estimates, f: Fundamentals | None = None, rules: VMIRules = RULES,
-                  blend: str | None = None) -> GrowthChoice:
-    """`blend` (per-ticker override) beats rules.growth.blend; unknown names fall back to the rule."""
+                  blend: str | None = None, exclude: tuple[str, ...] = ()) -> GrowthChoice:
+    """`blend` (per-ticker override) beats rules.growth.blend; unknown names fall back to the rule.
+    `exclude` drops named sources (per-ticker override, e.g. one source is stale)."""
     cap = rules.growth.max_years_1_5
     blend = blend if blend in BLENDS else rules.growth.blend
-    srcs = {k: v.get("eps_growth_5y") for k, v in (est.sources or {}).items()}
+    srcs = {k: v.get("eps_growth_5y") for k, v in (est.sources or {}).items() if k not in exclude}
     srcs = {k: float(v) for k, v in srcs.items() if v is not None and -0.20 < v < 1.0}
     if srcs:
         vals = sorted(srcs.values())
         g = BLENDS[blend](vals)
         notes = [f"capped at {cap:.0%}"] if g > cap else []
         return GrowthChoice(min(g, cap), blend, srcs, vals[0], vals[-1], notes)
-    nxt = sorted(float(v["eps_growth_next_year"]) for v in (est.sources or {}).values()
+    nxt = sorted(float(v["eps_growth_next_year"]) for k, v in (est.sources or {}).items() if k not in exclude
                  if v.get("eps_growth_next_year") is not None and -0.5 < v["eps_growth_next_year"] < 1.0)
     if nxt:
         return GrowthChoice(min(nxt[len(nxt) // 2], cap), "next_year_median",

@@ -1,7 +1,7 @@
 """Single-ticker VMI analysis: data → classification → Steps 1–5 → valuation (Step 6) → technicals (Step 7).
 
 The one function the API, scanner deep-pass, watchlists and calibration all call, so behaviour is identical
-everywhere. Per-ticker user overrides (biz type, growth, forced method, manual moat, IV) come in `overrides`.
+everywhere. Per-ticker judgement overrides come in `overrides`; every key is declared in vmi/overrides.py.
 """
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from vmi.analysis.valuation.selector import value_company
 from vmi.data import market
 from vmi.data.estimates import get_estimates
 from vmi.data.fundamentals import resolve
+from vmi.overrides import describe
 from vmi.rules import RULES, VMIRules
 
 
@@ -76,9 +77,14 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
                            growth_override=ov.get("growth"), growth_blend=ov.get("growth_blend"),
                            growth_6_10_override=ov.get("growth_6_10"),
                            growth_11_20_override=ov.get("growth_11_20"), discount_override=ov.get("discount_rate"),
-                           base_cf_override=ov.get("base_cf"))
+                           base_cf_override=ov.get("base_cf"), exclude_sources=tuple(ov.get("exclude_sources") or ()),
+                           beta_override=ov.get("beta"), shares_override=ov.get("shares"),
+                           cash_override=ov.get("cash"), debt_override=ov.get("debt"),
+                           haircut_override=ov.get("iv_haircut"))
     val = value_company(ctx, biz, ov.get("method"))
     iv = ov.get("iv_override") or val.intrinsic_value
+    if ov.get("conservative_override"):
+        val.conservative_value = ov["conservative_override"]
     s6 = S.step6_price(price, iv, val.conservative_value)
 
     tech_dict = None
@@ -86,17 +92,24 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
         tech = T.analyse(hist, intrinsic_value=iv)   # buy levels must sit below IV
         tech_dict = tech.to_dict()
         tech_dict.pop("levels", None)
+        if ov.get("buy_levels"):
+            tech_dict["buy_levels"] = [{"tranche": i, "price": p, "source": "judgement override", "touches": None,
+                                        "confirmed": True} for i, p in enumerate(ov["buy_levels"], 1)]
     s7 = S.step7_entry(tech_dict or {})
+    steps = _apply_step_overrides([s1, s2, s3, s4, s5, s6, s7], ov)
+    s1, s2, s3, s4, s5, s6, s7 = steps
 
     great = all(s.passed for s in (s1, s2, s3, s4, s5))
     g = growth_rate(f, est)
     moat = S.moat_grade(s3)
-    cat = category(biz, g, f, rules)
+    cat = ov.get("category") or category(biz, g, f, rules)
     alloc = 1.0
     if cat in ("speculative_growth", "turnaround"):
         alloc = rules.portfolio.speculative_multiplier
     elif moat == "narrow":
         alloc = rules.portfolio.narrow_moat_multiplier
+    if ov.get("allocation_multiplier") is not None:
+        alloc = ov["allocation_multiplier"]
     roe, roic = f.ratios.get("roe", []), f.ratios.get("roic", [])
     metrics = {
         "growth": g, "eps_growth_5y": est.eps_growth_5y, "revenue_cagr": s1.checks[0].value,
@@ -120,4 +133,16 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
         "data": {"provenance": f.provenance, "completeness": f.meta.get("completeness"),
                  "latest_date": f.latest_date, "currency": f.currency},
         "overrides": ov,
+        "overrides_applied": describe(ov),
     }
+
+
+def _apply_step_overrides(steps: list, ov: dict) -> list:
+    """`stepN: pass|fail` overrides force a step's verdict; the reason lives in the override note."""
+    for s in steps:
+        forced = ov.get(f"step{s.step}")
+        if forced in ("pass", "fail"):
+            s.passed = forced == "pass"
+            s.notes.append(f"verdict forced to {forced.upper()} by judgement override"
+                           + (f": {ov['note']}" if ov.get("note") else ""))
+    return steps

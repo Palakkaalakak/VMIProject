@@ -33,6 +33,12 @@ class ValuationContext:
     growth_11_20_override: float | None = None
     discount_override: float | None = None
     base_cf_override: float | None = None
+    exclude_sources: tuple[str, ...] = ()     # analyst growth sources to ignore
+    beta_override: float | None = None
+    shares_override: float | None = None      # price units
+    cash_override: float | None = None        # price currency
+    debt_override: float | None = None        # price currency
+    haircut_override: float | None = None     # per-ticker IV haircut (replaces rules.valuation.iv_haircut)
     notes: list[str] = field(default_factory=list)
 
     # ----- currency (Lesson 5 §6.1: statement currency vs share-price currency)
@@ -64,11 +70,15 @@ class ValuationContext:
     # ----- shared derived inputs (Lesson 5 §4.5)
     @property
     def debt(self) -> float:
+        if self.debt_override is not None:
+            return self.debt_override
         f = self.fund
         return self.fx * (abs(f.latest.get("lt_debt", 0.0)) + abs(f.latest.get("st_debt", 0.0)))
 
     @property
     def cash(self) -> float:
+        if self.cash_override is not None:
+            return self.cash_override
         f = self.fund
         return self.fx * (f.latest.get("cash", 0.0) + f.latest.get("st_investments", 0.0))
 
@@ -88,6 +98,8 @@ class ValuationContext:
         """Shares in *price units*. Normally the latest diluted count; when that disagrees with
         market-cap ÷ price by >25% (ADR ratios, multiple share classes like BRK-B) the price-implied
         count is used so that IV is per traded unit."""
+        if self.shares_override is not None:
+            return self.shares_override
         filing = self.filing_shares
         y = (self.est.extra or {}).get("yahoo") or {}
         mcap = y.get("market_cap")
@@ -101,7 +113,11 @@ class ValuationContext:
 
     @property
     def beta(self) -> float | None:
-        return self.est.beta
+        return self.beta_override if self.beta_override is not None else self.est.beta
+
+    @property
+    def haircut(self) -> float:
+        return self.haircut_override if self.haircut_override is not None else self.rules.valuation.iv_haircut
 
     @property
     def rate(self) -> float:
@@ -110,7 +126,7 @@ class ValuationContext:
     @property
     def growth_choice(self):
         from vmi.analysis.valuation.growth import choose_growth
-        return choose_growth(self.est, self.fund, self.rules, self.growth_blend)
+        return choose_growth(self.est, self.fund, self.rules, self.growth_blend, self.exclude_sources)
 
     @property
     def growth(self) -> float | None:
@@ -150,7 +166,7 @@ def _dcf_family(ctx: ValuationContext, method: str, label: str, base: float | No
     doom_path = growth_path(low, g6_10=low * ctx.rules.valuation.doomsday_growth_factor,
                             g11_20=ctx.rules.growth.conservative_years_11_20)
     doom = discounted_value(base, doom_path, rate, ctx.debt, ctx.cash, shares)
-    hc = 1.0 - ctx.rules.valuation.iv_haircut
+    hc = 1.0 - ctx.haircut
     base_iv, cons, doom = (None if v is None else v * hc for v in (base_iv, cons, doom))
     res.intrinsic_value = base_iv
     res.scenarios = [Scenario("base", base_iv, path, f"{'override' if ctx.growth_override is not None else gc.method + ' of sources'}; yrs 6–10 capped at 15%; yrs 11–20 4%"),
@@ -160,7 +176,7 @@ def _dcf_family(ctx: ValuationContext, method: str, label: str, base: float | No
                   "shares": shares, "beta": ctx.beta, "discount_rate": rate, "growth_1_5": path.g1_5,
                   "growth_6_10": path.g6_10, "growth_11_20": path.g11_20,
                   "growth_sources": ctx.est.sources, "growth_method": gc.method, "growth_notes": gc.notes,
-                  "iv_haircut": ctx.rules.valuation.iv_haircut,
+                  "iv_haircut": ctx.haircut,
                   "growth_haircut": ctx.rules.valuation.growth_haircut,
                   "statement_currency": ctx.statement_currency, "fx": ctx.fx, "notes": list(ctx.notes)}
     return res

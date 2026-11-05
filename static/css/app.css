@@ -93,3 +93,6 @@ details { border-top: 1px solid var(--line); padding: .45rem 0; } summary { curs
 .modal { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); width: min(900px, 94vw); max-height: 88vh; display: flex; flex-direction: column; }
 .modal header { display: flex; justify-content: space-between; align-items: center; padding: .8rem 1rem; border-bottom: 1px solid var(--line); }
 .modal-body { padding: 1rem; overflow: auto; display: flex; flex-direction: column; gap: .6rem; }
+.checks { display: flex; flex-wrap: wrap; gap: .2rem .7rem; }
+#ov-form textarea { width: 100%; font: inherit; background: var(--panel-2); color: inherit; border: 1px solid var(--line); border-radius: 6px; padding: .35rem; }
+#ov-form > label.wide { display: flex; flex-direction: column; gap: .2rem; color: var(--muted); font-size: .8rem; margin: .6rem 0; }

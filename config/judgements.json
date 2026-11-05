@@ -1,5 +1,5 @@
 {
-  "_doc": "Human-in-the-loop judgement overrides (ground rule: distorted data is handled per ticker, never by changing the general formula). Committed to git so they survive sandbox wipes; DB overrides (API PUT /override) layer on top. Keys: method, growth (yrs 1-5), growth_blend (lowest|average|median), growth_6_10, biz_type, iv_override, discount_rate, base_cf.",
+  "_doc": "Human/AI-in-the-loop judgement overrides (ground rule: distorted data is handled per ticker, never by changing the general formula). Committed to git so they survive database resets; database overrides (UI / API / CLI) layer on top. Every key and its meaning: `python -m vmi.overrides schema` (declared in vmi/overrides.py). Edit with `python -m vmi.overrides set TICKER key=value --note '...' --commit`. Always give a `note` explaining why.",
   "TMO": {
     "growth": 0.13,
     "note": "Consensus temporarily distorted very low after the post-COVID normalisation; Adam kept the prior long-term rate (heavenly-queen compounder). Use ~13% long-run EPS growth (pre-distortion consensus band 12-15%). Force DCF on FCF (Adam's method for TMO) instead of the P/S fallback the selector picks when the distorted data breaks consistency.",
