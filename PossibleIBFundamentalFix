@@ -1,0 +1,72 @@
+Since you are already hosting a local FastAPI server (http://localhost:8000) on the exact same machine running TWS or IB Gateway, you can completely bypass the broken reqFundamentalData API using IBKR's Client Portal Web API via your local TWS session without paying for any extra data subscriptions. [1] (/goto?url=CAEStgEBxCJF16GDW9fQ_mTZ0uXvuqs75bPffCqIal7tL-2pgqdoq1XDD4v-GkoxSS_CyvOjaVb8llAE78mdKS3DkHtFh1CdP5Mj1qY8L6CojYK4ms7hbcmROxwnZcSHVXa-x4FNZS8jzAB_YAvYziTCE5TJzl4b0py4jjNKpcKMeEVTa2wGaISLMwCXDCITc11G_7ETv5KyQbF2ffMY9UzTjJ7qOjda3oyIEZtJ0z1PJZ8VOkHlibS8WQ)
+TWS runs a built-in local HTTPS server that acts as a proxy to IBKR's Client Portal backend. This local endpoint is completely unaffected by the deprecation of TWS API commands and provides the data driving the TWS "Fundamentals Explorer" UI.
+
+1. The Strategy: Query Local TWS Web API Endpoint
+
+When TWS is open, it listens locally for Client Portal API commands. You can leverage the environment variable VMI_IB_CP_URL already provisioned in your vmi/config.py to hit this endpoint directly from your FastAPI backend via httpx or requests.
+• The Endpoint: https://localhost:localhost_port/v1/api/mofw/fundamentals/{conid}/owner (or /summary, /financials)
+• Why it works: It queries fundamental data utilizing the TWS session authentication cookie, avoiding extra token costs or external subscriptions.
+
+2. Implementation: The Blueprint for vmi/data/ib_web.py
+
+Create a new data provider file to target this endpoint. Because the Client Portal API requires a contract ID (conid) rather than a string ticker, you must resolve the ticker via IBKR's contract search first.
+python
+# vmi/data/ib_web.py
+import httpx
+from vmi.config import settings  # Assuming settings holds VMI_IB_CP_URL
+
+# TWS local Web API usually uses self-signed certs; verify=False is often required locally
+client = httpx.Client(base_url=settings.VMI_IB_CP_URL, verify=False)
+
+def get_conid(ticker: str) -> int:
+    """Resolve a ticker symbol to an IBKR Contract ID (conid)."""
+    response = client.post("/v1/api/iserver/secdef/search", json={"symbol": ticker})
+    data = response.json()
+    # Filter for US stocks to prevent picking up options/futures conids
+    for sec in data:
+        if sec.get("assetClass") == "STK" and sec.get("expiry") is None:
+            return sec["conid"]
+    raise ValueError(f"Could not find stock conid for ticker {ticker}")
+
+def fetch_ibkr_fundamentals(ticker: str) -> dict:
+    """Fetch deep fundamentals using the TWS Client Portal fallback proxy."""
+    conid = get_conid(ticker)
+    
+    # Endpoint variations based on what you need for Adam Khoo's 7-step rules:
+    # '/summary' -> Profile, Ratios, Moat metrics
+    # '/financials' -> Income statements, Balance sheets, Cash flows
+    response = client.get(f"/v1/api/mofw/fundamentals/{conid}/financials")
+    if response.status_code != 200:
+        return {}
+        
+    return response.json()
+Use code with caution.
+
+3. Integrating into your Resolution Pipeline
+
+Open vmi/data/fundamentals.py. Instead of attempting the standard reqFundamentalData API connection that triggers error 10358, call your new local web scraper layer right before defaulting to the SEC EDGAR scraper: [1] (/goto?url=CAES1AEBxCJF1__HqBGoUg8pV-SPQIFwI0XCU0rpTX0CpTiYyWBPV08OsMCqJ6_iXPP6ehe6Fv9Vs7H30TRPVzhaK4jzLO65fh6n1YCROC5j60XofoKmFtGI-LZkEGHWpng1pObytTEAYf3GHJNFh5jR6lxRFKeMtLKPJc4khNOSdpoXUdxVapcflezvdY-fKeOZ-FlteyJudiZr8f5t4im3h22kiYFlTuJkd3m-IHrVSwUkaTiCt2PL_mLH8df6qQBol_OdOzHXmAPr5WZGAzeIjsdzY4k6UQ), [2] (/goto?url=CAESzwEBxCJF1y_s0NLrY3sm1uEcfLjmY62Ih-LTdoYS0V108y8TgwePeOj8AtyR-DQQpFO7PfnevqCC27il4AIndU86RoTqG5MPycGb9JxlM254jreLvqPFXFDjguxVZLW7Z32sgC7VV5xHu2OYcB5Hqe9wmJl73RAVZ6yS2YK78fI9vyRylDj7XzbSXMKgSQ-kK1N_JrQPtSJ4SxIbkACR9A1527NoSHkyRgV_6H_l8tXg8UW5nKYo-at9d4Q7zCViYTyFOD7wC7fmTWcBx5pqVbI)
+python
+# vmi/data/fundamentals.py
+from vmi.data.ib_web import fetch_ibkr_fundamentals
+from vmi.data.sec import fetch_sec_xbrl
+
+def resolve(ticker: str):
+    # 1. Attempt the local TWS Client Portal API workaround
+    try:
+        ib_data = fetch_ibkr_fundamentals(ticker)
+        if ib_data:
+            return parse_ib_web_to_model(ib_data) 
+    except Exception:
+        pass # Fall through to free open-source scrapers if TWS Web API is locked down
+        
+    # 2. Existing robust fallbacks from your architecture matrix:
+    # SEC EDGAR XBRL -> StockAnalysis -> Yahoo
+    return fetch_sec_xbrl(ticker) 
+Use code with caution.
+
+4. Zero-Cost Backup: Optimize your SEC EDGAR Stack
+
+Your architecture profile already notes an outstanding fallback implementation utilizing SEC EDGAR XBRL (data/sec.py). If you choose not to fiddle with TWS local endpoints, your existing setup is already ideal for a free pipeline.
+To maximize the reliability of this free channel for the 7-step analysis without getting rate-limited:
+• Enforce the User Agent: Ensure VMI_SEC_USER_AGENT strictly follows the SEC standard format: Sample Company Name AdminContact@<samplecompanydomain>.com.
+• Leverage Bulk Frames: For your "Superscanner" component (vmi/scanner/funnel.py), make sure your staging engine pulls down the nightly SEC historical data archives (CompanyFacts bulk ZIPs) rather than querying endpoint targets line-by-line. This speeds up scanning exponentially without hitting external premium paywalls. [1] (/goto?url=CAES2gEBxCJF12UaE3Kt0fRDte-B4zsTJjeejySft3pnbl-v_AKyRal8W-YXpt6Scxt0NXIcrylz-sLL_1NjU1nWv4ApnxHe5fKvpUHy74b5GKoccsDjxlQ5OYPp9bNT3kMdhuiTFGc4V2G_vODA3T2pZFoqeQyOh_TnmeWXNphu2-AmMuEVUL-wVsuGC97Ad--Cqaqx_UxaTr8Cr2la8WdST2lRtHXGZErTvRHEkzAHnYt6bxFLwNEwOWP8KfoQG4zH1Imt5zWVWvjV9c4delKn8qStBYGmOM20pF54lg), [2] (/goto?url=CAESxgEBxCJF17P_-Rt2z5lnRoqdA2F0W90mb5jndeW2sBzpXI9HhZcx78ynZG4cK-c-3BDZPs5rLiR1UZhet6DDZQ2LlU_cjGaJD5wWvicVrN94xsvlC8hCdcgErJGiUMkgKajhWl9tgbjZ9qqDjW5IJi04GWKv56SB1vvpLM8LAXD8TqNbToxLhkfKSB3-KAjJ7s32aLaILCFOMVfDK7ccFmHUFAqdoiwdXPB8bkHv8sSztKOzzQX1Qqw2OgPSX-U4LsvYIHlbEew)
