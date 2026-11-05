@@ -28,6 +28,10 @@ class BizType(str, Enum):
 
 # SIC ranges (inclusive) → type. Source: SEC SIC code list.
 _SIC_RULES: list[tuple[int, int, BizType]] = [
+    # Managed care (UNH, ELV, CI, HUM, CNC, MOH): the doc files "health insurance / managed care" under
+    # Healthcare, not financials. These are cash-flow businesses (premiums → claims within a year, no
+    # long-tail float), so they get the normal DCF path, not the insurer P/B / DNI path. First match wins.
+    (6324, 6324, BizType.NORMAL),
     (6020, 6036, BizType.BANK),          # commercial banks, savings institutions
     (6000, 6019, BizType.BANK),
     (6111, 6163, BizType.ASSET_MANAGER),  # credit agencies, mortgage bankers, loan brokers
@@ -49,6 +53,7 @@ _SIC_RULES: list[tuple[int, int, BizType]] = [
 ]
 
 _TEXT_RULES: list[tuple[tuple[str, ...], BizType]] = [
+    (("healthcare plans", "health care plans", "managed health care", "managed care"), BizType.NORMAL),
     (("reit",), BizType.REIT),
     (("bank", "savings institution"), BizType.BANK),
     (("insurance",), BizType.INSURANCE),

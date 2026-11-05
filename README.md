@@ -37,10 +37,12 @@ Settings come from environment variables or `.env` with the `VMI_` prefix (see `
 | Watchlists: import (Adam pipe / CSV / TradingView), auto-fill IV + levels, 60s alerts | ✅ | `vmi/watchlist/service.py` |
 | Options chain (IB → Yahoo, rows never disappear), VMI CSP/CC suggestions | ✅ | `vmi/options/chain.py` |
 | Web UI (analysis, scanner, watchlists, portfolios, options, alerts) | ✅ | `static/` |
+| IB Client Portal Gateway fundamentals (Fundamentals Explorer backend) | ✅ (offline-tested; live check pending) | `vmi/data/ib_portal.py` |
 | Human judgement overrides (TMO, ASML, AVGO, VEEV, ACGL, PLTR) | ✅ | `config/judgements.json` |
 
-**Not done yet:** full-market scanner run benchmark; remaining calibration outliers (BKNG base FCF, NKE/LVMUY on P/S,
-UNH classification); bank CET1 name matching for a few banks; companies with a short history.
+**Not done yet:** full-market scanner run benchmark; a live check of the Client Portal routes against a logged-in gateway
+(run `python3 -m vmi.data.ib_portal AAPL`); judgement-only calibration cases (BKNG and UNH growth input, NKE/LVMUY on
+P/S), see `docs/CALIBRATION.md`; companies with a short history.
 
 ## Data sources (fundamentals)
 

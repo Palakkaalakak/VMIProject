@@ -51,3 +51,11 @@ def test_negative_equity_from_losses_fails(fund_factory):
 
 def test_positive_equity_not_applicable(fund_factory):
     assert not assess(fund_factory(net_income=[1, 2], latest={"equity": 5})).applies
+
+
+def test_managed_care_is_not_an_insurer():
+    from vmi.analysis.classify import BizType, classify
+
+    assert classify(6324, "Hospital & Medical Service Plans", "Healthcare", "Healthcare Plans") == BizType.NORMAL
+    assert classify(6331, "Fire, Marine & Casualty Insurance", "Financial Services",
+                    "Insurance - Property & Casualty") == BizType.INSURANCE

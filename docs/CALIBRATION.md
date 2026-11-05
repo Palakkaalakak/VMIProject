@@ -107,3 +107,14 @@ as insurer → P/B), POOL/LIN/WM 0.5–0.7 (conservative side — acceptable per
 - Latest run: **pure formula median 0.922, 14/43 within ±15%, 8 in the 0.85–1.02 target band**; with judgements
   median 0.81, 14/43 within ±15%, 9 in band, only 8 above 1.05.
 - Scanner: tickers with a judgement override bypass the cheap pre-filters and get a full deep report (TMO).
+
+## Update 2026-11-05
+- **UNH classification**: SIC 6324 (hospital & medical service plans: UNH, ELV, CI, HUM, CNC, MOH) is now
+  `normal`, not `insurance`. The master doc files "health insurance / managed care" under Healthcare. Managed care is
+  a cash-flow business (claims paid within the year, no long-tail float), so it takes the DCF path. UNH is now
+  DCF IV 638 vs Adam 438 (1.46; it was 1.35 on P/B). The gap is the growth input: free consensus 13–18% is an EPS
+  rebound after the 2025–26 medical-cost shock, while Adam's IV implies ~6%. This is a judgement case (like TMO):
+  set a growth override after reading the news, never a formula change.
+- **BKNG** (re-checked): base FCF 9.24B, CFO 9.56B and diluted shares 816M are consistent with filings. At the same
+  base and rate, Adam's IV implies ~5.5% growth vs the 15.6% consensus. The gap is Adam's growth input, not our
+  data, so this is also a judgement case.
