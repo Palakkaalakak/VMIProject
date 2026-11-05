@@ -14,36 +14,61 @@ from vmi.data.cache import get_cache
 API = "https://api.fdic.gov/banks"
 
 
+# FDIC abbreviates holding names ("PNC FINL SVC GROUP INC THE", "U S BCORP", "BANK OF NY MELLON CORP THE");
+# both sides are reduced to the same distinctive tokens before matching.
+_DROP = {"INC", "INCORPORATED", "CORP", "CORPORATION", "CO", "COMPANY", "THE", "HOLDING", "HOLDINGS", "GROUP",
+         "GRP", "FINANCIAL", "FINL", "FNCL", "FIN", "SERVICES", "SERVICE", "SVC", "SVCS", "BANCORP", "BCORP",
+         "BANCORPORATION", "BANCSHARES", "BSHRS", "NA", "N", "A", "NATIONAL", "ASSOCIATION", "ASSN", "LTD", "PLC"}
+_EXPAND = {"NY": "NEW YORK", "AMER": "AMERICA", "INTL": "INTERNATIONAL", "BK": "BANK"}
+
+
 def _norm(name: str) -> str:
-    name = name.upper().replace("&", " ")
-    name = re.sub(r"\b(INC|CORP|CORPORATION|CO|COMPANY|THE|HOLDINGS?|GROUP|FINANCIAL|BANCORP(ORATION)?|N\.?A\.?)\b", " ", name)
-    return re.sub(r"[^A-Z0-9]+", " ", name).strip()
+    raw = re.sub(r"[^A-Z0-9]+", " ", name.upper().replace("&", " ").replace(".", "")).split()
+    joined = re.sub(r"\b([A-Z]) (?=[A-Z]\b)", r"\1", " ".join(raw))  # "U S BCORP" → "US BCORP"
+    toks = " ".join(_EXPAND.get(t, t) for t in joined.split()).split()
+    return " ".join(t for t in toks if t not in _DROP)
+
+
+def _score(key: str, other: str) -> int:
+    """3 = same distinctive tokens; 2 = one contains the other with ≥2 shared tokens; 0 = no match.
+    Single-token keys (KEYCORP, US …) must match exactly, so "U.S. Bancorp" never becomes "US Metro"."""
+    if not key or not other:
+        return 0
+    if key == other:
+        return 3
+    ta, tb = set(key.split()), set(other.split())
+    return 2 if min(len(ta), len(tb)) >= 2 and (ta <= tb or tb <= ta) else 0
+
+
+def _query(field: str, token: str) -> list[dict]:
+    try:
+        raw = http.get(f"{API}/institutions", params={
+            "filters": f"ACTIVE:1 AND {field}:{token}*", "fields": "NAME,CERT,NAMEHCR,ASSET",
+            "sort_by": "ASSET", "sort_order": "DESC", "limit": "50"})
+    except http.HttpError:
+        return []
+    return [row["data"] for row in raw.get("data", [])]
 
 
 def _largest_cert(holding_name: str) -> dict | None:
+    """Largest active insured bank owned by the holding company (or the bank itself if it has none)."""
     key = _norm(holding_name)
     if not key:
         return None
-    first = key.split()[0]
-    try:
-        raw = http.get(f"{API}/institutions", params={
-            "filters": f"ACTIVE:1 AND NAMEHCR:{first}*", "fields": "NAME,CERT,NAMEHCR,ASSET",
-            "sort_by": "ASSET", "sort_order": "DESC", "limit": "25"})
-    except http.HttpError:
-        return None
-    best = None
-    for row in raw.get("data", []):
-        d = row["data"]
-        hcr = _norm(d.get("NAMEHCR", ""))
-        if hcr and (hcr == key or hcr.startswith(key) or key.startswith(hcr)):
-            if best is None or (d.get("ASSET") or 0) > (best.get("ASSET") or 0):
-                best = d
-    if best is None:  # fall back: bank itself named like the holding
-        for row in raw.get("data", []):
-            d = row["data"]
-            if _norm(d.get("NAME", "")).startswith(key):
-                best = d
-                break
+    toks = re.sub(r"[^A-Z0-9]+", " ", holding_name.upper().replace(".", "")).split()
+    token = max((t for t in toks if t not in _DROP and t not in ("BANK", "FIRST", "OF")), key=len,
+                default=key.split()[0])
+    if len(token) <= 3:  # FDIC splits initials ("U S BCORP"): widen to the first letter, rank by asset
+        token = token[0]
+    best, best_rank = None, (0, 0)
+    for field in ("NAMEHCR", "NAME"):
+        for d in _query(field, token):
+            sc = _score(key, _norm(d.get(field, "")))
+            rank = (sc + (1 if field == "NAMEHCR" else 0) if sc else 0, d.get("ASSET") or 0)
+            if sc and rank > best_rank:
+                best, best_rank = d, rank
+        if best_rank[0] >= 4:  # exact holding-company match: no need to search bank names
+            break
     return best
 
 

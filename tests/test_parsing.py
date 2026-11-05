@@ -33,3 +33,13 @@ def test_jsonsafe_numpy_and_nan():
     out = clean({"b": np.bool_(True), "f": np.float64(1.5), "n": float("nan"), "arr": np.array([1, 2]),
                  "inf": math.inf})
     assert out == {"b": True, "f": 1.5, "n": None, "arr": [1, 2], "inf": None}
+
+
+def test_fdic_holding_name_matching():
+    from vmi.data.fdic import _norm, _score
+
+    assert _norm("PNC Financial Services Group, Inc.") == _norm("PNC FINL SERVICES GROUP INC") == "PNC"
+    assert _norm("U.S. Bancorp") == _norm("U S BCORP") == "US"
+    assert _norm("Bank of New York Mellon Corporation") == _norm("BANK OF NY MELLON CORP THE")
+    assert _score(_norm("U.S. Bancorp"), _norm("US METRO BCORP")) == 0  # single token must match exactly
+    assert _score(_norm("Cullen/Frost Bankers, Inc."), _norm("CULLEN FROST BANKERS INC")) == 3
