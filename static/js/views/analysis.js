@@ -6,6 +6,12 @@ import { state } from "../state.js";
 
 const METHODS = ["", "dcf_fcf", "dcf_normalized", "dcf_cfo", "dni", "pb_bank", "pb_distressed", "pnav_reit", "ps_mean", "psg"];
 
+/** personality = {"daily sma50": bounces, …}: show the moving average the stock respects most. */
+function personality(p) {
+  const best = Object.entries(p || {}).sort((a, b) => b[1] - a[1])[0];
+  return best ? `${best[0]} (${best[1]} bounces)` : "—";
+}
+
 export function render(root, params = {}) {
   root.innerHTML = `
     <section class="toolbar">
@@ -92,7 +98,7 @@ function technicals(r) {
   const tf = ["daily", "weekly", "monthly"].map((k) => `<div class="kpi"><span>${k}</span><b>${esc(t[k]?.state || "—")}</b></div>`).join("");
   return `<div class="card"><h3>Technicals</h3>
     <div class="kpis">${tf}<div class="kpi"><span>10y uptrend</span>${badge(t.ten_year_uptrend, "YES", "NO")}</div>
-      <div class="kpi"><span>Personality</span><b>${esc(t.personality || "—")}</b></div></div>
+      <div class="kpi" title="The moving average this stock bounces off most often (Lesson 6)"><span>Personality</span><b>${esc(personality(t.personality))}</b></div></div>
     <p class="small">${esc(t.scenario || "")} — ${esc(t.entry_reason || "")}</p>
     <table class="compact"><thead><tr><th>Tranche</th><th>Buy level</th><th>Source</th><th>Touches</th><th></th></tr></thead><tbody>${lv || `<tr><td colspan="5" class="muted">no levels</td></tr>`}</tbody></table>
   </div>`;

@@ -36,6 +36,11 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-05 — UI fix: "Personality" showed `[object Object]`
+- `static/js/views/analysis.js`: technicals personality is a map of moving average → bounce count; the card now
+  shows the one the stock respects most (e.g. "daily sma50 (14 bounces)"). Found by screenshotting the running app
+  (Playwright, sandbox, SEC data, IB disabled). Screenshots are written to `data/ui_preview/` (git-ignored).
+
 ### 2026-11-05 — IB fundamentals through the Client Portal Gateway (read-only), replacing the guessed version
 
 **Problem.** The owner wants fundamentals from IBKR. `reqFundamentalData` no longer works in TWS, the earlier
