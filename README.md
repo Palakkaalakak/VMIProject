@@ -46,7 +46,14 @@ UNH classification); bank CET1 name matching for a few banks; companies with a s
 
 IB removed fundamentals: `reqFundamentalData` returns server-side error 10358 since about April 2026, and TWS API
 10.47 deleted the call. **An older TWS/API version does not help**, because the block is on IB's servers. The app
-still tries IB first behind a 6-hour circuit breaker, then falls back in this order:
+still tries IB first behind a 6-hour circuit breaker (TWS XML, then the **Client Portal Gateway**), then falls back:
+
+0. **IB Client Portal Gateway** (`vmi/data/ib_portal.py`): the Fundamentals Explorer backend
+   (`/tws.proxy/fundamentals/financials/{conid}`, `/fundamentals/landing/{conid}`). TWS has no REST server, so run
+   IBKR's separate gateway (`clientportal.gw` or IBeam), log in at https://localhost:5000, and set
+   `VMI_IB_CP_URL=https://localhost:5000`. The routes are undocumented, so check them once with
+   `python3 -m vmi.data.ib_portal AAPL`: it prints session/conid status and saves the raw JSON to
+   `data/ib_portal_samples/`. Units and fiscal-year ends are checked against SEC. `/api/health` shows breaker state.
 
 1. **SEC EDGAR XBRL**: official statements for every US filer. Companyfacts serve deep analysis; frames serve cheap cross-market scans.
 2. **stockanalysis.com**: gap fill, ratio histories, newer fiscal years.

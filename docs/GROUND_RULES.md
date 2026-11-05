@@ -69,3 +69,11 @@
   ~22 Apr 2026 with no code change (r/IBKR_Official thread). 10.47 then removed the method entirely. An older TWS /
   API download therefore still hits the same server-side block. The code keeps trying IB first behind a 6h circuit
   breaker (vmi/data/ib_fundamentals.py), so if IB ever re-enables it, it is used automatically.
+
+## Client Portal fundamentals (2026-11-05)
+- Implemented `vmi/data/ib_portal.py` from the `PossibleIBFundamentalFix` note, with corrections: TWS has no local
+  REST API (the Client Portal Gateway is a separate app on :5000), and `/mofw/` does not exist. The real routes are
+  `/tws.proxy/fundamentals/financials/{conid}?type=income|balance|cash&annual=true|false` (alias
+  `/fundamentals/financials/{conid}`), `/fundamentals/landing/{conid}?widgets=key_ratios`, conid via `/trsrv/stocks`.
+- The response schema is undocumented, so the parser is schema-tolerant. Once a gateway is live, run
+  `python -m vmi.data.ib_portal AAPL` and extend `LABELS` in `ib_portal.py` from the saved JSON if needed.

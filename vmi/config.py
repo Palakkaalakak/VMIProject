@@ -26,9 +26,11 @@ class Settings(BaseSettings):
     ib_client_id: int = 17
     ib_market_data_type: int = 1  # 1 live, 2 frozen, 3 delayed, 4 delayed-frozen
     ib_connect_timeout: float = 4.0
-    # Optional: Client Portal Gateway base URL (e.g. https://localhost:5000/v1/api) for the
-    # Fundamentals Explorer backend. Empty = disabled.
+    # Optional: Client Portal Gateway (clientportal.gw / IBeam — NOT TWS) base URL, e.g.
+    # https://localhost:5000 ("/v1/api" is appended if missing). Log in via the browser first.
+    # Used for the Fundamentals Explorer backend (vmi.data.ib_portal). Empty = disabled.
     ib_cp_url: str = ""
+    ib_cp_verify: bool = False  # the local gateway uses a self-signed certificate
 
     # Cache TTLs (seconds)
     ttl_quote: int = 15

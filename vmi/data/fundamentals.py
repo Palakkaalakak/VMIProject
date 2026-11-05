@@ -8,8 +8,9 @@ Source priority per concept (each value tagged with provenance):
   4. Derived              — computed from other concepts (e.g. FCF = CFO − capex, GP = Rev − COGS).
   5. FDIC                 — bank CET1 ratio.
 
-IB note: IBKR removed reqFundamentalData + fundamental-ratio ticks in TWS API 10.47 (2026), so IB is
-not a fundamentals source; it provides prices/history/options (vmi.data.market, vmi.data.ib).
+IB note: IBKR removed reqFundamentalData in TWS API 10.47 (2026). IB is still tried FIRST
+(vmi.data.ib_fundamentals: TWS XML, then the Client Portal Gateway via vmi.data.ib_portal) behind a
+circuit breaker; when it answers it is the base and SEC/stockanalysis fill gaps.
 
 `resolve(ticker)` returns a merged Fundamentals plus a completeness map; `REQUIRED` lists every input
 the 7-step checks + valuation need, so `vmi.data.coverage` can prove completeness for any universe.
@@ -279,7 +280,7 @@ def _derive(f: Fundamentals) -> None:
 def resolve(ticker: str, force: bool = False, use_stockanalysis: bool = True,
             use_yahoo: bool = True) -> Fundamentals | None:
     """Merged, provenance-tagged fundamentals for one ticker (cached as a whole)."""
-    key = f"fund:merged:v8:{ticker.upper()}"
+    key = f"fund:merged:v9:{ticker.upper()}"
     cache = get_cache()
     if not force:
         hit = cache.get(key, get_settings().ttl_fundamentals)
@@ -293,6 +294,10 @@ def resolve(ticker: str, force: bool = False, use_stockanalysis: bool = True,
         base = f_sec.result()
         sa = f_sa.result() if f_sa else None
     if ib is not None:  # IB (Refinitiv/LSEG) first when it answers; SEC + stockanalysis fill gaps
+        if ib.source == "ib_cp":
+            from vmi.data.ib_portal import harmonize
+
+            harmonize(ib, base)  # units + fiscal-year ends checked against SEC
         if base is not None:
             ib.cik, ib.name, ib.sic, ib.sic_description = base.cik, base.name, base.sic, base.sic_description
             _fill(ib, base, "sec")

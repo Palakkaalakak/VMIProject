@@ -6,8 +6,9 @@ Research summary (2026-11):
     error 10358 "Fundamentals data is not allowed". ib_async still exposes the call, so we keep trying
     it: any account/build that still receives the Refinitiv XML benefits automatically.
   * Client Portal Web API: fundamental snapshot tags (P/E, EPS, Beta, dividend …) deprecated Jan 2026.
-    The portal's Fundamentals Explorer backend (`/fundamentals/financials/{conid}`) is undocumented; it is
-    tried only when `VMI_IB_CP_URL` points at a running, logged-in Client Portal Gateway.
+    The portal's Fundamentals Explorer backend (`/tws.proxy/fundamentals/financials/{conid}`) is
+    undocumented; vmi.data.ib_portal uses it when `VMI_IB_CP_URL` points at a running, logged-in
+    Client Portal Gateway (a separate local app — TWS has no REST server).
 
 When IB answers, its data (Refinitiv/LSEG, FactSet-grade consensus) takes priority, including the
 projected long-term growth rate (ProjLTGrowthRate) as an estimate source. On refusal the breaker opens
@@ -198,41 +199,37 @@ def parse_resc(xml: str) -> dict:
 
 
 # ---------------------------------------------------------------------------------- Client Portal
-def cp_financials(symbol: str) -> dict | None:
-    base = get_settings().ib_cp_url
-    if not base or not _open("cp"):
+def cp_fundamentals(symbol: str) -> Fundamentals | None:
+    """Client Portal Gateway Fundamentals Explorer (vmi.data.ib_portal), behind the "cp" breaker."""
+    if not get_settings().ib_cp_url or not _open("cp"):
         return None
-    import httpx
+    from vmi.data import ib_portal
 
+    key = f"ibcp:fund:{symbol.upper()}"
+    cached = get_cache().get(key, get_settings().ttl_fundamentals)
+    if cached:
+        return Fundamentals.from_dict(cached)
     try:
-        with httpx.Client(verify=False, timeout=15) as cl:
-            r = cl.get(f"{base}/iserver/secdef/search", params={"symbol": symbol, "secType": "STK"})
-            conid = (r.json() or [{}])[0].get("conid")
-            if not conid:
-                return None
-            out = {}
-            for typ in ("income", "balance", "cash"):
-                rr = cl.get(f"{base}/fundamentals/financials/{conid}", params={"type": typ, "annual": "true"})
-                if rr.status_code != 200:
-                    raise RuntimeError(f"{rr.status_code} {rr.text[:80]}")
-                out[typ] = rr.json()
-            return out
-    except Exception as exc:
+        f = ib_portal.fundamentals(symbol)
+    except Exception as exc:  # unauthenticated session, unknown route, network …
         _trip("cp", f"{type(exc).__name__}: {exc}")
         return None
+    if f is not None:
+        get_cache().set(key, f.to_dict())
+    return f
 
 
 # ------------------------------------------------------------------------------------------ public
 def fundamentals(ticker: str) -> Fundamentals | None:
+    """TWS Refinitiv XML first, then the Client Portal Gateway; None when neither answers."""
     xml = tws_report(ticker, "ReportsFinStatements")
-    if not xml:
-        return None
-    f = parse_fin_statements(xml, ticker)
+    f = parse_fin_statements(xml, ticker) if xml else None
     if f is not None:
         snap = tws_report(ticker, "ReportSnapshot")
         if snap:
             f.meta["ib_snapshot"] = parse_snapshot(snap)
-    return f
+        return f
+    return cp_fundamentals(ticker)
 
 
 def estimates(ticker: str) -> dict:
@@ -251,4 +248,11 @@ def estimates(ticker: str) -> dict:
         r = parse_resc(resc)
         if r.get("eps_ltg") is not None:
             out.setdefault("eps_growth_5y", r["eps_ltg"])
+    if "eps_growth_5y" not in out and get_settings().ib_cp_url:
+        f = cp_fundamentals(ticker)
+        if f is not None:
+            from vmi.data.ib_portal import estimates_from_ratios
+
+            for k, v in estimates_from_ratios(f.meta.get("ib_key_ratios") or {}).items():
+                out.setdefault(k, v)
     return out
