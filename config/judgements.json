@@ -14,8 +14,8 @@
     "note": "FinViz 5y EPS 65% (next-year ~62-67%) reflects the current AI ramp; not plausible as a 5-year average at this scale. Normalised to 25% (judgement)."
   },
   "VEEV": {
-    "growth": 0.18,
-    "note": "Sources disagree wildly (FinViz 12.5%, Zacks 35%); next-year estimates ~10-20%. Use 18% (judgement, between sources)."
+    "growth_blend": "lowest",
+    "note": "Sources disagree (FinViz 12.5%, Zacks 35%). Since 2026-11-05 the default lowest source applies; the earlier 18% judgement was removed because it pushed the IV further above Adam's."
   },
   "PLTR": {
     "method": "dcf_fcf",
@@ -24,5 +24,9 @@
   "ACGL": {
     "method": "pb_bank",
     "note": "Specialty (re)insurer: book value compounding is the value driver; Adam's IV (109.38) matches P/B valuation (108.4). DNI overstates because float-driven earnings are lumpy."
+  },
+  "UNH": {
+    "method": "dcf_fcf",
+    "note": "Managed care is a cash-flow business (Adam values it by DCF). The 2025-26 medical-cost shock dented CFO, which fails strict consistency and pushes the selector to the P/S reference; use DCF on FCF. Growth stays automatic (lowest source)."
   }
 }

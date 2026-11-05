@@ -38,7 +38,7 @@ Settings come from environment variables or `.env` with the `VMI_` prefix (see `
 | Options chain (IB → Yahoo, rows never disappear), VMI CSP/CC suggestions | ✅ | `vmi/options/chain.py` |
 | Web UI (analysis, scanner, watchlists, portfolios, options, alerts) | ✅ | `static/` |
 | IB fundamentals via the Client Portal Gateway (Fundamentals Explorer backend), bulk `sync` | ✅ (offline-tested; live check pending) | `vmi/data/ibportal/`, `vmi/data/ib_fundamentals.py` |
-| Human judgement overrides (TMO, ASML, AVGO, VEEV, ACGL, PLTR) | ✅ | `config/judgements.json` |
+| Judgement overrides for every input (growth, blend, sources, method, beta, shares, cash/debt, haircut, IV, steps, buy levels, sizing, scanner pin/exclude): UI card, API, CLI | ✅ | `vmi/overrides.py`, `config/judgements.json` |
 
 **Not done yet:** a first live run of the IB gateway path (`python3 -m vmi.data.ib_fundamentals check AAPL`); full-market
 scanner run benchmark; judgement-only calibration cases (BKNG and UNH growth input, NKE/LVMUY on P/S), see
@@ -131,6 +131,7 @@ Recipes:
 - **New valuation method:** write `fn(ctx) -> ValuationResult` in `methods.py`, add it to `REGISTRY`, then list it in `selector.candidate_methods`.
 - **New data provider:** return a `Fundamentals` / `Estimates` from `vmi/data/<provider>.py`, then merge it in `fundamentals.resolve` or `estimates.SOURCES`.
 - **New UI screen:** create `static/js/views/<name>.js`, then add one entry to `ROUTES` in `app.js` and one nav link in `index.html`.
+- **Override anything for one stock:** `python3 -m vmi.overrides schema` lists every key; `set TICKER key=value --note "why" [--commit]` applies it (the UI's Judgement overrides card does the same). New key: one line in `vmi/overrides.py` plus the line that applies it.
 - **Change a threshold:** edit `vmi/rules.py`, or override it per run with `RULES.with_overrides(...)`.
 - **IB changed a route or field:** edit `vmi/data/ibportal/routes.py`. To map another IB row label, add it to `LABELS` in `vmi/data/ibportal/parse.py`.
 

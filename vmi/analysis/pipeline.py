@@ -69,7 +69,7 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
 
     s1 = S.step1_track_record(f, biz, rules)
     s2 = S.step2_growth(est, f, rules)
-    s3 = S.step3_moat(f, est, ten_up, biz, ov.get("moat"), rules)
+    s3 = S.step3_moat(f, est, ten_up, biz, ov, rules, ten_year_return=_ten_year_return(hist))
     s4 = S.step4_profitability(f, biz, rules)
     s5 = S.step5_debt(f, biz, est, rules)
 
@@ -100,6 +100,7 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
     s1, s2, s3, s4, s5, s6, s7 = steps
 
     great = all(s.passed for s in (s1, s2, s3, s4, s5))
+    moat_reviewed = bool(s3.extra.get("reviewed")) or ov.get("step3") in ("pass", "fail")
     g = growth_rate(f, est)
     moat = S.moat_grade(s3)
     cat = ov.get("category") or category(biz, g, f, rules)
@@ -126,7 +127,10 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
         "style": "growth" if (g or 0) >= rules.growth.growth_stock_threshold else "defensive",
         "moat": moat, "allocation_multiplier": alloc,
         "great_business": great, "undervalued": s6.passed, "entry_ok": s7.passed,
-        "vmi_pass": great and s6.passed and s7.passed, "watchlist_candidate": great and not s6.passed,
+        # the moat is discretionary: a buy signal needs a reviewed moat (verdict or forced step-3 verdict)
+        "moat_reviewed": moat_reviewed, "moat_hint": s3.extra.get("hint"),
+        "vmi_pass": great and s6.passed and s7.passed and moat_reviewed,
+        "watchlist_candidate": great and not s6.passed,
         "steps": [s.to_dict() for s in (s1, s2, s3, s4, s5, s6, s7)],
         "valuation": val.to_dict(), "intrinsic_value": iv, "technicals": tech_dict, "metrics": metrics,
         "estimates": {k: v for k, v in est.to_dict().items() if k != "extra"},
@@ -135,6 +139,15 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
         "overrides": ov,
         "overrides_applied": describe(ov),
     }
+
+
+def _ten_year_return(hist) -> float | None:
+    if hist is None or hist.empty:
+        return None
+    close = hist["close"].dropna()
+    if len(close) < 2 or (close.index[-1] - close.index[0]).days < 9 * 365 or close.iloc[0] <= 0:
+        return None
+    return float(close.iloc[-1] / close.iloc[0] - 1)
 
 
 def _apply_step_overrides(steps: list, ov: dict) -> list:

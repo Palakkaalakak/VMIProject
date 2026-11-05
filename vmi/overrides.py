@@ -73,8 +73,13 @@ FIELDS: tuple[Field, ...] = (
     Field("biz_type", "choice", "Classification", "Business type", "Changes method choice and step exceptions.", ()),
     Field("category", "choice", "Classification", "Category", "Portfolio category (drives allocation).",
           ("", "predictable", "growth", "large_growth", "speculative_growth", "turnaround")),
-    Field("moat", "json", "Classification", "Moat verdict",
-          'Manual 5-source moat check, e.g. {"sources": ["brand", "network"], "grade": "wide"}.'),
+    # --- moat review (discretionary: the code only gathers evidence, see Step 3) ---------------------------
+    Field("moat_grade", "choice", "Moat review", "Moat verdict", "Your verdict after checking the evidence.",
+          ("", "wide", "narrow", "none")),
+    Field("moat_sources", "list_choice", "Moat review", "Moat sources present",
+          "Adam: ≥3 of 5 → invest (4+ wide, 3 narrow if no verdict given).",
+          ("brand", "switching_costs", "network_effect", "barriers", "scale")),
+    Field("moat_score", "number", "Moat review", "Moat score /10", "AI or human score; Adam wants 7–9 (8+ wide)."),
     # --- verdicts ---------------------------------------------------------------------------------------------
     *(Field(f"step{i}", "choice", "Steps", f"Step {i}", "Force this step's verdict (the reason goes in the note).",
             STEP_CHOICES) for i in range(1, 8)),

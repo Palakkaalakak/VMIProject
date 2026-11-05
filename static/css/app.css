@@ -96,3 +96,4 @@ details { border-top: 1px solid var(--line); padding: .45rem 0; } summary { curs
 .checks { display: flex; flex-wrap: wrap; gap: .2rem .7rem; }
 #ov-form textarea { width: 100%; font: inherit; background: var(--panel-2); color: inherit; border: 1px solid var(--line); border-radius: 6px; padding: .35rem; }
 #ov-form > label.wide { display: flex; flex-direction: column; gap: .2rem; color: var(--muted); font-size: .8rem; margin: .6rem 0; }
+.moat-review { margin-top: .6rem; padding: .6rem; border: 1px dashed var(--line); border-radius: 6px; } .moat-review ul { margin: .3rem 0 .3rem 1.1rem; }

@@ -43,14 +43,15 @@ async function load(root, symbol) {
 }
 
 const verdict = (r) => [
-  ["Great business", r.great_business], ["Undervalued", r.undervalued], ["Entry signal", r.entry_ok], ["VMI buy", r.vmi_pass],
+  ["Great business", r.great_business], ["Moat reviewed", r.moat_reviewed], ["Undervalued", r.undervalued],
+  ["Entry signal", r.entry_ok], ["VMI buy", r.vmi_pass],
 ].map(([l, v]) => `<div class="kpi"><span>${l}</span>${badge(v, "YES", "NO")}</div>`).join("");
 
 function header(r) {
   const v = r.valuation || {};
   return `<div class="card head">
     <div><h2>${esc(r.ticker)} <small>${esc(r.name || "")}</small></h2>
-      <p class="muted">${esc(r.sector || "")} · ${esc(r.industry || "")} · type <b>${esc(r.biz_type)}</b> · ${esc(r.category || "")} · ${esc(r.style || "")} · moat <b>${esc(r.moat)}</b></p></div>
+      <p class="muted">${esc(r.sector || "")} · ${esc(r.industry || "")} · type <b>${esc(r.biz_type)}</b> · ${esc(r.category || "")} · ${esc(r.style || "")} · moat <b>${esc(r.moat)}</b>${r.moat_reviewed ? "" : ' <span class="muted">(data hint, unreviewed)</span>'}</p></div>
     <div class="kpis">
       <div class="kpi"><span>Price</span><b>${fmt.money(r.price)}</b></div>
       <div class="kpi"><span>Intrinsic value</span><b>${fmt.money(r.intrinsic_value)}</b></div>
@@ -69,7 +70,17 @@ function steps(r) {
         <td>${esc(typeof c.value === "number" ? fmt.num(c.value, 4) : Array.isArray(c.value) ? c.value.map((x) => fmt.num(x, 3)).join(", ") : typeof c.value === "object" && c.value ? JSON.stringify(c.value) : c.value ?? "")}</td>
         <td class="muted">${esc(c.threshold ?? "")}</td><td class="muted small">${esc(c.note || "")}</td></tr>`).join("")}</tbody></table>
       ${(s.notes || []).filter((n) => !n.startsWith("moat_grade=")).map((n) => `<p class="note">${esc(n)}</p>`).join("")}
+      ${s.step === 3 && s.extra?.sources ? moatChecklist(s.extra) : ""}
     </details>`).join("")}</div>`;
+}
+
+/** Reviewer checklist for the discretionary moat verdict (record it in the Judgement overrides → Moat review). */
+function moatChecklist(x) {
+  const v = x.verdict;
+  return `<div class="moat-review"><p><b>Moat review</b> — ${v ? `verdict <b>${esc(v.grade)}</b>${v.sources?.length ? ` · sources: ${esc(v.sources.join(", "))}` : ""}${v.score != null ? ` · score ${esc(v.score)}/10` : ""}`
+    : `not reviewed yet · data hint <b>${esc(x.hint)}</b> (${fmt.pct(x.support, 0)} of signals supportive)`}</p>
+    <ul class="small">${Object.entries(x.sources).map(([k, d]) => `<li><b>${esc(k)}</b>: ${esc(d)}</li>`).join("")}</ul>
+    <ul class="small muted">${x.questions.map((q) => `<li>${esc(q)}</li>`).join("")}</ul></div>`;
 }
 
 function valuation(r) {

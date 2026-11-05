@@ -41,6 +41,11 @@ class GrowthRules:  # Step 2 + Lesson 5 §4.6
     # "lowest" (default, conservative) · "average" (Adam's literal rule) · "median". Per-ticker override:
     # key `growth_blend` in config/judgements.json or the UI's Judgement override card.
     blend: str = "lowest"
+    # When the sources disagree this much (max/min), the lowest is usually a stale outlier rather than a
+    # conservative estimate, so the default switches to the median (tools/segment_analysis.py, 2026-11-05).
+    # Not applied when the blend is set per ticker.
+    disagreement_ratio: float = 1.5
+    blend_when_disagree: str = "median"
 
 
 @dataclass(frozen=True)
@@ -105,11 +110,17 @@ class ValuationRules:  # Lesson 5
     min_discount_rate: float = 0.058       # "lowest rate in the table"
     max_discount_rate: float = 0.11        # extrapolation guard for very high betas
     doomsday_growth_factor: float = 0.5    # "growth halves after yr 5"
-    # ONE flat conservatism haircut on discounted-stream valuations (DCF/DNI), set from calibration vs
-    # Adam's published IVs (tests/fixtures/adam_reference.txt). Rationale: we lack FactSet; free
-    # consensus runs higher on average, so a flat cut keeps us on the conservative side. Not fitted per
-    # company. 0 disables it. See docs/CALIBRATION.md.
-    iv_haircut: float = 0.10
+    # Optional flat conservatism haircut on discounted-stream valuations (DCF/DNI). It was 0.10 while growth
+    # used the AVERAGE of sources. Since 2026-11-05 growth uses the LOWEST source (rules.growth.blend), which
+    # already lands the median ours/Adam ratio at ~0.89, so the haircut is 0: one conservatism knob, not two.
+    # Per-ticker: override `iv_haircut`. See docs/CALIBRATION.md.
+    iv_haircut: float = 0.0
+    # Extra flat haircut where the growth input is structurally less reliable: growth stocks (yrs 1–5 growth
+    # ≥ rules.growth.growth_stock_threshold, i.e. Adam's own 15% growth/defensive line: long-term analyst
+    # forecasts are most over-optimistic for fast growers and DCF compounds the error over 20 years) and
+    # single-source estimates (no cross-check). Not applied to human growth overrides. 5% gave the tightest
+    # spread vs Adam's IVs in tools/segment_analysis.py; larger values did not reduce over-valuations further.
+    uncertainty_haircut: float = 0.05
     # Alternative single knob: relative cut on consensus growth (years 1–5) BEFORE the DCF. Experiments
     # (docs/CALIBRATION.md) show 10% here ≈ 10% on IV at the median, with marginally tighter tails.
     # Keep ONE of the two non-zero; both 0 = pure Adam.

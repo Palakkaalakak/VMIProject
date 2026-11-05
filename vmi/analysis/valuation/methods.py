@@ -117,7 +117,20 @@ class ValuationContext:
 
     @property
     def haircut(self) -> float:
-        return self.haircut_override if self.haircut_override is not None else self.rules.valuation.iv_haircut
+        """Flat IV haircut: per-ticker override, else the base haircut plus the uncertainty haircut when the
+        growth input is structurally less reliable (growth stock, or a single analyst source)."""
+        if self.haircut_override is not None:
+            return self.haircut_override
+        v = self.rules.valuation
+        return v.iv_haircut + (v.uncertainty_haircut if self.uncertain_growth else 0.0)
+
+    @property
+    def uncertain_growth(self) -> bool:
+        if self.growth_override is not None:
+            return False  # a human judgement replaced the analyst input
+        gc = self.growth_choice
+        return gc.value is not None and (gc.value >= self.rules.growth.growth_stock_threshold
+                                         or len(gc.sources) == 1)
 
     @property
     def rate(self) -> float:

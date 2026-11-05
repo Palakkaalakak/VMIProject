@@ -271,7 +271,7 @@ def compact(rep: dict, c: Candidate | None = None) -> dict:
         "growth": m.get("growth"), "roe": m.get("roe"), "roic": m.get("roic"), "net_margin": m.get("net_margin"),
         "pe": m.get("pe"), "peg": m.get("peg"), "dividend_yield": m.get("dividend_yield"), "beta": m.get("beta"),
         "market_cap": m.get("market_cap") or (c.market_cap if c else None), "category": rep.get("category"),
-        "style": rep.get("style"), "biz_type": rep.get("biz_type"), "moat": rep.get("moat"),
+        "style": rep.get("style"), "biz_type": rep.get("biz_type"), "moat": rep.get("moat"), "moat_reviewed": rep.get("moat_reviewed"),
         "great_business": rep.get("great_business"), "undervalued": rep.get("undervalued"),
         "entry_ok": rep.get("entry_ok"), "vmi_pass": rep.get("vmi_pass"),
         "steps_passed": sum(1 for v in steps.values() if v), "steps": steps,

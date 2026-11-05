@@ -59,6 +59,12 @@ def working_capital_share(f) -> float | None:
     return (cfo - ni - da - sbc) / cfo
 
 
+# Neither CFO nor net income consistent: the company fails Step 1, so any value is for reference only and the
+# LOWEST applicable method is shown (owner directive 2026-11-05: conservative by default; override per ticker).
+REFERENCE_ONLY = ("Neither CFO nor net income consistent → fails Step 1 (do not buy); lowest of P/S, DCF and "
+                  "DNI shown for reference")
+
+
 def candidate_methods(ctx: ValuationContext, biz: BizType) -> tuple[list[str], str]:
     f = ctx.fund
     cfo_ok = consistent(f, "cfo", ctx.rules)
@@ -97,8 +103,7 @@ def candidate_methods(ctx: ValuationContext, biz: BizType) -> tuple[list[str], s
         return ["dni", "ps_mean"], "CFO inconsistent but net income consistent → Discounted Net Income"
     # Neither consistent: reference value only. Distressed P/B is reserved for genuinely loss-making
     # companies (handled above) — never applied to a profitable business as a fallback.
-    return (["ps_mean", "dcf_fcf", "dni"],
-            "Neither CFO nor net income consistent → fails Step 1 (do not buy); mean P/S shown for reference")
+    return ["ps_mean", "dcf_fcf", "dni"], REFERENCE_ONLY
 
 
 def value_company(ctx: ValuationContext, biz: BizType, force_method: str | None = None) -> ValuationReport:
@@ -117,6 +122,9 @@ def value_company(ctx: ValuationContext, biz: BizType, force_method: str | None 
     selected = None
     if force_method and force_method in results and results[force_method].intrinsic_value:
         selected, reason = force_method, f"User override → {results[force_method].label}"
+    elif reason == REFERENCE_ONLY:
+        valued = [m for m in order if results.get(m) and (results[m].intrinsic_value or 0) > 0]
+        selected = min(valued, key=lambda m: results[m].intrinsic_value) if valued else None
     else:
         for m in order:
             r = results.get(m)

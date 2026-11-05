@@ -12,7 +12,7 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Current state (2026-11-05)
 
-- Offline test suite: `python3 -m pytest -q tests`, 66 passing.
+- Offline test suite: `python3 -m pytest -q tests`, 73 passing.
 - Fundamentals: SEC EDGAR → stockanalysis → Yahoo, merged in `vmi/data/fundamentals.py`. IB is tried first:
   TWS XML (works only if IB still permits it for your login), then the Client Portal Gateway
   (`vmi/data/ibportal/`). **The gateway path is implemented and offline-tested, but it has not been run
@@ -31,10 +31,46 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 | a VMI threshold | `vmi/rules.py` |
 | a data provider or the merge order | `vmi/data/<provider>.py`, `vmi/data/fundamentals.py` |
 | business-type classification | `vmi/analysis/classify.py` |
+| a per-stock judgement (any input) | `python -m vmi.overrides …`, the UI card, or `config/judgements.json`; new keys in `vmi/overrides.py` |
+| how analyst growth sources are combined | `blend` in `vmi/rules.py` (`GrowthRules`) |
 
 ---
 
 ## Entries
+
+### 2026-11-05 — Growth = lowest analyst source by default; full judgement-override layer
+**Why:** owner directive: be conservative by default (lowest source, not the average), and make every input
+easy for a human or an AI to override per stock (interventionist strategy).
+
+**Growth blend:**
+- `rules.growth.blend = "lowest"` is the default. The other choices are "average" (Adam's literal rule) and "median".
+- It can be changed per ticker with `growth_blend`. Code: `vmi/analysis/valuation/growth.py` (`BLENDS`, `choose_growth`).
+- The Step 2 and category growth still use the averaged consensus (`est.eps_growth_5y`). Only the valuation input changed.
+
+**Override registry:**
+- `vmi/overrides.py` declares every key once. Validation, `GET /api/overrides/schema`, the UI card and the CLI are
+  all generated from it.
+- Keys: growth, growth_blend, exclude_sources, growth_6_10, growth_11_20, method, base_cf, discount_rate, beta,
+  shares, cash, debt, iv_haircut, iv_override, conservative_override, biz_type, category, moat, step1–step7
+  (force pass/fail), buy_levels, allocation_multiplier, scan (pin/exclude).
+- Storage: the database (UI/API/CLI) or the committed `config/judgements.json` (`--commit`). Edits merge, and a
+  null value removes that key.
+- Reports list what was overridden (`overrides_applied`).
+- To add a key: one `Field(...)` line in `vmi/overrides.py`, plus the line that applies it (`vmi/analysis/pipeline.py`
+  or `ValuationContext` in `vmi/analysis/valuation/methods.py`).
+
+**CLI:**
+```bash
+python3 -m vmi.overrides set NKE growth_blend=average step1=pass --note "temporary dip" --commit
+```
+
+**Files:**
+- New: `vmi/overrides.py`, `tests/test_overrides.py`.
+- Changed: `vmi/store.py` (merge, clear, `set_judgement`), `vmi/api/app.py`, `vmi/analysis/pipeline.py`,
+  `vmi/analysis/valuation/{methods,growth}.py`, `vmi/scanner/funnel.py` (pin/exclude), `static/js/{api.js,views/analysis.js}`,
+  `static/css/app.css`, `vmi/rules.py`, `config/judgements.json` (`_doc`).
+
+**Verified:** 73 offline tests.
 
 ### 2026-11-05 — UI fix: "Personality" showed `[object Object]`
 - `static/js/views/analysis.js`: technicals personality is a map of moving average → bounce count; the card now

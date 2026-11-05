@@ -105,7 +105,7 @@ const COLUMNS = [
   { key: "peg", label: "PEG", cls: "num", render: (r) => fmt.num(r.peg) },
   { key: "market_cap", label: "Mkt cap", cls: "num", render: (r) => fmt.big(r.market_cap) },
   { key: "method", label: "Method" },
-  { key: "moat", label: "Moat" },
+  { key: "moat", label: "Moat", render: (r) => `${esc(r.moat ?? "")}${r.moat_reviewed ? "" : " ?"}` },
   { key: "style", label: "Style" },
   { key: "steps_passed", label: "Steps", cls: "num", render: (r) => `${r.steps_passed}/7` },
   { key: "trend", label: "Trend" },
