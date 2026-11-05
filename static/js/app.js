@@ -12,6 +12,7 @@ const ROUTES = {
   portfolios: { load: () => import("./views/portfolios.js"), param: "id" },
   options: { load: () => import("./views/options.js"), param: "symbol" },
   alerts: { load: () => import("./views/alerts.js") },
+  settings: { load: () => import("./views/settings.js") },
 };
 const DEFAULT = "analysis";
 let current = null;

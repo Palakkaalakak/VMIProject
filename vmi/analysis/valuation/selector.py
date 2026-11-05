@@ -59,9 +59,12 @@ def working_capital_share(f) -> float | None:
     return (cfo - ni - da - sbc) / cfo
 
 
-# Neither CFO nor net income consistent: the company fails Step 1, so any value is for reference only and the
-# LOWEST applicable method is shown (owner directive 2026-11-05: conservative by default; override per ticker).
-REFERENCE_ONLY = ("Neither CFO nor net income consistent → fails Step 1 (do not buy); lowest of P/S, DCF and "
+# Neither CFO nor net income consistent: the company fails Step 1, so any value is for reference only. Each
+# method is distorted in its own direction (P/S applies past multiples to a de-rated business; DCF/DNI start
+# from trough cash flow), so the MIDDLE value is shown (lower-middle when only two exist). Calibration
+# 2026-11-05: middle beats both first-applicable (value traps such as NKE at 1.9× Adam on P/S) and lowest
+# (CNSWF/MBGL at ~0.3×). Override per ticker with `method`.
+REFERENCE_ONLY = ("Neither CFO nor net income consistent → fails Step 1 (do not buy); middle of P/S, DCF and "
                   "DNI shown for reference")
 
 
@@ -124,7 +127,8 @@ def value_company(ctx: ValuationContext, biz: BizType, force_method: str | None 
         selected, reason = force_method, f"User override → {results[force_method].label}"
     elif reason == REFERENCE_ONLY:
         valued = [m for m in order if results.get(m) and (results[m].intrinsic_value or 0) > 0]
-        selected = min(valued, key=lambda m: results[m].intrinsic_value) if valued else None
+        ranked = sorted(valued, key=lambda m: results[m].intrinsic_value)
+        selected = ranked[(len(ranked) - 1) // 2] if ranked else None
     else:
         for m in order:
             r = results.get(m)

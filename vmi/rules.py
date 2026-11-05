@@ -41,11 +41,17 @@ class GrowthRules:  # Step 2 + Lesson 5 §4.6
     # "lowest" (default, conservative) · "average" (Adam's literal rule) · "median". Per-ticker override:
     # key `growth_blend` in config/judgements.json or the UI's Judgement override card.
     blend: str = "lowest"
+    # Defensive stocks (median of the sources < growth_stock_threshold) use this blend instead. Reason: analyst
+    # long-term forecasts are systematically over-optimistic mainly for fast growers (Chan, Karceski & Lakonishok
+    # 2003), so "lowest" offsets a real bias there, while for slow, stable compounders it only adds downside
+    # noise (segment study 2026-11-05: defensive median ours/Adam 0.79 with lowest). Set to "lowest" to apply
+    # the lowest source everywhere.
+    blend_defensive: str = "median"
     # When the sources disagree this much (max/min), the lowest is usually a stale outlier rather than a
     # conservative estimate, so the default switches to the median (tools/segment_analysis.py, 2026-11-05).
     # Not applied when the blend is set per ticker.
     disagreement_ratio: float = 1.5
-    blend_when_disagree: str = "median"
+    blend_when_disagree: str = "median"    # blend used when the sources disagree (see disagreement_ratio)
 
 
 @dataclass(frozen=True)
@@ -221,3 +227,12 @@ class VMIRules:
 
 
 RULES = VMIRules()
+
+
+def _load_saved_settings() -> None:
+    """Values edited on the Settings screen (config/rules_settings.json) apply to every entry point."""
+    from vmi import settings
+    settings.load()
+
+
+_load_saved_settings()

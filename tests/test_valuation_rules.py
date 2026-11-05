@@ -67,12 +67,16 @@ def test_growth_blend_default_lowest_and_per_ticker_override():
     from vmi.data.models import Estimates
 
     est = Estimates(ticker="X")
-    est.sources = {"finviz": {"eps_growth_5y": 0.12}, "zacks": {"eps_growth_5y": 0.14},
-                   "yahoo": {"eps_growth_5y": 0.10}}
-    assert choose_growth(est).value == pytest.approx(0.10) and choose_growth(est).method == "lowest"
-    assert choose_growth(est, blend="average").value == pytest.approx(0.12)
-    assert choose_growth(est, blend="median").value == pytest.approx(0.12)
+    est.sources = {"finviz": {"eps_growth_5y": 0.20}, "zacks": {"eps_growth_5y": 0.24},
+                   "yahoo": {"eps_growth_5y": 0.18}}
+    assert choose_growth(est).value == pytest.approx(0.18) and choose_growth(est).method == "lowest"  # growth stock
+    assert choose_growth(est, blend="average").value == pytest.approx(0.2067, abs=1e-4)
+    assert choose_growth(est, blend="median").value == pytest.approx(0.20)
     assert choose_growth(est, blend="nonsense").method == "lowest"  # unknown → rule default
+    slow = Estimates(ticker="Y")
+    slow.sources = {"finviz": {"eps_growth_5y": 0.08}, "zacks": {"eps_growth_5y": 0.10},
+                    "yahoo": {"eps_growth_5y": 0.09}}
+    assert choose_growth(slow).method == "median" and choose_growth(slow).value == pytest.approx(0.09)  # defensive
 
 
 def test_disagreeing_sources_use_median_unless_set_per_ticker():

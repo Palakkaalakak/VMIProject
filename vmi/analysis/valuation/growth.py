@@ -59,6 +59,9 @@ def choose_growth(est: Estimates, f: Fundamentals | None = None, rules: VMIRules
     if srcs:
         vals = sorted(srcs.values())
         notes = []
+        if not per_ticker and BLENDS["median"](vals) < rules.growth.growth_stock_threshold:
+            blend = rules.growth.blend_defensive
+            notes.append(f"defensive (median source {BLENDS['median'](vals):.1%}) → {blend}")
         if not per_ticker and vals[0] > 0 and vals[-1] / vals[0] >= rules.growth.disagreement_ratio:
             blend = rules.growth.blend_when_disagree
             notes.append(f"sources disagree ({vals[0]:.1%}–{vals[-1]:.1%}) → {blend}")

@@ -71,6 +71,28 @@ def health():
     return {"ok": True, "ib": gateway().info(), "ib_fundamentals": ib_fundamentals.status()}
 
 
+@sysr.get("/settings")
+def settings_get():
+    from vmi import settings
+    return settings.schema()
+
+
+class SettingsIn(BaseModel):
+    changes: dict = {}  # {section: {key: value}}; null value = back to the default
+
+
+@sysr.put("/settings")
+def settings_put(body: SettingsIn):
+    from vmi import settings
+    return settings.update(body.changes)
+
+
+@sysr.delete("/settings")
+def settings_reset():
+    from vmi import settings
+    return settings.reset_all()
+
+
 @sysr.get("/overrides/schema")
 def overrides_schema():
     from vmi.overrides import schema

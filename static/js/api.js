@@ -29,6 +29,11 @@ export const api = {
   setOverride: (s, body) => request("PUT", `/api/analysis/${s}/override`, body),
   clearOverride: (s, commit = false) => request("DELETE", `/api/analysis/${s}/override${qs({ commit })}`),
   overrideSchema: () => request("GET", "/api/overrides/schema"),
+  overridesAll: () => request("GET", "/api/overrides"),
+  // settings (vmi/rules.py values, editable)
+  settings: () => request("GET", "/api/settings"),
+  saveSettings: (changes) => request("PUT", "/api/settings", { changes }),
+  resetSettings: () => request("DELETE", "/api/settings"),
   size: (s, portfolio_id, multiplier) => request("GET", `/api/analysis/${s}/size${qs({ portfolio_id, multiplier })}`),
   // scanner
   scanStart: (body) => request("POST", "/api/scan/start", body),
