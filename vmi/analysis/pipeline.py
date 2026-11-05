@@ -10,6 +10,7 @@ from typing import Any
 from vmi.analysis import steps as S
 from vmi.analysis import technicals as T
 from vmi.analysis.classify import BizType, classify, sector_bucket
+from vmi.analysis.valuation.growth import GrowthControls
 from vmi.analysis.valuation.methods import ValuationContext
 from vmi.analysis.valuation.selector import value_company
 from vmi.data import market
@@ -74,10 +75,10 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
     s5 = S.step5_debt(f, biz, est, rules)
 
     ctx = ValuationContext(f, est, price, hist, rules,
-                           growth_override=ov.get("growth"), growth_blend=ov.get("growth_blend"),
+                           growth_override=ov.get("growth"), growth_controls=growth_controls(ov),
                            growth_6_10_override=ov.get("growth_6_10"),
                            growth_11_20_override=ov.get("growth_11_20"), discount_override=ov.get("discount_rate"),
-                           base_cf_override=ov.get("base_cf"), exclude_sources=tuple(ov.get("exclude_sources") or ()),
+                           base_cf_override=ov.get("base_cf"), base_period=ov.get("base_period"),
                            beta_override=ov.get("beta"), shares_override=ov.get("shares"),
                            cash_override=ov.get("cash"), debt_override=ov.get("debt"),
                            haircut_override=ov.get("iv_haircut"))
@@ -139,6 +140,12 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
         "overrides": ov,
         "overrides_applied": describe(ov),
     }
+
+
+def growth_controls(ov: dict) -> GrowthControls:
+    """Per-ticker growth-input choices from the overrides (vmi/overrides.py: Growth group)."""
+    return GrowthControls(source=ov.get("growth_source") or None, blend=ov.get("growth_blend") or None,
+                          exclude=tuple(ov.get("exclude_sources") or ()), extra=dict(ov.get("extra_sources") or {}))
 
 
 def _ten_year_return(hist) -> float | None:

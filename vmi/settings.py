@@ -23,7 +23,7 @@ from vmi import rules as R
 
 SETTINGS_FILE = Path(__file__).resolve().parents[1] / "config" / "rules_settings.json"
 _DEFAULTS = R.VMIRules()  # pristine defaults (RULES itself gets updated in place)
-BLEND_CHOICES = ("lowest", "average", "median")
+BLEND_CHOICES = ("lowest", "second_lowest", "median", "average", "highest")
 CHOICES = {("growth", "blend"): BLEND_CHOICES, ("growth", "blend_defensive"): BLEND_CHOICES,
            ("growth", "blend_when_disagree"): BLEND_CHOICES}
 _lock = threading.Lock()

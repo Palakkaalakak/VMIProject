@@ -30,7 +30,7 @@ STEP_CHOICES = ("", "pass", "fail")
 @dataclass(frozen=True)
 class Field:
     key: str
-    kind: str          # number | percent | text | choice | list_number | list_choice | json
+    kind: str          # number | percent | text | choice | list_number | list_choice | dict_percent | json
     group: str
     label: str
     help: str
@@ -49,10 +49,15 @@ def _biz_types() -> tuple[str, ...]:
 
 FIELDS: tuple[Field, ...] = (
     # --- growth --------------------------------------------------------------------------------------
-    Field("growth", "percent", "Growth", "Growth yrs 1–5", "Replaces the analyst growth (decimal, 0.13 = 13%)."),
+    Field("growth", "percent", "Growth", "Growth yrs 1–5 (own number)",
+          "Your own growth rate; replaces every source and blend (decimal, 0.13 = 13%)."),
+    Field("growth_source", "text", "Growth", "Use one source",
+          "Use exactly this source: ib, finviz, zacks, yahoo, stockanalysis, or a name added under Extra sources."),
+    Field("extra_sources", "dict_percent", "Growth", "Extra sources",
+          "Your own estimates that join the blend, e.g. factset=0.15, stockoracle=0.17."),
     Field("growth_blend", "choice", "Growth", "Growth blend",
-          "How analyst sources are combined when no growth number is set (default: lowest).",
-          ("", "lowest", "average", "median")),
+          "How the sources are combined (default: automatic — lowest; median for defensives or disagreeing sources).",
+          ("", "lowest", "second_lowest", "median", "average", "highest")),
     Field("exclude_sources", "list_choice", "Growth", "Ignore growth sources",
           "Analyst sources to ignore for this ticker (e.g. one is stale).", GROWTH_SOURCES),
     Field("growth_6_10", "percent", "Growth", "Growth yrs 6–10", "Default: yrs 1–5 growth capped at 15%."),
@@ -61,6 +66,9 @@ FIELDS: tuple[Field, ...] = (
     Field("method", "choice", "Valuation", "Valuation method", "Force a method instead of the automatic choice.",
           ()),  # choices filled lazily (see schema())
     Field("base_cf", "number", "Valuation", "Base cash flow", "Starting cash flow for DCF/DNI (price currency)."),
+    Field("base_period", "choice", "Valuation", "Base period",
+          "Which period the base comes from: auto (Adam's normalisation), TTM, last fiscal year, or multi-year average.",
+          ("", "auto", "ttm", "last_fy", "average")),
     Field("discount_rate", "percent", "Valuation", "Discount rate", "Replaces the beta-table rate."),
     Field("beta", "number", "Valuation", "Beta", "Replaces the data beta (drives the discount rate)."),
     Field("shares", "number", "Valuation", "Shares", "Share count in price units (ADR ratios, share classes)."),
@@ -130,6 +138,11 @@ def validate(data: dict) -> dict:
             if bad:
                 raise ValueError(f"{key}: unknown {bad}; choose from {list(choices)}")
             out[key] = [x.strip() for x in items]
+        elif f.kind == "dict_percent":
+            pairs = raw.items() if isinstance(raw, dict) else (x.split("=", 1) for x in str(raw).split(",") if "=" in x)
+            out[key] = {str(k).strip().lower(): float(v) for k, v in pairs}
+            if any(abs(v) > 1.5 for v in out[key].values()):
+                raise ValueError(f"{key}: give decimals (0.15 = 15%)")
         elif f.kind == "json":
             out[key] = raw if isinstance(raw, (dict, list)) else json.loads(raw)
         else:

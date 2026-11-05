@@ -146,6 +146,8 @@ function fieldInput(f, v) {
   }
   if (f.kind === "json") return `<textarea ${name} rows="2" placeholder='{"sources": [...], "grade": "wide"}'>${v ? esc(JSON.stringify(v)) : ""}</textarea>`;
   if (f.kind === "list_number") return `<input ${name} value="${esc((v || []).join(", "))}" placeholder="405, 385, 363">`;
+  if (f.kind === "dict_percent") return `<input ${name} value="${esc(Object.entries(v || {}).map(([k, x]) => `${k}=${x}`).join(", "))}" placeholder="factset=0.15, stockoracle=0.17">`;
+  if (f.kind === "text") return `<input ${name} value="${esc(v ?? "")}" placeholder="auto">`;
   return `<input ${name} type="number" step="any" value="${v ?? ""}" placeholder="${f.kind === "percent" ? "0.13 = 13%" : "auto"}">`;
 }
 
@@ -156,7 +158,7 @@ function overridesForm(o) {
     const fs = SCHEMA.filter((f) => f.group === g);
     const open = g === "Growth" || fs.some(set) ? "open" : "";
     return `<details ${open}><summary>${esc(g)}${fs.some(set) ? ` <span class="badge">${fs.filter(set).length} set</span>` : ""}</summary>
-      <div class="grid">${fs.map((f) => `<label title="${esc(f.help)}" class="${f.kind === "json" || f.kind === "list_choice" ? "wide" : ""}">${esc(f.label)}${fieldInput(f, o[f.key])}</label>`).join("")}</div></details>`;
+      <div class="grid">${fs.map((f) => `<label title="${esc(f.help)}" class="${["json", "list_choice", "dict_percent"].includes(f.kind) ? "wide" : ""}">${esc(f.label)}${fieldInput(f, o[f.key])}</label>`).join("")}</div></details>`;
   }).join("");
   return `<form id="ov-form">${body}
     <label class="wide">Reason (always write why)<input name="note" value="${esc(o.note ?? "")}"></label>

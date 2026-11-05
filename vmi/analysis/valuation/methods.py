@@ -15,6 +15,7 @@ from vmi.analysis.consistency import series_trend
 from vmi.analysis.trends import mean, stdev, trend
 from vmi.analysis.valuation.core import (Scenario, ValuationResult, discount_rate, discounted_value,
                                          growth_path)
+from vmi.analysis.valuation.growth import GrowthControls, choose_growth
 from vmi.data.models import Estimates, Fundamentals
 from vmi.rules import RULES, VMIRules
 
@@ -28,12 +29,12 @@ class ValuationContext:
     rules: VMIRules = RULES
     # user overrides (all optional)
     growth_override: float | None = None      # years 1–5
-    growth_blend: str | None = None           # "lowest" | "average" | "median" (None = rules.growth.blend)
+    growth_controls: GrowthControls = field(default_factory=GrowthControls)  # source / blend / exclude / extra
     growth_6_10_override: float | None = None
     growth_11_20_override: float | None = None
     discount_override: float | None = None
     base_cf_override: float | None = None
-    exclude_sources: tuple[str, ...] = ()     # analyst growth sources to ignore
+    base_period: str | None = None            # "auto" (Adam's normalisation) | "ttm" | "last_fy" | "average"
     beta_override: float | None = None
     shares_override: float | None = None      # price units
     cash_override: float | None = None        # price currency
@@ -138,8 +139,7 @@ class ValuationContext:
 
     @property
     def growth_choice(self):
-        from vmi.analysis.valuation.growth import choose_growth
-        return choose_growth(self.est, self.fund, self.rules, self.growth_blend, self.exclude_sources)
+        return choose_growth(self.est, self.fund, self.rules, self.growth_controls)
 
     @property
     def growth(self) -> float | None:
@@ -195,8 +195,11 @@ def _dcf_family(ctx: ValuationContext, method: str, label: str, base: float | No
     return res
 
 
+BASE_PERIODS = ("auto", "ttm", "last_fy", "average")
+
+
 def steady_base(fund: Fundamentals, concept: str, rules: VMIRules = RULES,
-                ttm_value: float | None = None) -> tuple[float | None, str]:
+                ttm_value: float | None = None, mode: str | None = None) -> tuple[float | None, str]:
     """Adam's cash-flow normalisation rule (MSFT/AMZN/GOOGL case studies): the starting figure should be
     'similar or higher than previous years'. Sudden big jump in the last 12 months → use the prior fiscal
     year (may not be sustainable). Sudden big plunge → use the average of the last 3–4 years.
@@ -207,6 +210,13 @@ def steady_base(fund: Fundamentals, concept: str, rules: VMIRules = RULES,
     if ttm is None or not annual:
         return ttm, f"TTM {concept}"
     last_fy = annual[-1]
+    if mode == "ttm":
+        return ttm, f"TTM {concept} (chosen)"
+    if mode == "last_fy":
+        return last_fy, f"last FY {concept} (chosen)"
+    if mode == "average":
+        win = annual[-v.base_avg_years:]
+        return sum(win) / len(win), f"{len(win)}y average {concept} (chosen)"
     # "Sudden" = off the company's own trend. A steady compounder's TTM naturally runs ahead of a stale FY
     # ("Microsoft grows very, very consistently → latest figure used as-is"), so the threshold scales with the
     # 3-year CAGR of the fiscal-year series.
@@ -227,7 +237,7 @@ def steady_base(fund: Fundamentals, concept: str, rules: VMIRules = RULES,
 def dcf_fcf(ctx: ValuationContext) -> ValuationResult:
     cfo_tr = series_trend(ctx.fund, "cfo", ctx.rules)
     reasons = [] if cfo_tr.consistent else [f"CFO not consistently increasing ({cfo_tr.reason})"]
-    base, desc = steady_base(ctx.fund, "fcf", ctx.rules)
+    base, desc = steady_base(ctx.fund, "fcf", ctx.rules, mode=ctx.base_period)
     return _dcf_family(ctx, "dcf_fcf", "Discounted Free Cash Flow", ctx.money(base), desc, reasons)
 
 
@@ -257,9 +267,9 @@ def capex_is_lumpy(fund: Fundamentals, rules: VMIRules = RULES) -> bool:
     return spike or fcf_broken
 
 
-def normalised_fcf(fund: Fundamentals, years: int = 5) -> float | None:
+def normalised_fcf(fund: Fundamentals, years: int = 5, mode: str | None = None) -> float | None:
     """Latest 12-month CFO − average capex of the 5 most recent 12-month periods (Lesson 5 §5.2)."""
-    cfo, _ = steady_base(fund, "cfo")
+    cfo, _ = steady_base(fund, "cfo", mode=mode)
     capex = capex_window(fund, years)
     if cfo is None or not capex:
         return None
@@ -269,7 +279,7 @@ def normalised_fcf(fund: Fundamentals, years: int = 5) -> float | None:
 def dcf_normalized(ctx: ValuationContext) -> ValuationResult:
     cfo_tr = series_trend(ctx.fund, "cfo", ctx.rules)
     reasons = [] if cfo_tr.consistent else [f"CFO not consistently increasing ({cfo_tr.reason})"]
-    base = ctx.money(normalised_fcf(ctx.fund, ctx.rules.valuation.capex_normalization_years))
+    base = ctx.money(normalised_fcf(ctx.fund, ctx.rules.valuation.capex_normalization_years, ctx.base_period))
     r = _dcf_family(ctx, "dcf_normalized", "DCF — Normalised capex (CFO − 5y avg capex)", base,
                     "normalised FCF", reasons)
     r.extra["capex_5y"] = capex_window(ctx.fund, ctx.rules.valuation.capex_normalization_years)
@@ -287,14 +297,14 @@ def dcf_cfo(ctx: ValuationContext) -> ValuationResult:
         reasons.append(f"CFO {cfo / ni - 1:.0%} above net income (>20% — use FCF instead)")
     if not ni or ni <= 0:
         reasons.append("net income not positive")
-    base, desc = steady_base(ctx.fund, "cfo", ctx.rules)
+    base, desc = steady_base(ctx.fund, "cfo", ctx.rules, mode=ctx.base_period)
     return _dcf_family(ctx, "dcf_cfo", "Discounted Cash Flow from Operations", ctx.money(base), desc, reasons)
 
 
 def discounted_net_income(ctx: ValuationContext) -> ValuationResult:
     ni_tr = series_trend(ctx.fund, "net_income", ctx.rules)
     reasons = [] if ni_tr.consistent else [f"net income not consistently increasing ({ni_tr.reason})"]
-    base, desc = steady_base(ctx.fund, "net_income", ctx.rules)
+    base, desc = steady_base(ctx.fund, "net_income", ctx.rules, mode=ctx.base_period)
     return _dcf_family(ctx, "dni", "Discounted Net Income", ctx.money(base), desc, reasons)
 
 

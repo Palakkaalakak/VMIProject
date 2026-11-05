@@ -63,16 +63,16 @@ def test_managed_care_is_not_an_insurer():
 
 
 def test_growth_blend_default_lowest_and_per_ticker_override():
-    from vmi.analysis.valuation.growth import choose_growth
+    from vmi.analysis.valuation.growth import GrowthControls, choose_growth
     from vmi.data.models import Estimates
 
     est = Estimates(ticker="X")
     est.sources = {"finviz": {"eps_growth_5y": 0.20}, "zacks": {"eps_growth_5y": 0.24},
                    "yahoo": {"eps_growth_5y": 0.18}}
     assert choose_growth(est).value == pytest.approx(0.18) and choose_growth(est).method == "lowest"  # growth stock
-    assert choose_growth(est, blend="average").value == pytest.approx(0.2067, abs=1e-4)
-    assert choose_growth(est, blend="median").value == pytest.approx(0.20)
-    assert choose_growth(est, blend="nonsense").method == "lowest"  # unknown → rule default
+    assert choose_growth(est, controls=GrowthControls(blend="average")).value == pytest.approx(0.2067, abs=1e-4)
+    assert choose_growth(est, controls=GrowthControls(blend="median")).value == pytest.approx(0.20)
+    assert choose_growth(est, controls=GrowthControls(blend="nonsense")).method == "lowest"  # unknown → rule default
     slow = Estimates(ticker="Y")
     slow.sources = {"finviz": {"eps_growth_5y": 0.08}, "zacks": {"eps_growth_5y": 0.10},
                     "yahoo": {"eps_growth_5y": 0.09}}
@@ -80,14 +80,14 @@ def test_growth_blend_default_lowest_and_per_ticker_override():
 
 
 def test_disagreeing_sources_use_median_unless_set_per_ticker():
-    from vmi.analysis.valuation.growth import choose_growth
+    from vmi.analysis.valuation.growth import GrowthControls, choose_growth
     from vmi.data.models import Estimates
 
     est = Estimates(ticker="NVDA")
     est.sources = {"finviz": {"eps_growth_5y": 0.65}, "zacks": {"eps_growth_5y": 0.14}}
     auto = choose_growth(est)
     assert auto.method == "median" and auto.value == pytest.approx(0.395) and "disagree" in auto.notes[0]
-    assert choose_growth(est, blend="lowest").value == pytest.approx(0.14)  # per-ticker choice wins
+    assert choose_growth(est, controls=GrowthControls(blend="lowest")).value == pytest.approx(0.14)  # per-ticker choice wins
 
 
 def test_uncertainty_haircut_for_growth_stocks_and_single_source(fund_factory):
@@ -123,3 +123,29 @@ def test_moat_is_evidence_until_reviewed(fund_factory):
     assert moat_verdict({"moat_score": 8})["grade"] == "wide"
     assert moat_verdict({"moat": {"sources": ["a", "b", "c", "d"]}})["grade"] == "wide"  # legacy format
     assert moat_verdict({}) is None
+
+
+def test_growth_controls_source_extra_and_exclude():
+    from vmi.analysis.valuation.growth import GrowthControls, choose_growth
+    from vmi.data.models import Estimates
+
+    est = Estimates(ticker="X")
+    est.sources = {"finviz": {"eps_growth_5y": 0.20}, "zacks": {"eps_growth_5y": 0.24}}
+    assert choose_growth(est, controls=GrowthControls(source="zacks")).value == pytest.approx(0.24)
+    with_factset = GrowthControls(extra={"factset": 0.18})
+    assert choose_growth(est, controls=with_factset).value == pytest.approx(0.18)  # joins the lowest blend
+    assert choose_growth(est, controls=GrowthControls(source="factset", extra={"factset": 0.16})).method == "source:factset"
+    assert choose_growth(est, controls=GrowthControls(blend="second_lowest", exclude=("finviz",),
+                                                       extra={"own": 0.30})).value == pytest.approx(0.30)
+    missing = choose_growth(est, controls=GrowthControls(source="yahoo"))
+    assert missing.method != "source:yahoo" and "fell back" in missing.notes[0]
+
+
+def test_base_period_choice(fund_factory):
+    from vmi.analysis.valuation.methods import steady_base
+
+    f = fund_factory(fcf=[10, 11, 12, 13, 14], ttm={"fcf": 20.0})
+    assert steady_base(f, "fcf", mode="ttm")[0] == 20.0
+    assert steady_base(f, "fcf", mode="last_fy")[0] == 14.0
+    assert steady_base(f, "fcf", mode="average")[0] == pytest.approx(12.5)
+    assert steady_base(f, "fcf")[0] == 14.0  # auto: TTM 1.43× FY = sudden jump → prior year

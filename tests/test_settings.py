@@ -35,7 +35,7 @@ def test_update_applies_in_place_and_stores_only_differences(tmp_settings):
 
 
 def test_invalid_values_are_rejected(tmp_settings):
-    for bad in ({"growth": {"blend": "highest"}}, {"nope": {"x": 1}}, {"growth": {"nope": 1}},
+    for bad in ({"growth": {"blend": "max"}}, {"nope": {"x": 1}}, {"growth": {"nope": 1}},
                 {"valuation": {"iv_haircut": "abc"}}):
         with pytest.raises((ValueError, TypeError)):
             settings.update(bad)
