@@ -71,9 +71,11 @@
   breaker (vmi/data/ib_fundamentals.py), so if IB ever re-enables it, it is used automatically.
 
 ## Client Portal fundamentals (2026-11-05)
-- Implemented `vmi/data/ib_portal.py` from the `PossibleIBFundamentalFix` note, with corrections: TWS has no local
-  REST API (the Client Portal Gateway is a separate app on :5000), and `/mofw/` does not exist. The real routes are
-  `/tws.proxy/fundamentals/financials/{conid}?type=income|balance|cash&annual=true|false` (alias
-  `/fundamentals/financials/{conid}`), `/fundamentals/landing/{conid}?widgets=key_ratios`, conid via `/trsrv/stocks`.
-- The response schema is undocumented, so the parser is schema-tolerant. Once a gateway is live, run
-  `python -m vmi.data.ib_portal AAPL` and extend `LABELS` in `ib_portal.py` from the saved JSON if needed.
+- Superseded by the `vmi/data/ibportal/` package, built from IB's own portal and gateway code. Full research, sources
+  and the setup decision are in `Log.md` (2026-11-05). Correction to the research note above: current TWS builds refuse
+  `reqFundamentalData` locally (error 10358, gated by the login's permission). The refusal does not come from IB's
+  servers for every client.
+
+## Change log rule (owner, 2026-11-05)
+- Every change is logged in `Log.md` (what, why, files, verification, open items) so future AIs and coders can
+  continue without guesswork. Code must stay clean and modular: one job per module, one place per setting.

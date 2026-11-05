@@ -221,8 +221,10 @@ def estimates(ticker: str) -> dict:
         for src, key in (("BETA", "beta"), ("PEEXCLXOR", "pe")):
             if isinstance(s.get(src), float):
                 out[key] = s[src]
-    if (resc := tws_report(ticker, "RESC")) and (r := parse_resc(resc)).get("eps_ltg") is not None:
-        out.setdefault("eps_growth_5y", r["eps_ltg"])
+    resc = tws_report(ticker, "RESC")
+    ltg = parse_resc(resc).get("eps_ltg") if resc else None
+    if ltg is not None:
+        out.setdefault("eps_growth_5y", ltg)
     for k, v in _portal(ibportal.estimates, ticker, {}).items():
         out.setdefault(k, v)
     return out

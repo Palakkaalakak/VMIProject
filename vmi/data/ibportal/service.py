@@ -113,6 +113,7 @@ def check(tickers: Iterable[str], out_dir: Path, portal: Portal | None = None) -
             if cid is None:
                 continue
             raw: dict = {}
+            # one entry per route: name → zero-argument call (default args pin the loop variables)
             calls = {f"{st}_{'annual' if a else 'quarter'}": (lambda st=st, a=a: p.financials(cid, st, a))
                      for st in routes.STATEMENTS for a in (True, False)}
             fields = [n for n, _, _ in routes.ANALYST_FIELDS] + list(routes.PROBE_FIELDS)
@@ -166,13 +167,18 @@ class _session:
 
 
 def _conids(p: Portal, tickers: list[str]) -> dict[str, int]:
+    """{TICKER: conid}: cached conids first, one batched lookup for the rest."""
     cache, out, missing = get_cache(), {}, []
     for t in (t.upper() for t in tickers):
         hit = cache.get(KEY_CONID.format(t), CONID_TTL)
-        (out.__setitem__(t, int(hit)) if hit else missing.append(t))
-    for t, cid in (p.conids(missing) if missing else {}).items():
-        cache.set(KEY_CONID.format(t), cid)
-        out[t] = cid
+        if hit:
+            out[t] = int(hit)
+        else:
+            missing.append(t)
+    if missing:
+        for t, cid in p.conids(missing).items():
+            cache.set(KEY_CONID.format(t), cid)
+            out[t] = cid
     return out
 
 

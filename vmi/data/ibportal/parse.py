@@ -134,7 +134,7 @@ def is_estimate(label) -> bool:
 # ------------------------------------------------------------------------------------------------ conid
 def pick_conid(payload, symbol: str) -> int | None:
     """/trsrv/stocks → {SYM: [{assetClass, contracts: [{conid, isUS}]}]}: prefer the US listing."""
-    entries = (payload or {}).get(symbol.upper()) or [] if isinstance(payload, dict) else []
+    entries = payload.get(symbol.upper()) or [] if isinstance(payload, dict) else []
     fallback = None
     for entry in entries:
         if entry.get("assetClass", "STK") != "STK":
