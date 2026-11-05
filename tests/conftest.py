@@ -21,3 +21,12 @@ def make_fund(ticker: str = "TEST", years: tuple[int, ...] = tuple(range(2016, 2
 @pytest.fixture
 def fund_factory():
     return make_fund
+
+
+@pytest.fixture(autouse=True)
+def isolated_cache(tmp_path, monkeypatch):
+    """Every test gets its own empty cache; tests never read or write the real data/cache."""
+    from vmi.data import cache
+
+    monkeypatch.setattr(cache, "_cache", cache.TTLCache(tmp_path / "cache.sqlite"))
+    yield cache._cache

@@ -1,35 +1,39 @@
-"""IB fundamentals provider — tried FIRST, guarded by a circuit breaker.
+"""IB fundamentals: the one place that decides how the app gets fundamentals from Interactive Brokers.
 
-Research summary (2026-11):
-  * TWS API: `reqFundamentalData` (ReportsFinStatements / ReportSnapshot / RESC) was de-supported in
-    TWS API 10.47 (May 2026); tick 47/258 removed. Since ~Apr 2026 IB servers answer older clients with
-    error 10358 "Fundamentals data is not allowed". ib_async still exposes the call, so we keep trying
-    it: any account/build that still receives the Refinitiv XML benefits automatically.
-  * Client Portal Web API: fundamental snapshot tags (P/E, EPS, Beta, dividend …) deprecated Jan 2026.
-    The portal's Fundamentals Explorer backend (`/tws.proxy/fundamentals/financials/{conid}`) is
-    undocumented; vmi.data.ib_portal uses it when `VMI_IB_CP_URL` points at a running, logged-in
-    Client Portal Gateway (a separate local app — TWS has no REST server).
+Two paths, tried in this order, each behind its own circuit breaker (a refusal costs one call per pause):
+  1. TWS API `reqFundamentalData` (LSEG XML: statements, snapshot ratios, analyst estimates).
+     IBKR removed it from its API library in 10.47; current TWS/Gateway builds refuse it locally with error
+     10358 unless the login carries IB's fundamentals-for-API permission. Kept because it costs one call to
+     try, and it works automatically wherever IB still allows it.
+  2. Client Portal Gateway → Fundamentals Explorer backend (vmi.data.ibportal): statements + analyst
+     long-term growth. Read from the cache first; `sync` fills the cache for a whole universe at once.
 
-When IB answers, its data (Refinitiv/LSEG, FactSet-grade consensus) takes priority, including the
-projected long-term growth rate (ProjLTGrowthRate) as an estimate source. On refusal the breaker opens
-for BREAKER_SECONDS so scans are never slowed down by repeated failing calls.
+CLI (run it on the PC where TWS and/or the gateway run):
+    python -m vmi.data.ib_fundamentals check AAPL MSFT    # what works right now? raw JSON is saved
+    python -m vmi.data.ib_fundamentals sync --sp500       # fill the IB cache for the S&P 500
+Research notes and the setup decision: Log.md (2026-11-05).
 """
 from __future__ import annotations
 
+import argparse
+import json
 import logging
 import time
 import xml.etree.ElementTree as ET
 
 from vmi.config import get_settings
+from vmi.data import ibportal
+from vmi.data.breaker import Breaker
 from vmi.data.cache import get_cache
 from vmi.data.models import Fundamentals, Point
 
 log = logging.getLogger("vmi.ib_fund")
 
-BREAKER_SECONDS = 6 * 3600
-_breaker: dict[str, float] = {}
-_last_error: dict[str, str] = {}
+TWS = Breaker("ib_tws_fundamentals", seconds=6 * 3600)
+PORTAL = Breaker("ib_portal", seconds=30 * 60)  # shorter: the usual cause is "gateway not logged in yet"
+TWS_REFUSALS = ("10358", "not allowed")  # account-wide refusal → pause; 430 (one security lacks data) is not
 
+# ============================================================================================ TWS XML
 # ReportsFinStatements COA code → concept. Map-item labels are matched too, for robustness.
 COA = {
     "RTLR": "revenue", "SREV": "revenue", "SCOR": "cost_of_revenue", "SGRP": "gross_profit",
@@ -60,54 +64,6 @@ NOT_SCALED = {"eps_diluted", "dps"}
 INSTANTS = ("cash", "current_assets", "current_liabilities", "total_assets", "total_liabilities", "equity",
             "lt_debt", "st_debt", "goodwill", "intangibles", "receivables", "inventory", "payables",
             "shares_outstanding")
-
-
-def _open(path: str) -> bool:
-    return time.time() >= _breaker.get(path, 0)
-
-
-def _trip(path: str, err: str) -> None:
-    _breaker[path] = time.time() + BREAKER_SECONDS
-    _last_error[path] = err[:200]
-    log.info("IB fundamentals path %s disabled for %ss: %s", path, BREAKER_SECONDS, err)
-
-
-def status() -> dict:
-    now = time.time()
-    return {p: {"available": now >= _breaker.get(p, 0), "retry_in_s": max(0, int(_breaker.get(p, 0) - now)),
-                "last_error": _last_error.get(p, "")} for p in ("tws", "cp")}
-
-
-# ---------------------------------------------------------------------------------------- TWS XML
-def tws_report(symbol: str, report: str, timeout: float = 15.0) -> str | None:
-    if not _open("tws"):
-        return None
-    from vmi.data.ib import gateway
-
-    gw = gateway()
-    if not gw.connected:
-        return None
-    key = f"ibf:{report}:{symbol.upper()}"
-    cached = get_cache().get(key, get_settings().ttl_fundamentals)
-    if cached:
-        return cached
-
-    async def run():
-        c = await gw._stock(symbol)
-        return await gw.ib.reqFundamentalDataAsync(c, report)
-
-    try:
-        xml = gw.call(run, timeout=timeout)
-    except Exception as exc:
-        _trip("tws", f"{type(exc).__name__}: {exc}")
-        return None
-    if not xml:
-        err = gw.last_error
-        if "10358" in err or "430" in err or "not allowed" in err.lower():
-            _trip("tws", err)
-        return None
-    get_cache().set(key, xml)
-    return xml
 
 
 def parse_fin_statements(xml: str, ticker: str) -> Fundamentals | None:
@@ -198,61 +154,130 @@ def parse_resc(xml: str) -> dict:
     return out
 
 
-# ---------------------------------------------------------------------------------- Client Portal
-def cp_fundamentals(symbol: str) -> Fundamentals | None:
-    """Client Portal Gateway Fundamentals Explorer (vmi.data.ib_portal), behind the "cp" breaker."""
-    if not get_settings().ib_cp_url or not _open("cp"):
-        return None
-    from vmi.data import ib_portal
+# ========================================================================================= TWS requests
+def _tws_request(symbol: str, report: str, timeout: float = 15.0) -> tuple[str | None, str]:
+    """One reqFundamentalData call → (xml or None, error text). No cache, no breaker."""
+    from vmi.data.ib import gateway
 
-    key = f"ibcp:fund:{symbol.upper()}"
-    cached = get_cache().get(key, get_settings().ttl_fundamentals)
-    if cached:
-        return Fundamentals.from_dict(cached)
+    gw = gateway()
+    if not gw.connected:
+        return None, f"TWS not connected ({gw.last_error or gw.status})"
+
+    async def run():
+        return await gw.ib.reqFundamentalDataAsync(await gw._stock(symbol), report)
+
     try:
-        f = ib_portal.fundamentals(symbol)
-    except Exception as exc:  # unauthenticated session, unknown route, network …
-        _trip("cp", f"{type(exc).__name__}: {exc}")
+        xml = gw.call(run, timeout=timeout)
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {exc}"
+    return (xml, "") if xml else (None, gw.last_error or "empty answer")
+
+
+def tws_report(symbol: str, report: str) -> str | None:
+    """Cached, breaker-guarded reqFundamentalData (ReportsFinStatements / ReportSnapshot / RESC)."""
+    key = f"ibf:{report}:{symbol.upper()}"
+    if cached := get_cache().get(key, get_settings().ttl_fundamentals):
+        return cached
+    if not TWS.ready:
         return None
-    if f is not None:
-        get_cache().set(key, f.to_dict())
-    return f
+    xml, err = _tws_request(symbol, report)
+    if xml:
+        get_cache().set(key, xml)
+    elif err.startswith("TimeoutError") or any(s in err.lower() for s in TWS_REFUSALS):
+        TWS.trip(err)  # IB refused or ignored the request; a mere disconnect is not a refusal
+    return xml
 
 
-# ------------------------------------------------------------------------------------------ public
+# ======================================================================================== Portal path
+def _portal(read, ticker: str, empty):
+    """Cache first; a live gateway call only when configured and not paused by the breaker."""
+    live = ibportal.enabled() and PORTAL.ready
+    try:
+        return read(ticker, live=live)
+    except Exception as exc:  # gateway down, not logged in, route changed …
+        PORTAL.trip(f"{type(exc).__name__}: {exc}")
+        return empty
+
+
+# ============================================================================================= public
 def fundamentals(ticker: str) -> Fundamentals | None:
-    """TWS Refinitiv XML first, then the Client Portal Gateway; None when neither answers."""
+    """TWS XML first, then the Client Portal Gateway; None when neither has data."""
     xml = tws_report(ticker, "ReportsFinStatements")
     f = parse_fin_statements(xml, ticker) if xml else None
     if f is not None:
-        snap = tws_report(ticker, "ReportSnapshot")
-        if snap:
+        if snap := tws_report(ticker, "ReportSnapshot"):
             f.meta["ib_snapshot"] = parse_snapshot(snap)
         return f
-    return cp_fundamentals(ticker)
+    return _portal(ibportal.fundamentals, ticker, None)
 
 
 def estimates(ticker: str) -> dict:
-    """Growth/beta from IB when available (decimals)."""
+    """Analyst growth / beta from IB (decimals): TWS snapshot + RESC first, then the gateway."""
     out: dict = {}
-    snap = tws_report(ticker, "ReportSnapshot")
-    if snap:
+    if snap := tws_report(ticker, "ReportSnapshot"):
         s = parse_snapshot(snap)
         if isinstance(s.get("ProjLTGrowthRate"), float):
             out["eps_growth_5y"] = s["ProjLTGrowthRate"] / 100
-        for k_src, k in (("BETA", "beta"), ("PEEXCLXOR", "pe")):
-            if isinstance(s.get(k_src), float):
-                out[k] = s[k_src]
-    resc = tws_report(ticker, "RESC")
-    if resc:
-        r = parse_resc(resc)
-        if r.get("eps_ltg") is not None:
-            out.setdefault("eps_growth_5y", r["eps_ltg"])
-    if "eps_growth_5y" not in out and get_settings().ib_cp_url:
-        f = cp_fundamentals(ticker)
-        if f is not None:
-            from vmi.data.ib_portal import estimates_from_ratios
-
-            for k, v in estimates_from_ratios(f.meta.get("ib_key_ratios") or {}).items():
-                out.setdefault(k, v)
+        for src, key in (("BETA", "beta"), ("PEEXCLXOR", "pe")):
+            if isinstance(s.get(src), float):
+                out[key] = s[src]
+    if (resc := tws_report(ticker, "RESC")) and (r := parse_resc(resc)).get("eps_ltg") is not None:
+        out.setdefault("eps_growth_5y", r["eps_ltg"])
+    for k, v in _portal(ibportal.estimates, ticker, {}).items():
+        out.setdefault(k, v)
     return out
+
+
+def status() -> dict:
+    return {"tws": TWS.status(), "portal": {**PORTAL.status(), "configured": ibportal.enabled(),
+                                            "gateway": ibportal.base_url()}}
+
+
+# ================================================================================================ CLI
+def tws_probe(symbol: str, wait: float = 10.0) -> dict:
+    """Connect to TWS (as the app does) and try one ReportSnapshot, bypassing cache and breaker."""
+    from vmi.data.ib import gateway
+
+    gw = gateway()
+    gw.start()
+    deadline = time.time() + wait
+    while not gw.connected and time.time() < deadline:
+        time.sleep(0.5)
+    xml, err = _tws_request(symbol, "ReportSnapshot", timeout=20)
+    verdict = ("works" if xml else "not connected" if not gw.connected
+               else "refused by IB for this login (10358)" if "10358" in err else "failed")
+    return {"port": gw.settings.ib_port, "connected": gw.connected, "fundamentals": verdict, "detail": err}
+
+
+def main(argv: list[str] | None = None) -> None:
+    ap = argparse.ArgumentParser(prog="python -m vmi.data.ib_fundamentals", description=__doc__.split("\n")[0])
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    c = sub.add_parser("check", help="test the TWS and gateway paths and save raw gateway JSON")
+    c.add_argument("tickers", nargs="*", default=["AAPL"])
+    c.add_argument("--no-tws", action="store_true", help="skip the TWS probe")
+    s = sub.add_parser("sync", help="fill the IB cache from the gateway")
+    s.add_argument("tickers", nargs="*")
+    s.add_argument("--sp500", action="store_true", help="add every S&P 500 constituent")
+    s.add_argument("--no-statements", action="store_true", help="analyst fields only (fast)")
+    a = ap.parse_args(argv)
+
+    if a.cmd == "check":
+        report: dict = {}
+        if not a.no_tws:
+            report["tws"] = tws_probe(a.tickers[0])
+        report["gateway"] = (ibportal.check(a.tickers, get_settings().data_dir / "ib_portal_samples")
+                             if ibportal.enabled() else "VMI_IB_CP_URL not set (e.g. https://localhost:5000)")
+        print(json.dumps(report, indent=2, default=str))
+        return
+    tickers = list(a.tickers)
+    if a.sp500:
+        from vmi.data.universe import sp500
+
+        tickers += [r["symbol"] for r in sp500()]
+    if not tickers:
+        ap.error("give tickers or --sp500")
+    print(json.dumps(ibportal.sync(tickers, statements=not a.no_statements, progress=print), indent=2))
+
+
+if __name__ == "__main__":
+    main()
