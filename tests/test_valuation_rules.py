@@ -131,22 +131,42 @@ def test_moat_follows_adam_until_reviewed(fund_factory):
     assert moat_verdict({}) is None
 
 
-def test_moat_evidence_history_decline_signal_and_recurring_revenue(fund_factory):
+def test_moat_evidence_history_decline_age_pricing_power_and_recurring_revenue(fund_factory):
+    from datetime import date
+
     from vmi.analysis import moat_evidence as ME
+    from vmi.data.models import Point
 
     years = tuple(range(2017, 2026))
     steady = fund_factory(years=years, revenue=[100] * 9, gross_profit=[60, 61, 62, 61, 62, 63, 62, 63, 64],
                           deferred_revenue=[10, 11, 12, 14, 16, 18, 21, 24, 27], rd=[8] * 9)
-    sliding = fund_factory(years=years, revenue=[100] * 9, gross_profit=[60] * 5 + [59.9, 59.8, 59.7, 59.6],
+    sliding = fund_factory(years=years, revenue=[100] * 9, gross_profit=[60] * 6 + [59.9, 59.8, 59.7],
                            fcf=[20, 19, 18, 17, 16, 15, 14, 13, 12])
     assert ME.margin_decline(steady) == []
-    decline = ME.margin_decline(sliding)  # no minimum size (Adam gives none); free-cash-flow margin is not a profit margin
-    assert len(decline) == 1 and "gross margin fell 3 years in a row" in decline[0]
+    decline = ME.margin_decline(sliding)  # no minimum size (Adam gives none); FCF margin is not a profit margin
+    assert len(decline) == 1 and "gross margin fell 2 years in a row" in decline[0]
+    sliding.ratios["roic"] = [Point("2023-12-31", 0.20), Point("2024-12-31", 0.18), Point("2025-12-31", 0.15)]
+    assert any("ROIC fell 2 years" in r for r in ME.margin_decline(sliding))
     assert ME.margin_history(steady)["gross margin"][2025] == 0.64
     sw = ME.switching_costs(steady)
     assert sw["available"] and sw["deferred_trend"] == "rising" and not ME.switching_costs(sliding)["available"]
     assert ME.intensity(steady)["rd"]["latest"] == 0.08
-    assert ME.review_status("2026-01-01", sliding)["due"] and not ME.review_status("2026-01-01", steady)["due"]
+
+    # approved pricing-power test: margin in 2021-23 vs the three years before, operating margin as fallback
+    held = fund_factory(years=years, revenue=[100] * 9, gross_profit=[60, 60, 61, 60, 59, 60, 61, 62, 62])
+    cut = fund_factory(years=years, revenue=[100] * 9, gross_profit=[60, 60, 60, 60, 52, 48, 50, 55, 58])
+    assert ME.pricing_power(held)["held"] is True and ME.pricing_power(cut)["held"] is False
+    assert ME.pricing_power(fund_factory(years=(2024, 2025), revenue=[1, 1], gross_profit=[.5, .5]))["held"] is None
+    no_gross = fund_factory(years=years, revenue=[100] * 9, operating_income=[30, 30, 31, 30, 29, 30, 31, 30, 30])
+    assert ME.pricing_power(no_gross)["held"] is True and "operating" in ME.pricing_power(no_gross)["measure"]
+
+    # approved review age: older than 365 days, or no date, is due; nothing is due without a verdict
+    today = date(2026, 11, 5)
+    assert ME.review_status("2024-01-01", steady, today=today)["reasons"] == ["verdict is 1039 days old (limit 365)"]
+    assert not ME.review_status("2026-06-01", steady, today=today)["due"]
+    assert ME.review_status(None, steady)["reasons"] == ["no review date recorded"]
+    assert not ME.review_status(None, sliding, reviewed=False)["due"]
+
 
 
 def test_no_moat_industry_matches_whole_words_only():

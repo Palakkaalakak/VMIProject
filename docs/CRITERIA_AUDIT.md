@@ -5,11 +5,12 @@ master document (line references in the basis). **Interpretation** = he gives th
 is how the software implements it: change it freely in Settings. **Owner** / **calibration** are not Adam's.
 A test fails when a setting is added without an entry, so nothing enters `vmi/rules.py` untraceable.
 
-Removed on 2026-11-05 because Adam does not say them (I had invented them): the pricing-power stress window
-(2018–20 vs 2021–23) and its 2-point tolerance, the 1-point minimum margin move, the 365-day review age, the
-margin cut-offs (40% gross, 20% operating, 10% net/FCF), the 3-point gross-margin stability limit, the
-"≥80% supportive signals = wide moat" hint, mapping ≥4 sources to "wide" and score ≥8 to "wide", the 0.75 narrow-moat
-position multiplier (now 1.0) and a 60-position cap (now Adam's 30).
+Removed on 2026-11-05 because neither Adam nor the owner said them (I had invented them): the 1-point minimum margin
+move, the margin cut-offs (40% gross, 20% operating, 10% net/FCF), the 3-point gross-margin stability limit, the
+"≥80% supportive signals = wide moat" hint, and mapping ≥4 sources to "wide" and score ≥8 to "wide".
+Kept or restored because the owner approved the proposal (kind **approved**): the pricing-power test over 2021–23,
+the 12-month review age and the 2-year margin/ROIC decline alert. The 0.75 narrow-moat size and 60-position cap are
+earlier values I changed without being asked; they are restored and marked for the owner to confirm.
 
 | Setting | Value | Kind | Basis |
 |---|---|---|---|
@@ -36,7 +37,11 @@ position multiplier (now 1.0) and a 60-position cap (now Adam's 30).
 | `growth.blend_when_disagree` | median | calibration (owner-approved) | see growth.disagreement_ratio |
 | `moat.min_sources` | 3 | Adam states it | at least THREE of the FIVE moat sources (l.6972) |
 | `moat.min_ai_score` | 7 | Adam states it | AI moat score ≥7/10; 6/10 is 'not strong enough' (l.6999) |
-| `moat.review_decline_years` | 3 | interpretation of Adam's words | Adam (l.11030): profit margins declining 'for at least 2–3 years' = deteriorating moat; 3 because Step 1 accepts 1–2 down years |
+| `moat.pricing_baseline_years` | (2018, 2019, 2020) | interpretation of Adam's words | the approved test compares with the three years before the stress window |
+| `moat.pricing_stress_years` | (2021, 2022, 2023) | assistant's proposal, approved by owner | docs/MOAT_PROPOSALS.md #3: did margin hold through the 2021–23 cost inflation? (Adam's pricing-power test itself has no numbers) |
+| `moat.pricing_tolerance` | 0.02 | interpretation of Adam's words | how far margin may dip and still count as 'held'; our reading, no figure from Adam or the proposal |
+| `moat.review_max_age_days` | 365 | assistant's proposal, approved by owner | docs/MOAT_PROPOSALS.md #7: moat check due 'after 12 months' |
+| `moat.review_decline_years` | 2 | assistant's proposal, approved by owner | docs/MOAT_PROPOSALS.md #7: due when margins/ROIC fall 2 years; Adam (l.11030): profit margins declining 'at least 2–3 years' = deteriorating moat |
 | `moat.no_moat_industries` | ('airline', 'oil & gas', 'oil and gas', 'crude', 'petroleum', 'shipping', 'marine shipping', 'deep sea', 'auto manufacturer', 'automobile', 'motor vehicle', 'construction', 'homebuild', 'property developer', 'real estate develop', 'steel', 'metal mining', 'gold', 'silver', 'copper', 'coal', 'aluminum', 'commodity chemicals', 'drilling') | interpretation of Adam's words | Adam lists commodities, airlines, autos, developers, construction, shipping, oil & gas; the individual words are our reading of 'commodities' |
 | `profitability.min_roe` | 0.12 | Adam states it | ROE ≥12% (checklist) |
 | `profitability.excellent_roe` | 0.15 | Adam states it | ROE >15% exceptional (checklist) |
@@ -90,12 +95,12 @@ position multiplier (now 1.0) and a 60-position cap (now Adam's 30).
 | `technical.n_buy_levels` | 4 | Adam states it | three or four buy levels (checklist 15) |
 | `technical.near_level_pct` | 0.03 | interpretation of Adam's words | how close price must be to a level to count as 'at support' |
 | `portfolio.min_stocks` | 8 | Adam states it | diversification 8–30 positions (l.12102) |
-| `portfolio.max_stocks` | 30 | Adam states it | diversification 8–30 positions (l.12102) |
+| `portfolio.max_stocks` | 60 | interpretation of Adam's words | Adam: 8–30 positions (l.12102); the cap here is looser (kept from earlier work; confirm) |
 | `portfolio.default_target_stocks` | 20 | owner's rule/spec | default number of positions used for sizing |
 | `portfolio.tranches` | 4 | Adam states it | buy in 3–4 tranches (checklist 16) |
 | `portfolio.speculative_multiplier` | 0.5 | Adam states it | speculative growth: ½ or ⅓ of a normal position (l.9347) |
 | `portfolio.turnaround_multiplier` | 0.5 | Adam states it | turnarounds: ½ or ⅓ of a normal position (l.9347) |
-| `portfolio.narrow_moat_multiplier` | 1.0 | interpretation of Adam's words | Adam: narrow moat = 'smaller positions, especially initially', no figure |
+| `portfolio.narrow_moat_multiplier` | 0.75 | interpretation of Adam's words | Adam: narrow moat = 'smaller positions, especially initially', no figure; 0.75 kept from earlier work (confirm) |
 | `portfolio.max_sector_weight` | 0.3 | interpretation of Adam's words | warning only; Adam's own largest sector target is 27% (l.10295) |
 | `dividend.min_yield` | 0.05 | Adam states it | yield ≥5% (SG) (l.9758) |
 | `dividend.us_min_yield_screen` | 0.03 | Adam states it | US: ~3% is attractive (l.878) |

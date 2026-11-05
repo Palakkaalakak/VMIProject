@@ -38,6 +38,21 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-05 — Correction: approved moat items restored (I had removed too much)
+The owner clarified that things they explicitly said to leave, or that I proposed and they approved, stay. My criteria
+audit wrongly removed three approved moat-proposal items. Restored as evidence (they never change a verdict):
+- *Pricing-power test:* margin in 2021–23 vs the three years before (operating margin when gross margin is missing).
+  The 2021–23 window is approved; the 2018–20 baseline and 2-point tolerance are labelled interpretation.
+- *Review age:* a stored verdict older than 365 days, or with no date, is "review due".
+- *Decline alert:* gross/operating/net margin or ROIC falling 2 years in a row (no minimum size). The 1-point minimum
+  stays removed.
+
+Also restored the earlier values I had changed unasked: narrow-moat size 0.75 and the 60-position cap (flagged for
+the owner to confirm). New provenance kind `approved` in `vmi/rules_sources.py`. 89 tests pass.
+
+**Observation:** with the 2-year rule, 17 of 43 reference stocks show "review due", including V for a 0.1-point
+gross-margin dip. That is what the approved rule does; options are 3 years or a minimum size (both are Settings).
+
 ### 2026-11-05 — Criteria audit against Adam's text; invented thresholds removed
 **Owner instruction:** reread what Adam says and fix the criteria; do not invent.
 

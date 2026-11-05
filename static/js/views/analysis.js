@@ -79,7 +79,7 @@ function moatChecklist(x) {
   const v = x.verdict, due = x.review?.due;
   return `<div class="moat-review" data-moat-review><p><b>Moat review</b> — ${v ? `verdict <b>${esc(v.grade)}</b>${v.sources?.length ? ` · sources: ${esc(v.sources.join(", "))}` : ""}${v.score != null ? ` · score ${esc(v.score)}/10` : ""}${x.review?.reviewed_on ? ` · reviewed ${esc(x.review.reviewed_on)}` : ""}`
     : `not reviewed yet · provisional result from Adam's two shortcuts only (industry list, 10-year chart)`}</p>
-    ${due ? `<p class="note"><b>Moat deterioration signal</b> (Adam: profit margins declining 2–3 years): ${esc(x.review.reasons.join("; "))}</p>` : ""}
+    ${due ? `<p class="note"><b>Moat review due:</b> ${esc(x.review.reasons.join("; "))}</p>` : ""}
     <ul class="small">${Object.entries(x.sources).map(([k, d]) => `<li><b>${esc(k)}</b>: ${esc(d)}</li>`).join("")}</ul>
     <ul class="small muted">${x.questions.map((q) => `<li>${esc(q)}</li>`).join("")}</ul>
     <button type="button" class="secondary" data-load-moat>Load peer comparison &amp; annual-report excerpts</button>

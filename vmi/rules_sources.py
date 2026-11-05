@@ -4,6 +4,7 @@ Each setting is exactly one of:
     adam            Adam states this number in the master document (note = where)
     interpretation  Adam states a rule in words only; this number is how we implement it (change it freely)
     owner           the project owner's own rule or spec, not Adam's
+    approved        suggested by the assistant and approved by the owner (what was approved is named in the note)
     calibration     chosen with the owner's approval by comparing with Adam's published values, with a stated reason
     model           a technical guard of the software, not an investing rule
 
@@ -13,8 +14,8 @@ Line numbers refer to docs/VMI_MASTER_DOCUMENT.txt.
 """
 from __future__ import annotations
 
-ADAM, INTERP, OWNER, CALIB, MODEL = "adam", "interpretation", "owner", "calibration", "model"
-KINDS = (ADAM, INTERP, OWNER, CALIB, MODEL)
+ADAM, INTERP, OWNER, APPROVED, CALIB, MODEL = "adam", "interpretation", "owner", "approved", "calibration", "model"
+KINDS = (ADAM, INTERP, OWNER, APPROVED, CALIB, MODEL)
 
 SOURCES: dict[str, tuple[str, str]] = {
     # ---- Step 1 ------------------------------------------------------------------------------------------
@@ -43,8 +44,13 @@ SOURCES: dict[str, tuple[str, str]] = {
     # ---- Step 3 / moat ------------------------------------------------------------------------------------
     "moat.min_sources": (ADAM, "at least THREE of the FIVE moat sources (l.6972)"),
     "moat.min_ai_score": (ADAM, "AI moat score ≥7/10; 6/10 is 'not strong enough' (l.6999)"),
-    "moat.review_decline_years": (INTERP, "Adam (l.11030): profit margins declining 'for at least 2–3 years' = deteriorating moat; "
-                                          "3 because Step 1 accepts 1–2 down years"),
+    "moat.pricing_stress_years": (APPROVED, "docs/MOAT_PROPOSALS.md #3: did margin hold through the 2021–23 cost inflation? "
+                                            "(Adam's pricing-power test itself has no numbers)"),
+    "moat.pricing_baseline_years": (INTERP, "the approved test compares with the three years before the stress window"),
+    "moat.pricing_tolerance": (INTERP, "how far margin may dip and still count as 'held'; our reading, no figure from Adam or the proposal"),
+    "moat.review_max_age_days": (APPROVED, "docs/MOAT_PROPOSALS.md #7: moat check due 'after 12 months'"),
+    "moat.review_decline_years": (APPROVED, "docs/MOAT_PROPOSALS.md #7: due when margins/ROIC fall 2 years; Adam (l.11030): "
+                                            "profit margins declining 'at least 2–3 years' = deteriorating moat"),
     "moat.no_moat_industries": (INTERP, "Adam lists commodities, airlines, autos, developers, construction, shipping, oil & gas; "
                                         "the individual words are our reading of 'commodities'"),
     # ---- Step 4 -------------------------------------------------------------------------------------------
@@ -104,12 +110,12 @@ SOURCES: dict[str, tuple[str, str]] = {
     "technical.near_level_pct": (INTERP, "how close price must be to a level to count as 'at support'"),
     # ---- portfolio / sizing -----------------------------------------------------------------------------------
     "portfolio.min_stocks": (ADAM, "diversification 8–30 positions (l.12102)"),
-    "portfolio.max_stocks": (ADAM, "diversification 8–30 positions (l.12102)"),
+    "portfolio.max_stocks": (INTERP, "Adam: 8–30 positions (l.12102); the cap here is looser (kept from earlier work; confirm)"),
     "portfolio.default_target_stocks": (OWNER, "default number of positions used for sizing"),
     "portfolio.tranches": (ADAM, "buy in 3–4 tranches (checklist 16)"),
     "portfolio.speculative_multiplier": (ADAM, "speculative growth: ½ or ⅓ of a normal position (l.9347)"),
     "portfolio.turnaround_multiplier": (ADAM, "turnarounds: ½ or ⅓ of a normal position (l.9347)"),
-    "portfolio.narrow_moat_multiplier": (INTERP, "Adam: narrow moat = 'smaller positions, especially initially', no figure"),
+    "portfolio.narrow_moat_multiplier": (INTERP, "Adam: narrow moat = 'smaller positions, especially initially', no figure; 0.75 kept from earlier work (confirm)"),
     "portfolio.max_sector_weight": (INTERP, "warning only; Adam's own largest sector target is 27% (l.10295)"),
     # ---- dividends ---------------------------------------------------------------------------------------------
     "dividend.min_yield": (ADAM, "yield ≥5% (SG) (l.9758)"),
@@ -138,7 +144,7 @@ def table() -> str:
     from vmi import settings
 
     labels = {ADAM: "Adam states it", INTERP: "interpretation of Adam's words", OWNER: "owner's rule/spec",
-              CALIB: "calibration (owner-approved)", MODEL: "software guard", "unspecified": "UNSPECIFIED"}
+              APPROVED: "assistant's proposal, approved by owner", CALIB: "calibration (owner-approved)", MODEL: "software guard", "unspecified": "UNSPECIFIED"}
     rows = ["| Setting | Value | Kind | Basis |", "|---|---|---|---|"]
     for s in settings.schema():
         kind, note = source(s["section"], s["key"])

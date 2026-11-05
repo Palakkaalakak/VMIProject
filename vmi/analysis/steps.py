@@ -188,6 +188,7 @@ def step3_moat(f: Fundamentals, est: Estimates, ten_year_uptrend: bool | None, b
     no_moat_ind = is_no_moat_industry(est.industry, f.industry, f.sic_description)
     mcap = ((est.extra or {}).get("yahoo") or {}).get("market_cap")
     history, switching, intens = ME.margin_history(f), ME.switching_costs(f), ME.intensity(f)
+    pricing = ME.pricing_power(f, rules)
     checks = [
         Check("industry_structure", not no_moat_ind, est.industry or f.industry or f.sic_description,
               "not a structurally no-moat industry (Adam's list)"),
@@ -201,6 +202,11 @@ def step3_moat(f: Fundamentals, est: Estimates, ten_year_uptrend: bool | None, b
                             "wide: very high margins · narrow: average · none: low (Adam, no figures)",
                             ", ".join(f"{y}: {v:.1%}" for y, v in list(series.items())[-6:])))
     checks += [
+        Check("pricing_power_through_inflation", pricing["held"], pricing["stress_min"],
+              f"{pricing['measure']} in {rules.moat.pricing_stress_years[0]}–{rules.moat.pricing_stress_years[-1]} within "
+              f"{rules.moat.pricing_tolerance:.0%} of the years before (evidence; Adam's pricing-power test has no numbers)",
+              "" if pricing["baseline"] is None else f"baseline {pricing['baseline']:.1%} → worst stress year "
+              f"{pricing['stress_min']:.1%}, latest {pricing['latest']:.1%}"),
         Check("recurring_revenue", None, switching["deferred_revenue_pct"][-1:] or None,
               "deferred revenue / backlog relative to sales (switching costs)",
               f"deferred {switching['deferred_trend'] or 'n/a'}, backlog {switching['rpo_trend'] or 'n/a'}"
@@ -212,10 +218,11 @@ def step3_moat(f: Fundamentals, est: Estimates, ten_year_uptrend: bool | None, b
               "see the peer comparison"),
     ]
     verdict = moat_verdict(review, rules)
-    review_info = ME.review_status((review or {}).get("moat_reviewed_on"), f, rules)
+    review_info = ME.review_status((review or {}).get("moat_reviewed_on"), f, rules, reviewed=verdict is not None)
     extra = {"reviewed": verdict is not None, "sources": MOAT_SOURCES, "questions": list(MOAT_QUESTIONS),
              "verdict": verdict, "review": review_info,
-             "evidence": {"margins": history, "switching_costs": switching, "intensity": intens}}
+             "evidence": {"margins": history, "pricing_power": pricing, "switching_costs": switching,
+                          "intensity": intens}}
     if verdict:
         label = verdict["grade"] or ("passes" if verdict["passes"] else "fails")
         passed = verdict["passes"]
@@ -225,7 +232,7 @@ def step3_moat(f: Fundamentals, est: Estimates, ten_year_uptrend: bool | None, b
                             f"score: {verdict['score'] if verdict['score'] is not None else '—'}"))
         notes = [f"Moat reviewed: {label}."]
         if review_info["due"]:
-            notes.append("Moat deterioration signal (Adam: profit margins declining 2–3 years): " + "; ".join(review_info["reasons"]))
+            notes.append("MOAT REVIEW DUE: " + "; ".join(review_info["reasons"]))
     else:
         passed = not no_moat_ind and ten_year_uptrend is not False
         label = "unreviewed"

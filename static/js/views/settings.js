@@ -4,7 +4,7 @@ import { api } from "../api.js";
 import { $, esc, loading, run, toast } from "../ui.js";
 
 const KIND = { adam: ["Adam", "ok"], interpretation: ["interpretation", "na"], owner: ["owner", "na"],
-  calibration: ["calibration", "na"], model: ["software", "na"], unspecified: ["UNSPECIFIED", "bad"] };
+  approved: ["approved", "na"], calibration: ["calibration", "na"], model: ["software", "na"], unspecified: ["UNSPECIFIED", "bad"] };
 const badgeFor = (s) => `<span class="badge ${KIND[s.source_kind]?.[1] || "na"}" title="${esc(s.source_note)}">${esc(KIND[s.source_kind]?.[0] || s.source_kind)}</span>`;
 const show = (v) => (Array.isArray(v) ? JSON.stringify(v) : String(v));
 
