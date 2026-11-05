@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import { $, esc, fmt, badge, loading, run, toast, signClass } from "../ui.js";
 import { state } from "../state.js";
 
+const BLENDS = ["", "lowest", "average", "median"];
 const METHODS = ["", "dcf_fcf", "dcf_normalized", "dcf_cfo", "dni", "pb_bank", "pb_distressed", "pnav_reit", "ps_mean", "psg"];
 
 /** personality = {"daily sma50": bounces, …}: show the moving average the stock respects most. */
@@ -124,6 +125,7 @@ function overrides(r) {
     <p class="small muted">For distorted data only (e.g. temporarily depressed consensus). Stored per ticker; the general formula never changes.</p>
     <form id="ov-form" class="grid">
       <label>Growth yrs 1–5 <input name="growth" type="number" step="0.001" value="${o.growth ?? ""}" placeholder="0.13"></label>
+      <label title="How analyst sources are combined when no growth number is set">Growth blend <select name="growth_blend">${BLENDS.map((b) => `<option value="${b}" ${(o.growth_blend ?? "") === b ? "selected" : ""}>${b || "default (lowest)"}</option>`).join("")}</select></label>
       <label>Method <select name="method">${METHODS.map((m) => `<option ${o.method === m ? "selected" : ""}>${m}</option>`).join("")}</select></label>
       <label>Biz type <input name="biz_type" value="${esc(o.biz_type ?? "")}"></label>
       <label>IV override <input name="iv_override" type="number" step="any" value="${o.iv_override ?? ""}"></label>
@@ -159,7 +161,7 @@ function bind(out, r) {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target));
     const num = (k) => (f[k] === "" ? null : parseFloat(f[k]));
-    const body = { growth: num("growth"), iv_override: num("iv_override"), method: f.method || null, biz_type: f.biz_type || null, note: f.note || "" };
+    const body = { growth: num("growth"), growth_blend: f.growth_blend || null, iv_override: num("iv_override"), method: f.method || null, biz_type: f.biz_type || null, note: f.note || "" };
     run(e.submitter, async () => { await api.setOverride(r.ticker, body); toast("Override saved — re-analysing", "ok"); location.hash = `#/analysis/${r.ticker}?t=${Date.now()}`; });
   });
 }

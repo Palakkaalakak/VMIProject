@@ -1,4 +1,5 @@
 """Adam-rule helpers: cash-flow normalisation (steady_base), negative equity, growth-capex dip."""
+import pytest
 from vmi.analysis.consistency import growth_capex_dip
 from vmi.analysis.negative_equity import assess
 from vmi.analysis.valuation.methods import steady_base
@@ -59,3 +60,16 @@ def test_managed_care_is_not_an_insurer():
     assert classify(6324, "Hospital & Medical Service Plans", "Healthcare", "Healthcare Plans") == BizType.NORMAL
     assert classify(6331, "Fire, Marine & Casualty Insurance", "Financial Services",
                     "Insurance - Property & Casualty") == BizType.INSURANCE
+
+
+def test_growth_blend_default_lowest_and_per_ticker_override():
+    from vmi.analysis.valuation.growth import choose_growth
+    from vmi.data.models import Estimates
+
+    est = Estimates(ticker="X")
+    est.sources = {"finviz": {"eps_growth_5y": 0.12}, "zacks": {"eps_growth_5y": 0.20},
+                   "yahoo": {"eps_growth_5y": 0.10}}
+    assert choose_growth(est).value == pytest.approx(0.10) and choose_growth(est).method == "lowest"
+    assert choose_growth(est, blend="average").value == pytest.approx(0.14)
+    assert choose_growth(est, blend="median").value == pytest.approx(0.12)
+    assert choose_growth(est, blend="nonsense").method == "lowest"  # unknown → rule default

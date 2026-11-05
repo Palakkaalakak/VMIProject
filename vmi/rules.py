@@ -37,6 +37,10 @@ class GrowthRules:  # Step 2 + Lesson 5 §4.6
     max_years_1_5: float = 0.40            # sanity cap on analyst estimates (not in course; guards outliers)
     growth_stock_threshold: float = 0.15   # user rule: growth ≥15%, defensive <15%
     large_growth_threshold: float = 0.20   # Lesson 8 "cheetah": growing above 20–25%
+    # How the analyst 5-year EPS growth sources are combined for years 1–5 (owner directive 2026-11-05):
+    # "lowest" (default, conservative) · "average" (Adam's literal rule) · "median". Per-ticker override:
+    # key `growth_blend` in config/judgements.json or the UI's Judgement override card.
+    blend: str = "lowest"
 
 
 @dataclass(frozen=True)

@@ -1,13 +1,17 @@
-"""Consensus growth for years 1–5 — Adam's rule (Lesson 5 §4.6): the AVERAGE of the available analyst
-5-year EPS growth estimates (he averages StockOracle/FactSet, FinViz and Zacks; we average the free
-sources: FinViz, Zacks, Yahoo LTG and IB/Refinitiv when it answers).
+"""Consensus growth for years 1–5 from the available analyst 5-year EPS growth estimates (FinViz, Zacks,
+Yahoo LTG, IB/LSEG when it answers).
+
+How the sources are combined is rules.growth.blend, overridable per ticker:
+  * "lowest"  (default since 2026-11-05, owner directive): the most conservative source
+  * "average" Adam's literal rule (Lesson 5 §4.6) — he averages FactSet, FinViz and Zacks
+  * "median"
 
 Only data hygiene is applied — no fitted adjustments:
   * impossible values (< −20% or > 100%) are discarded as bad data
   * hard sanity cap rules.growth.max_years_1_5
   * fallbacks when no 5-year estimate exists: median next-year EPS growth, then 5y revenue CAGR
-Conservatism is handled separately by ONE flat, documented haircut on the DCF result
-(rules.valuation.iv_haircut) — never by reshaping the growth input.
+No fitted adjustments: conservatism comes from the blend choice (and the optional flat
+rules.valuation.iv_haircut), never from reshaping the growth input.
 """
 from __future__ import annotations
 
@@ -36,15 +40,25 @@ def _cagr(vals: list[float]) -> float | None:
     return None
 
 
-def choose_growth(est: Estimates, f: Fundamentals | None = None, rules: VMIRules = RULES) -> GrowthChoice:
+BLENDS = {
+    "lowest": lambda vals: vals[0],
+    "average": lambda vals: sum(vals) / len(vals),
+    "median": lambda vals: (vals[(len(vals) - 1) // 2] + vals[len(vals) // 2]) / 2,
+}
+
+
+def choose_growth(est: Estimates, f: Fundamentals | None = None, rules: VMIRules = RULES,
+                  blend: str | None = None) -> GrowthChoice:
+    """`blend` (per-ticker override) beats rules.growth.blend; unknown names fall back to the rule."""
     cap = rules.growth.max_years_1_5
+    blend = blend if blend in BLENDS else rules.growth.blend
     srcs = {k: v.get("eps_growth_5y") for k, v in (est.sources or {}).items()}
     srcs = {k: float(v) for k, v in srcs.items() if v is not None and -0.20 < v < 1.0}
     if srcs:
         vals = sorted(srcs.values())
-        g = sum(vals) / len(vals)
+        g = BLENDS[blend](vals)
         notes = [f"capped at {cap:.0%}"] if g > cap else []
-        return GrowthChoice(min(g, cap), "average", srcs, vals[0], vals[-1], notes)
+        return GrowthChoice(min(g, cap), blend, srcs, vals[0], vals[-1], notes)
     nxt = sorted(float(v["eps_growth_next_year"]) for v in (est.sources or {}).values()
                  if v.get("eps_growth_next_year") is not None and -0.5 < v["eps_growth_next_year"] < 1.0)
     if nxt:

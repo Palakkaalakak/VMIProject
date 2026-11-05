@@ -102,6 +102,7 @@ def analyse(symbol: str, technicals: bool = True):
 
 class OverrideIn(BaseModel):
     growth: float | None = None
+    growth_blend: str | None = None  # "lowest" | "average" | "median" (None = rules default)
     growth_6_10: float | None = None
     growth_11_20: float | None = None
     discount_rate: float | None = None

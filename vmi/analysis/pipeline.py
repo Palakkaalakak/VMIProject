@@ -73,7 +73,8 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
     s5 = S.step5_debt(f, biz, est, rules)
 
     ctx = ValuationContext(f, est, price, hist, rules,
-                           growth_override=ov.get("growth"), growth_6_10_override=ov.get("growth_6_10"),
+                           growth_override=ov.get("growth"), growth_blend=ov.get("growth_blend"),
+                           growth_6_10_override=ov.get("growth_6_10"),
                            growth_11_20_override=ov.get("growth_11_20"), discount_override=ov.get("discount_rate"),
                            base_cf_override=ov.get("base_cf"))
     val = value_company(ctx, biz, ov.get("method"))

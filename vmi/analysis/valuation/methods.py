@@ -28,6 +28,7 @@ class ValuationContext:
     rules: VMIRules = RULES
     # user overrides (all optional)
     growth_override: float | None = None      # years 1–5
+    growth_blend: str | None = None           # "lowest" | "average" | "median" (None = rules.growth.blend)
     growth_6_10_override: float | None = None
     growth_11_20_override: float | None = None
     discount_override: float | None = None
@@ -109,7 +110,7 @@ class ValuationContext:
     @property
     def growth_choice(self):
         from vmi.analysis.valuation.growth import choose_growth
-        return choose_growth(self.est, self.fund, self.rules)
+        return choose_growth(self.est, self.fund, self.rules, self.growth_blend)
 
     @property
     def growth(self) -> float | None:
@@ -152,7 +153,7 @@ def _dcf_family(ctx: ValuationContext, method: str, label: str, base: float | No
     hc = 1.0 - ctx.rules.valuation.iv_haircut
     base_iv, cons, doom = (None if v is None else v * hc for v in (base_iv, cons, doom))
     res.intrinsic_value = base_iv
-    res.scenarios = [Scenario("base", base_iv, path, "avg of sources; yrs 6–10 capped at 15%; yrs 11–20 4%"),
+    res.scenarios = [Scenario("base", base_iv, path, f"{'override' if ctx.growth_override is not None else gc.method + ' of sources'}; yrs 6–10 capped at 15%; yrs 11–20 4%"),
                      Scenario("conservative", cons, cons_path, "lowest source; yrs 6–10 trimmed"),
                      Scenario("doomsday", doom, doom_path, "lowest source; growth halves after yr 5; 2% terminal")]
     res.inputs = {"base_cash_flow": base, "base_desc": base_desc, "debt": ctx.debt, "cash": ctx.cash,
