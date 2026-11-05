@@ -150,125 +150,92 @@ MOAT_SOURCES = {
     "scale": "Economies of scale: so big that competing is almost impossible",
 }
 MOAT_QUESTIONS = (
-    "Pricing power test: can it raise prices every year without losing market share? (yes → wide)",
-    "Are the closest competitors clearly weaker? Is this the top dog of its industry?",
-    "Could a bigger competitor disrupt it within 1–3 years (no moat) or beyond 10 years (narrow)?",
-    "Score each of the five sources /10 yourself; Adam wants ≥3 of 5 sources and an overall 7–9/10.",
+    "Pricing power: can it raise prices every year without losing customers or market share? Yes = wide; no / must discount = narrow at best.",
+    "Are the closest competitors clearly weaker? Invest in the top dog of the industry; no clear leader = forget it.",
+    "Could a bigger competitor kill it within 1–3 years (no moat), is it safe for 10+ years (narrow), or 20 years (wide)?",
+    "Adam wants at least 3 of the 5 sources and an overall score of 7/10 or more (6/10 is not strong enough).",
 )
 
 
-def _margins(f: Fundamentals, concept: str) -> list[float]:
-    rev = {p.end: p.value for p in f.annual.get("revenue", [])}
-    return [p.value / rev[p.end] for p in f.annual.get(concept, []) if rev.get(p.end)][-10:]
-
-
-def _describe(xs: list[float]) -> str:
-    if len(xs) < 2:
-        return ""
-    avg = mean(xs)
-    sd = (sum((x - avg) ** 2 for x in xs) / len(xs)) ** 0.5
-    drift = xs[-1] - mean(xs[:-1])
-    direction = "rising" if drift > 0.01 else "eroding" if drift < -0.01 else "stable"
-    return f"{len(xs)}y avg {avg:.1%}, range {min(xs):.1%}–{max(xs):.1%}, σ {sd:.1%}, {direction}"
-
-
 def moat_verdict(review: dict | None, rules: VMIRules = RULES) -> dict | None:
-    """Reviewer verdict from the overrides (moat_grade / moat_sources / moat_score, or the legacy `moat` dict)."""
+    """The reviewer's verdict from the overrides (moat_grade / moat_sources / moat_score, or the legacy `moat`).
+
+    Adam's tests, all of which must hold for whatever the reviewer supplied: grade wide or narrow (never none),
+    at least `min_sources` of the five sources, score at least `min_ai_score` (6/10 is 'not strong enough').
+    Wide vs narrow is the reviewer's own call (the pricing-power test); sources and scores never imply it."""
     r = dict(review or {})
     legacy = r.get("moat") if isinstance(r.get("moat"), dict) else {}
     grade = r.get("moat_grade") or legacy.get("grade")
-    sources = r.get("moat_sources") or legacy.get("sources") or []
+    sources = list(r.get("moat_sources") or legacy.get("sources") or [])
     score = r.get("moat_score")
     if not (grade or sources or score is not None):
         return None
-    if not grade and sources:
-        grade = "wide" if len(sources) >= 4 else "narrow" if len(sources) >= rules.moat.min_sources else "none"
-    if not grade and score is not None:
-        grade = "wide" if score >= 8 else "narrow" if score >= rules.moat.min_ai_score else "none"
-    return {"grade": grade, "sources": list(sources), "score": score}
+    m = rules.moat
+    tests = [t for t in (grade in ("wide", "narrow") if grade else None,
+                         len(sources) >= m.min_sources if sources else None,
+                         score >= m.min_ai_score if score is not None else None) if t is not None]
+    return {"grade": grade, "sources": sources, "score": score, "passes": all(tests)}
 
 
 def step3_moat(f: Fundamentals, est: Estimates, ten_year_uptrend: bool | None, biz: BizType,
                review: dict | None = None, rules: VMIRules = RULES,
                ten_year_return: float | None = None) -> StepResult:
-    """Evidence for the reviewer (Adam's grade table: margins, consistency, pricing power, 10-year chart) plus
-    the reviewer's verdict. Every check is evidence; only the verdict decides. Without a verdict, a data hint
-    (share of supportive signals) stands in provisionally and the step is marked unreviewed."""
-    gm, nm, om, fm = (_margins(f, c) for c in ("gross_profit", "net_income", "operating_income", "fcf"))
-    roic_name = "roe" if biz in (BizType.BANK, BizType.INSURANCE, BizType.UTILITY) else "roic"
-    roic = _ratio_vals(f, roic_name, 10)
-    no_moat_ind = is_no_moat_industry(est.industry, f.industry, f.sic_description)
-    rev, ni, cfo = (series_trend(f, c, rules) for c in ("revenue", "net_income", "cfo"))
-    rv = f.series("revenue")
-    cagr = (rv[-1] / rv[-6]) ** 0.2 - 1 if len(rv) >= 6 and rv[-6] > 0 and rv[-1] > 0 else None
-    gm_sd = (sum((x - mean(gm)) ** 2 for x in gm) / len(gm)) ** 0.5 if len(gm) >= 3 else None
-    mcap = ((est.extra or {}).get("yahoo") or {}).get("market_cap")
+    """Step 3 as Adam teaches it. The moat is a judgement, so the PASS comes from the reviewer's verdict.
 
+    Until a verdict exists, only his two stated shortcuts decide the provisional result: never a no-moat industry
+    (commodities, airlines, autos, developers, construction, shipping, oil & gas) and no 10-year downtrend. Every
+    other signal is shown as information (no pass/fail) because he gives no thresholds for them."""
+    no_moat_ind = is_no_moat_industry(est.industry, f.industry, f.sic_description)
+    mcap = ((est.extra or {}).get("yahoo") or {}).get("market_cap")
+    history, switching, intens = ME.margin_history(f), ME.switching_costs(f), ME.intensity(f)
     checks = [
         Check("industry_structure", not no_moat_ind, est.industry or f.industry or f.sic_description,
-              "not a typical no-moat industry (commodities, airlines, autos, shipping, developers)"),
+              "not a structurally no-moat industry (Adam's list)"),
         Check("ten_year_chart", ten_year_uptrend, None if ten_year_return is None else round(ten_year_return, 3),
-              "clear 10-year uptrend (Adam's visual moat proxy)", "value = 10-year price return"),
-        Check("gross_margin", None if not gm else gm[-1] >= 0.40, round(gm[-1], 3) if gm else None,
-              "high and not eroding (pricing power)", _describe(gm)),
-        Check("gross_margin_stability", None if gm_sd is None else gm_sd <= 0.03, round(gm_sd, 4) if gm_sd is not None else None,
-              "σ ≤ 3 pts: prices held through cycles", ""),
-        Check("operating_margin", None if not om else om[-1] >= 0.20, round(om[-1], 3) if om else None,
-              "≥20% suggests an advantage", _describe(om)),
-        Check("net_margin", None if not nm else nm[-1] >= 0.10, round(nm[-1], 3) if nm else None,
-              "wide: very high · narrow: average · none: low", _describe(nm)),
-        Check("fcf_margin", None if not fm else fm[-1] >= 0.10, round(fm[-1], 3) if fm else None,
-              "≥10% of sales turns into free cash", _describe(fm)),
-        Check(f"{roic_name}_persistence", None if not roic else
-              sum(v >= rules.profitability.min_roic for v in roic) >= max(3, len(roic) - 1),
-              [round(v, 3) for v in roic], f"{roic_name.upper()} ≥{rules.profitability.min_roic:.0%} nearly every year",
-              "competition normally erodes high returns; persistence means something protects them"),
-        Check("revenue_consistency", rev.consistent, None if cagr is None else round(cagr, 3),
-              "sales rising consistently (value = 5y CAGR)", rev.reason),
-        Check("profit_and_cash_consistency", ni.consistent and cfo.consistent, None,
-              "net income and operating cash flow rising consistently", f"NI: {ni.reason}; CFO: {cfo.reason}"),
-        Check("scale", None, {"revenue": f.last("revenue"), "market_cap": mcap}, "evidence for economies of scale",
-              "compare with the closest competitors"),
+              "clear 10-year uptrend = moat present; downtrend = no competitive advantage (Adam)",
+              "value = 10-year price return"),
     ]
-    pricing, switching, intens = ME.pricing_power(f, rules), ME.switching_costs(f), ME.intensity(f)
+    for label, series in history.items():  # information: Adam gives no numbers for 'very high' vs 'average' margins
+        values = [series[y] for y in sorted(series)]
+        checks.append(Check(label.replace(" ", "_").replace("-", "_"), None, round(values[-1], 3),
+                            "wide: very high margins · narrow: average · none: low (Adam, no figures)",
+                            ", ".join(f"{y}: {v:.1%}" for y, v in list(series.items())[-6:])))
     checks += [
-        Check("pricing_power_through_inflation", pricing["held"], pricing["stress_min"],
-              f"{pricing['measure']} in {rules.moat.pricing_stress_years[0]}–{rules.moat.pricing_stress_years[-1]} within "
-              f"{rules.moat.pricing_tolerance:.0%} of the pre-inflation average",
-              "" if pricing["baseline"] is None else f"baseline {pricing['baseline']:.1%} → worst stress year "
-              f"{pricing['stress_min']:.1%}, latest {pricing['latest']:.1%}"),
         Check("recurring_revenue", None, switching["deferred_revenue_pct"][-1:] or None,
               "deferred revenue / backlog relative to sales (switching costs)",
               f"deferred {switching['deferred_trend'] or 'n/a'}, backlog {switching['rpo_trend'] or 'n/a'}"
               if switching["available"] else "not reported"),
         Check("reinvestment_intensity", None, {k: v["latest"] for k, v in intens.items()},
-              "R&D, SG&A and capex as a share of sales (scale, out-spending competitors)",
+              "R&D, SG&A and capex as a share of sales (economies of scale)",
               ", ".join(f"{k} {v['trend']}" for k, v in intens.items() if v["trend"])),
+        Check("scale", None, {"revenue": f.last("revenue"), "market_cap": mcap}, "size vs the closest competitors",
+              "see the peer comparison"),
     ]
-    signals = [c for c in checks if c.passed is not None]
-    support = sum(c.passed for c in signals) / len(signals) if signals else 0.0
-    hint = "none" if no_moat_ind else "wide" if support >= 0.8 else "narrow" if support >= 0.6 else "none"
-
     verdict = moat_verdict(review, rules)
-    extra = {"reviewed": verdict is not None, "hint": hint, "support": round(support, 3),
-             "sources": MOAT_SOURCES, "questions": list(MOAT_QUESTIONS), "verdict": verdict,
-             "evidence": {"pricing_power": pricing, "switching_costs": switching, "intensity": intens},
-             "review": ME.review_status((review or {}).get("moat_reviewed_on") if verdict else None, f, rules)
-             if verdict else {"reviewed_on": None, "age_days": None, "due": False, "reasons": []}}
+    review_info = ME.review_status((review or {}).get("moat_reviewed_on"), f, rules)
+    extra = {"reviewed": verdict is not None, "sources": MOAT_SOURCES, "questions": list(MOAT_QUESTIONS),
+             "verdict": verdict, "review": review_info,
+             "evidence": {"margins": history, "switching_costs": switching, "intensity": intens}}
     if verdict:
-        grade = verdict["grade"]
-        checks.append(Check("reviewer_verdict", grade in ("wide", "narrow"), grade,
-                            f"≥{rules.moat.min_sources} of 5 sources / score ≥{rules.moat.min_ai_score}",
-                            f"sources: {', '.join(verdict['sources']) or '—'}; score: {verdict['score'] if verdict['score'] is not None else '—'}"))
-        notes = [f"Moat reviewed: {grade}."]
-        if extra["review"]["due"]:
-            notes.append("MOAT REVIEW DUE: " + "; ".join(extra["review"]["reasons"]))
+        label = verdict["grade"] or ("passes" if verdict["passes"] else "fails")
+        passed = verdict["passes"]
+        checks.append(Check("reviewer_verdict", passed, label,
+                            f"grade wide/narrow · ≥{rules.moat.min_sources} of 5 sources · score ≥{rules.moat.min_ai_score}/10",
+                            f"sources: {', '.join(verdict['sources']) or '—'}; "
+                            f"score: {verdict['score'] if verdict['score'] is not None else '—'}"))
+        notes = [f"Moat reviewed: {label}."]
+        if review_info["due"]:
+            notes.append("Moat deterioration signal (Adam: profit margins declining 2–3 years): " + "; ".join(review_info["reasons"]))
     else:
-        grade = hint
-        notes = [f"UNREVIEWED — data hint '{hint}' ({support:.0%} of signals supportive). Record a verdict "
-                 "(moat_grade / moat_sources / moat_score) after checking the five sources; a VMI buy needs it."]
-    res = StepResult(3, "Economic moat", grade in ("wide", "narrow"), round(support, 3), checks, notes, extra)
-    res.notes.insert(0, f"moat_grade={grade}")
+        passed = not no_moat_ind and ten_year_uptrend is not False
+        label = "unreviewed"
+        notes = ["UNREVIEWED — provisional result from Adam's two shortcuts only (industry list, 10-year chart). Record a "
+                 "verdict (grade, sources, score) after checking the five sources and the pricing-power test; a VMI buy "
+                 "needs it."]
+    support = [c for c in checks if c.passed is not None]
+    res = StepResult(3, "Economic moat", passed, sum(c.passed for c in support) / len(support) if support else 0.0,
+                     checks, notes, extra)
+    res.notes.insert(0, f"moat_grade={label}")
     return res
 
 

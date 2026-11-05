@@ -3,6 +3,9 @@
 import { api } from "../api.js";
 import { $, esc, loading, run, toast } from "../ui.js";
 
+const KIND = { adam: ["Adam", "ok"], interpretation: ["interpretation", "na"], owner: ["owner", "na"],
+  calibration: ["calibration", "na"], model: ["software", "na"], unspecified: ["UNSPECIFIED", "bad"] };
+const badgeFor = (s) => `<span class="badge ${KIND[s.source_kind]?.[1] || "na"}" title="${esc(s.source_note)}">${esc(KIND[s.source_kind]?.[0] || s.source_kind)}</span>`;
 const show = (v) => (Array.isArray(v) ? JSON.stringify(v) : String(v));
 
 function input(s) {
@@ -19,13 +22,15 @@ function rulesCard(schema) {
   return `<section class="card"><div class="inline"><h3>Rules</h3><span class="muted small">${changed} changed from the course defaults</span>
       <span class="spacer"></span><button id="st-reset" class="danger" ${changed ? "" : "disabled"}>Reset all to defaults</button></div>
     <p class="small muted">Every threshold the analysis uses. Changes apply to all analyses immediately. Percent values are decimals
-      (0.15 = 15%). Hover a name for its explanation; the default is shown when a value was changed.</p>
+      (0.15 = 15%). The badge says where each number comes from: <b>Adam</b> = he states it in the course;
+      <b>interpretation</b> = he gives words, we chose the number; <b>owner</b> / <b>calibration</b> = your rule or an
+      approved fit to his published values; <b>software</b> = technical guard.</p>
     <form id="st-form">${sections.map((sec) => {
       const rows = schema.filter((s) => s.section === sec);
       const n = rows.filter((s) => s.changed).length;
       return `<details ${n ? "open" : ""}><summary><b>${esc(sec)}</b> <span class="muted small">${esc(rows[0].section_help)}</span>${n ? ` <span class="badge">${n} changed</span>` : ""}</summary>
         <table class="compact"><tbody>${rows.map((s) => `<tr class="${s.changed ? "selected" : ""}">
-          <td title="${esc(s.help)}"><b>${esc(s.key)}</b><div class="small muted">${esc(s.help)}</div></td>
+          <td title="${esc(s.help)}"><b>${esc(s.key)}</b> ${badgeFor(s)}<div class="small muted">${esc(s.source_note)}${s.help && s.help !== s.source_note ? ` — ${esc(s.help)}` : ""}</div></td>
           <td>${input(s)}</td>
           <td class="small muted">${s.changed ? `default ${esc(show(s.default))} <button type="button" class="link" data-reset="${esc(s.section)}.${esc(s.key)}">reset</button>` : ""}</td></tr>`).join("")}
         </tbody></table></details>`;

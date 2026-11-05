@@ -106,7 +106,7 @@ def test_uncertainty_haircut_for_growth_stocks_and_single_source(fund_factory):
     assert ctx({"finviz": 0.20}, haircut_override=0.0).haircut == 0.0               # per-ticker override
 
 
-def test_moat_is_evidence_until_reviewed(fund_factory):
+def test_moat_follows_adam_until_reviewed(fund_factory):
     from vmi.analysis.classify import BizType
     from vmi.analysis.steps import moat_verdict, step3_moat
     from vmi.data.models import Estimates
@@ -115,40 +115,38 @@ def test_moat_is_evidence_until_reviewed(fund_factory):
                      net_income=[20, 22, 24, 27, 29, 32], cfo=[25, 27, 30, 33, 36, 40])
     est = Estimates(ticker="TEST")
     raw = step3_moat(f, est, True, BizType.NORMAL)
-    assert raw.extra["reviewed"] is False and raw.extra["hint"] in ("wide", "narrow", "none")
-    assert "UNREVIEWED" in raw.notes[1] and set(raw.extra["sources"]) >= {"brand", "scale"}
+    assert raw.extra["reviewed"] is False and raw.passed and "UNREVIEWED" in raw.notes[1]
+    assert not step3_moat(f, est, False, BizType.NORMAL).passed          # 10-year downtrend = no competitive advantage
+    miner = Estimates(ticker="X", industry="Gold")
+    assert not step3_moat(f, miner, True, BizType.NORMAL).passed          # structurally no-moat industry
+    assert all(c.passed is None for c in raw.checks if "margin" in c.name)  # no invented margin thresholds
     reviewed = step3_moat(f, est, True, BizType.NORMAL, {"moat_grade": "none", "moat_score": 9})
-    assert reviewed.extra["reviewed"] and not reviewed.passed  # the reviewer's verdict decides
-    assert moat_verdict({"moat_sources": ["brand", "scale", "switching_costs"]})["grade"] == "narrow"
-    assert moat_verdict({"moat_score": 8})["grade"] == "wide"
-    assert moat_verdict({"moat": {"sources": ["a", "b", "c", "d"]}})["grade"] == "wide"  # legacy format
+    assert reviewed.extra["reviewed"] and not reviewed.passed             # the reviewer's verdict decides
+    # every supplied test must hold: grade wide/narrow, ≥3 sources, score ≥7 (6/10 is 'not strong enough')
+    assert moat_verdict({"moat_grade": "narrow", "moat_score": 6})["passes"] is False
+    assert moat_verdict({"moat_grade": "wide", "moat_sources": ["a", "b", "c"], "moat_score": 8})["passes"] is True
+    assert moat_verdict({"moat_sources": ["a", "b"]})["passes"] is False
+    assert moat_verdict({"moat_sources": ["a", "b", "c"]})["grade"] is None  # sources never imply wide vs narrow
+    assert moat_verdict({"moat": {"sources": ["a", "b", "c"], "grade": "wide"}})["passes"] is True  # legacy format
     assert moat_verdict({}) is None
 
 
-def test_growth_controls_source_extra_and_exclude():
-    from vmi.analysis.valuation.growth import GrowthControls, choose_growth
-    from vmi.data.models import Estimates
+def test_moat_evidence_history_decline_signal_and_recurring_revenue(fund_factory):
+    from vmi.analysis import moat_evidence as ME
 
-    est = Estimates(ticker="X")
-    est.sources = {"finviz": {"eps_growth_5y": 0.20}, "zacks": {"eps_growth_5y": 0.24}}
-    assert choose_growth(est, controls=GrowthControls(source="zacks")).value == pytest.approx(0.24)
-    with_factset = GrowthControls(extra={"factset": 0.18})
-    assert choose_growth(est, controls=with_factset).value == pytest.approx(0.18)  # joins the lowest blend
-    assert choose_growth(est, controls=GrowthControls(source="factset", extra={"factset": 0.16})).method == "source:factset"
-    assert choose_growth(est, controls=GrowthControls(blend="second_lowest", exclude=("finviz",),
-                                                       extra={"own": 0.30})).value == pytest.approx(0.30)
-    missing = choose_growth(est, controls=GrowthControls(source="yahoo"))
-    assert missing.method != "source:yahoo" and "fell back" in missing.notes[0]
-
-
-def test_base_period_choice(fund_factory):
-    from vmi.analysis.valuation.methods import steady_base
-
-    f = fund_factory(fcf=[10, 11, 12, 13, 14], ttm={"fcf": 20.0})
-    assert steady_base(f, "fcf", mode="ttm")[0] == 20.0
-    assert steady_base(f, "fcf", mode="last_fy")[0] == 14.0
-    assert steady_base(f, "fcf", mode="average")[0] == pytest.approx(12.5)
-    assert steady_base(f, "fcf")[0] == 14.0  # auto: TTM 1.43× FY = sudden jump → prior year
+    years = tuple(range(2017, 2026))
+    steady = fund_factory(years=years, revenue=[100] * 9, gross_profit=[60, 61, 62, 61, 62, 63, 62, 63, 64],
+                          deferred_revenue=[10, 11, 12, 14, 16, 18, 21, 24, 27], rd=[8] * 9)
+    sliding = fund_factory(years=years, revenue=[100] * 9, gross_profit=[60] * 5 + [59.9, 59.8, 59.7, 59.6],
+                           fcf=[20, 19, 18, 17, 16, 15, 14, 13, 12])
+    assert ME.margin_decline(steady) == []
+    decline = ME.margin_decline(sliding)  # no minimum size (Adam gives none); free-cash-flow margin is not a profit margin
+    assert len(decline) == 1 and "gross margin fell 3 years in a row" in decline[0]
+    assert ME.margin_history(steady)["gross margin"][2025] == 0.64
+    sw = ME.switching_costs(steady)
+    assert sw["available"] and sw["deferred_trend"] == "rising" and not ME.switching_costs(sliding)["available"]
+    assert ME.intensity(steady)["rd"]["latest"] == 0.08
+    assert ME.review_status("2026-01-01", sliding)["due"] and not ME.review_status("2026-01-01", steady)["due"]
 
 
 def test_no_moat_industry_matches_whole_words_only():
@@ -168,29 +166,3 @@ def test_step5_two_of_three_core_ratios_and_financials_exempt(fund_factory):
                      latest={"current_assets": 90.0, "current_liabilities": 400.0})
     assert step5_debt(f, BizType.NORMAL).passed
     assert step5_debt(f, BizType.INSURANCE).passed and step5_debt(f, BizType.INSURANCE).checks == []
-
-
-def test_moat_evidence_pricing_power_switching_and_review(fund_factory):
-    from datetime import date
-
-    from vmi.analysis import moat_evidence as ME
-
-    years = tuple(range(2017, 2026))
-    held = fund_factory(years=years, revenue=[100] * 9, gross_profit=[60, 60, 61, 60, 59, 60, 61, 62, 62],
-                        deferred_revenue=[10, 11, 12, 14, 16, 18, 21, 24, 27], rd=[8] * 9)
-    cut = fund_factory(years=years, revenue=[100] * 9, gross_profit=[60, 60, 60, 60, 52, 48, 50, 55, 58])
-    assert ME.pricing_power(held)["held"] is True and ME.pricing_power(cut)["held"] is False
-    assert ME.pricing_power(fund_factory(years=(2024, 2025), revenue=[1, 1], gross_profit=[.5, .5]))["held"] is None
-    sw = ME.switching_costs(held)
-    assert sw["available"] and sw["deferred_trend"] == "rising" and not ME.switching_costs(cut)["available"]
-    assert ME.intensity(held)["rd"]["latest"] == 0.08
-    stale = ME.review_status("2024-01-01", cut, today=date(2026, 11, 5))
-    assert stale["due"] and any("days old" in r for r in stale["reasons"])
-    fresh = ME.review_status("2026-06-01", held, today=date(2026, 11, 5))
-    assert not fresh["due"] and ME.review_status(None, held)["reasons"] == ["no review date recorded"]
-    wobble = fund_factory(years=years, revenue=[1000] * 9, gross_profit=[600] * 6 + [599, 598, 597])
-    assert not ME.review_status("2026-06-01", wobble, today=date(2026, 11, 5))["due"]  # <1 point: noise
-    no_gross = fund_factory(years=years, revenue=[100] * 9, operating_income=[30, 30, 31, 30, 29, 30, 31, 30, 30])
-    assert ME.pricing_power(no_gross)["held"] is True and "operating" in ME.pricing_power(no_gross)["measure"]
-    fell = fund_factory(years=years, revenue=[100] * 9, gross_profit=[60, 60, 60, 60, 60, 60, 58, 56, 54])
-    assert any("fell 2 years" in r for r in ME.review_status("2026-06-01", fell, today=date(2026, 11, 5))["reasons"])

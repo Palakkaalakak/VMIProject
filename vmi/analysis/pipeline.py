@@ -131,7 +131,7 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
         "moat": moat, "allocation_multiplier": alloc,
         "great_business": great, "undervalued": s6.passed, "entry_ok": s7.passed,
         # the moat is discretionary: a buy signal needs a reviewed moat (verdict or forced step-3 verdict)
-        "moat_reviewed": moat_reviewed, "moat_hint": s3.extra.get("hint"),
+        "moat_reviewed": moat_reviewed,
         "vmi_pass": great and s6.passed and s7.passed and moat_reviewed,
         "watchlist_candidate": great and not s6.passed,
         "steps": [s.to_dict() for s in (s1, s2, s3, s4, s5, s6, s7)],
@@ -151,17 +151,16 @@ def growth_controls(ov: dict) -> GrowthControls:
 
 
 def _turnaround_exception(s1, s3, cat: str) -> None:
-    """Adam's Category 7: a great business hit by temporary bad news, so profits fall while the moat stays
-    intact. Step 1 then passes, but only when a reviewer confirmed the moat and sales are still rising
-    (the dip is in profits, not in the business). The category's ½ position size applies separately."""
+    """Adam's Category 7 (turnaround): a great business whose profits fell temporarily; the one requirement he
+    states is that 'the economic moat must remain intact'. So Step 1's profit-consistency checks are waived when
+    the reviewer has confirmed the moat. The category's reduced position size (½ or ⅓) applies separately."""
     if s1.passed or cat != "turnaround":
         return
-    moat_ok = ((s3.extra.get("verdict") or {}).get("grade")) in ("wide", "narrow")
-    sales_ok = any(c.name == "revenue_consistent" and c.passed for c in s1.checks)
-    if moat_ok and sales_ok:
+    verdict = s3.extra.get("verdict") or {}
+    if verdict.get("passes"):
         s1.passed = True
-        s1.notes.append("Turnaround exception (Adam, Category 7): profits fell temporarily, sales still rising and "
-                        "the reviewed moat is intact; buy at ½–⅓ of a normal position only.")
+        s1.notes.append("Turnaround (Adam, Category 7): profits fell temporarily and the reviewed moat is intact, so the "
+                        "profit-consistency checks are waived. Buy only at ½–⅓ of a normal position.")
 
 
 def _ten_year_return(hist) -> float | None:

@@ -39,3 +39,13 @@ def test_invalid_values_are_rejected(tmp_settings):
                 {"valuation": {"iv_haircut": "abc"}}):
         with pytest.raises((ValueError, TypeError)):
             settings.update(bad)
+
+
+def test_every_rule_declares_where_it_comes_from():
+    """A number nobody can trace must not enter vmi/rules.py: add it to vmi/rules_sources.py with its basis."""
+    from vmi import rules_sources as RS
+
+    keys = {f"{s['section']}.{s['key']}" for s in settings.schema()}
+    assert keys - set(RS.SOURCES) == set(), "rules without provenance"
+    assert set(RS.SOURCES) - keys == set(), "provenance for rules that no longer exist"
+    assert all(kind in RS.KINDS and note for kind, note in RS.SOURCES.values())

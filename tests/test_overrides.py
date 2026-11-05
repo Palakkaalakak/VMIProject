@@ -80,16 +80,18 @@ def test_scanner_pins_only_for_number_changing_judgements():
     assert not O.pins_in_scanner({"growth": 0.13, "scan": "exclude"})
 
 
-def test_turnaround_exception_needs_reviewed_moat_and_rising_sales():
+def test_turnaround_exception_only_needs_the_reviewed_moat_intact():
     from vmi.analysis.pipeline import _turnaround_exception
     from vmi.analysis.steps import Check, StepResult
 
-    def s1(sales_ok):
-        return StepResult(1, "track", False, 0.5, [Check("revenue_consistent", sales_ok), Check("earnings_consistent", False)])
+    def s1():
+        return StepResult(1, "track", False, 0.5, [Check("revenue_consistent", False), Check("earnings_consistent", False)])
 
-    reviewed = StepResult(3, "moat", True, 1.0, extra={"verdict": {"grade": "wide"}})
+    intact = StepResult(3, "moat", True, 1.0, extra={"verdict": {"grade": "wide", "passes": True}})
+    broken = StepResult(3, "moat", False, 0.0, extra={"verdict": {"grade": "none", "passes": False}})
     unreviewed = StepResult(3, "moat", True, 1.0, extra={"verdict": None})
-    for step1, moat, cat, want in ((s1(True), reviewed, "turnaround", True), (s1(False), reviewed, "turnaround", False),
-                                   (s1(True), unreviewed, "turnaround", False), (s1(True), reviewed, "growth", False)):
+    for moat, cat, want in ((intact, "turnaround", True), (broken, "turnaround", False),
+                            (unreviewed, "turnaround", False), (intact, "growth", False)):
+        step1 = s1()
         _turnaround_exception(step1, moat, cat)
         assert step1.passed is want

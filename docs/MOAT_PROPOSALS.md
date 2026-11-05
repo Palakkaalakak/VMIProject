@@ -3,7 +3,7 @@
 **Built:** #1 peer comparison, #3 pricing-power test, #4 switching-cost proxies, #5 annual-report excerpts,
 #6 reinvestment intensity, #7 staleness alerts. **Dropped by decision: #2 AI moat scorer** (an AI score is not
 trustworthy enough to rank evidence; the reviewer scores the five sources). **Waiting:** #8 IB ratings, until
-the gateway is confirmed on the owner's PC. Code: `vmi/analysis/moat_evidence.py` (statement-based),
+the gateway is confirmed on the owner's PC. **Correction 2026-11-05:** the pass/fail thresholds I first put on #3, #4 and #6 were not Adam's and were removed; they are information only now (see `docs/CRITERIA_AUDIT.md`). Code: `vmi/analysis/moat_evidence.py` (statement-based),
 `vmi/analysis/moat_peers.py` (SEC frames), `vmi/data/filings.py` (10-K text), endpoint
 `GET /api/analysis/{symbol}/moat-evidence`, UI button in Step 3. Thresholds are in Settings → moat.
 

@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from vmi import rules as R
+from vmi import rules_sources
 
 SETTINGS_FILE = Path(__file__).resolve().parents[1] / "config" / "rules_settings.json"
 _DEFAULTS = R.VMIRules()  # pristine defaults (RULES itself gets updated in place)
@@ -62,7 +63,9 @@ def schema() -> list[dict]:
         cur, dft = getattr(R.RULES, sec.name), getattr(_DEFAULTS, sec.name)
         for f in fields(type(cur)):
             value, default = getattr(cur, f.name), getattr(dft, f.name)
+            kind, basis = rules_sources.source(sec.name, f.name)
             out.append({"section": sec.name, "section_help": _section_doc(sec.name), "key": f.name,
+                        "source_kind": kind, "source_note": basis,
                         "type": "choice" if (sec.name, f.name) in CHOICES else _kind(default),
                         "choices": list(CHOICES.get((sec.name, f.name), ())), "value": value, "default": default, "changed": value != default,
                         "help": helps.get(sec.name, {}).get(f.name, "")})
@@ -153,3 +156,6 @@ def load() -> None:
                 _apply({section: {key: value}})
             except (ValueError, TypeError):
                 pass
+
+
+load()  # at import time, so every entry point that imports vmi.rules (which imports this) sees the saved values

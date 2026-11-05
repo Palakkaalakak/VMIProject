@@ -58,14 +58,9 @@ class GrowthRules:  # Step 2 + Lesson 5 §4.6
 class MoatRules:  # Step 3
     min_sources: int = 3                   # "at least THREE out of these FIVE"
     min_ai_score: int = 7                  # "7, 8 or 9 out of 10 gives me more confidence"
-    # Pricing-power test ("can it raise prices every year without losing share?"): gross margin must hold through
-    # a cost-inflation stress window compared with the years before it.
-    pricing_baseline_years: tuple[int, ...] = (2018, 2019, 2020)
-    pricing_stress_years: tuple[int, ...] = (2021, 2022, 2023)
-    pricing_tolerance: float = 0.02        # margin may dip up to 2 points below the baseline
-    review_max_age_days: int = 365         # a moat verdict older than this is flagged "review due"
-    review_decline_years: int = 2          # ... or when a margin fell this many years in a row
-    review_decline_min: float = 0.01       # ... by at least this much in total (1 point; smaller moves are noise)
+    # Moat deterioration signal (Adam): "profit margins decline consistently for at least 2–3 years". We use 3:
+    # Step 1 already accepts 1–2 down years. Only flags a stored verdict for a fresh look; never changes a verdict.
+    review_decline_years: int = 3
     no_moat_industries: tuple[str, ...] = (
         # whole-word phrases (so "Fire, Marine & Casualty Insurance" or "Goldman" never match)
         "airline", "oil & gas", "oil and gas", "crude", "petroleum", "shipping", "marine shipping", "deep sea",
@@ -165,12 +160,12 @@ class TechnicalRules:  # Lesson 6 + Step 7
 @dataclass(frozen=True)
 class PortfolioRules:  # Lesson 8
     min_stocks: int = 8
-    max_stocks: int = 60
+    max_stocks: int = 30                   # Adam: "diversification (8–30 positions)"
     default_target_stocks: int = 20
     tranches: int = 4                      # "three to four tranches"
     speculative_multiplier: float = 0.5
     turnaround_multiplier: float = 0.5
-    narrow_moat_multiplier: float = 0.75   # "smaller positions, especially initially"
+    narrow_moat_multiplier: float = 1.0    # Adam: narrow moat = "smaller positions, especially initially" (no figure given; set yours)
     max_sector_weight: float = 0.30        # soft warning (Adam's biggest sector is 27%)
 
 
@@ -242,10 +237,5 @@ class VMIRules:
 RULES = VMIRules()
 
 
-def _load_saved_settings() -> None:
-    """Values edited on the Settings screen (config/rules_settings.json) apply to every entry point."""
-    from vmi import settings
-    settings.load()
 
-
-_load_saved_settings()
+import vmi.settings  # noqa: E402,F401  (last line on purpose: applies config/rules_settings.json; see vmi/settings.py)

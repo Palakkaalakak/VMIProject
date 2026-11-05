@@ -12,7 +12,7 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Current state (2026-11-05)
 
-- Offline test suite: `python3 -m pytest -q tests`, 90 passing.
+- Offline test suite: `python3 -m pytest -q tests`, 89 passing.
 - Fundamentals: SEC EDGAR → stockanalysis → Yahoo, merged in `vmi/data/fundamentals.py`. IB is tried first:
   TWS XML (works only if IB still permits it for your login), then the Client Portal Gateway
   (`vmi/data/ibportal/`). **The gateway path is implemented and offline-tested, but it has not been run
@@ -37,6 +37,49 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 ---
 
 ## Entries
+
+### 2026-11-05 — Criteria audit against Adam's text; invented thresholds removed
+**Owner instruction:** reread what Adam says and fix the criteria; do not invent.
+
+**What I did:** compared every rule in `vmi/rules.py` with the master document and recorded the basis in
+`vmi/rules_sources.py`. Each setting is exactly one of: *Adam states it* (60 of them, with line numbers), *interpretation*
+of his words (16: he gives a rule but no number), *owner*, *calibration* (owner-approved fits) or *software*. A test
+fails when a rule has no entry, the Settings screen shows the badge beside each setting, and
+`docs/CRITERIA_AUDIT.md` is generated from the registry.
+
+**Removed because Adam does not say it (I had invented these):**
+- the pricing-power stress window (2018–20 vs 2021–23) and its 2-point tolerance
+- the 1-point minimum margin move, the 365-day review age
+- margin cut-offs (40% gross, 20% operating, 10% net/FCF), the 3-point stability limit
+- the "≥80% supportive signals = wide moat" hint
+- "≥4 sources = wide" and "score ≥8 = wide"
+- narrow-moat position multiplier 0.75 (now 1.0: he says "smaller positions" with no figure)
+- the 60-position cap (now his 30)
+
+**Fixed to his words:**
+- *Step 3.* Pass/fail only from what he states:
+  - never a no-moat industry
+  - no 10-year downtrend
+  - the reviewer's verdict: grade wide/narrow, ≥3 of 5 sources, score ≥7/10
+  
+  Wide vs narrow comes from the reviewer's pricing-power judgement, never inferred. Margins, recurring revenue and
+  reinvestment are shown as information, with no thresholds. Unreviewed = provisional result from his two
+  shortcuts only.
+- *Moat deterioration signal.* His signal is profit margins declining for "at least 2–3 years". It flags gross,
+  operating and net margins falling 3 years in a row, with no size filter (he gives none). 3 is an interpretation,
+  because Step 1 accepts 1–2 down years. It's editable (Settings → moat). Free-cash-flow margin is not a profit
+  margin, so it doesn't trigger it. 5 of 43 reference stocks flag.
+- *Turnaround (Category 7).* His one requirement is "the moat must remain intact". Step 1's profit checks are now waived
+  whenever a reviewer confirms the moat, with nothing added. My earlier "sales still rising" condition is gone.
+- Moat reviews recorded with a score below 7 (BABA 6, NKE 6) now fail Step 3, as Adam says 6/10 is "not strong enough".
+
+**Not touched, flagged for the owner:** the owner-directed growth blends and haircuts (`calibration`) stay as approved;
+interpretation numbers (e.g. margin tolerance 15% for "close to the 5-year average", capex spike 1.5×) are now labelled
+so they can be changed.
+
+**Fixed on the way:** a circular import in the settings loader (importing `vmi.settings` before `vmi.rules` crashed).
+
+**Verified:** 89 offline tests; 0 unspecified settings; moat flags and verdicts re-run on Adam's 43 stocks.
 
 ### 2026-11-05 — Moat evidence expanded (no AI scorer, by decision)
 **Why:** the owner approved every proposed helper except the AI moat scorer, which isn't trustworthy enough.
