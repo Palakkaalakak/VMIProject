@@ -12,7 +12,7 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Current state (2026-11-05)
 
-- Offline test suite: `python3 -m pytest -q tests`, 79 passing.
+- Offline test suite: `python3 -m pytest -q tests`, 86 passing.
 - Fundamentals: SEC EDGAR → stockanalysis → Yahoo, merged in `vmi/data/fundamentals.py`. IB is tried first:
   TWS XML (works only if IB still permits it for your login), then the Client Portal Gateway
   (`vmi/data/ibportal/`). **The gateway path is implemented and offline-tested, but it has not been run
@@ -37,6 +37,37 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 ---
 
 ## Entries
+
+### 2026-11-05 — More control, an oversight run (AI reviewer), rules fixes found by reviewing
+**More per-stock control** (UI card / API / CLI; registry `vmi/overrides.py`):
+- `growth_source`: use exactly one source.
+- `extra_sources`: your own estimates, e.g. `factset=0.15`, which join the blend.
+- `growth_blend`: lowest / second_lowest / median / average / highest (also global in Settings).
+- `base_period`: auto / ttm / last_fy / average.
+- Code: `GrowthControls` in `vmi/analysis/valuation/growth.py` replaces separate parameters, and
+  `steady_base(mode=…)` in `methods.py`.
+
+**Oversight run.** I reviewed every verdict for Adam's 43 stocks, not only the IVs, and acted on what I found.
+Each item is either a rule mismatch with the doc (fixed in code) or a per-stock judgement (recorded with a reason):
+1. *Step 5 vs Adam's table.* "Passing 2 out of 3 is acceptable" and the ratios don't apply to insurance or
+   financial companies. Code required all three: fixed (`DebtRules.min_core_ratios_passed`, insurer/asset-manager
+   exemption).
+2. *No-moat industry matching used substrings.* "Fire, Marine & Casualty Insurance" and "Security & Commodity
+   Exchanges" were flagged, and "gold" would hit Goldman. Fixed: whole-word phrases with plurals.
+3. *Turnaround category.* Adam's Category 7 says profits fall temporarily while the moat stays intact. Now Step 1
+   passes when the reviewed moat is intact and sales still rise (`_turnaround_exception` in `pipeline.py`); the
+   category's ½ size applies. UNH became a buy at ½ size; NKE, POOL and LVMUY still fail (sales falling).
+4. *SEC restatements.* GE's history mixed bases (pre/post HealthCare and Vernova spin-offs).
+   `sec.restated_years()` now flags years restated by more than 15% within the 10-year window (warning on Step 1,
+   `data.warnings`). GE got the judgement step1=pass with the reason.
+5. *Moat reviews.* AI verdicts (grade, sources, score, reason) for 42 reference stocks, saved in
+   `config/judgements.json` and marked "please verify". MBGL was skipped (company not identified).
+6. *Scanner.* Moat reviews alone no longer pin a ticker past the pre-filters (`overrides.pins_in_scanner`).
+
+**Data gaps found (not judgements):** CNSWF has only 4 years of data (no SEC filing; Yahoo only), so Step 1
+can't pass yet. ADR names need re-checking on the owner's PC (Yahoo is blocked in the sandbox).
+
+**Moat-evaluation proposals:** the next entry or `docs/MOAT_PROPOSALS.md`.
 
 ### 2026-11-05 — Structural calibration, discretionary moat, Settings screen (everything editable in the UI)
 **Asked:**

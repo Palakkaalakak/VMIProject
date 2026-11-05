@@ -190,14 +190,16 @@ def test_not_logged_in_is_a_401_portal_error():
 def test_sync_fills_cache_without_touching_brokerage_routes(isolated_cache):
     C._working_base.clear()
     t, calls = fake_gateway()
-    isolated_cache.set("fund:merged:v10:AAPL", {"stale": True})
+    from vmi.data.fundamentals import MERGED_KEY
+
+    isolated_cache.set(MERGED_KEY.format("AAPL"), {"stale": True})
     with portal(t) as p:
         report = ibportal.sync(["aapl", "MSFT", "NOPE"], portal=p)
     assert report["conids"] == 2 and report["analyst"] == 2 and report["statements"] == 2
     assert report["failed"] == {"NOPE": "no US stock conid"}
     assert ibportal.cached_estimates("AAPL") == {"eps_growth_5y": pytest.approx(0.0907)}
     assert ibportal.cached_fundamentals("MSFT").annual["revenue"][-1].fy == 2024
-    assert isolated_cache.get("fund:merged:v10:AAPL") is None  # merged cache invalidated
+    assert isolated_cache.get(MERGED_KEY.format("AAPL")) is None  # merged cache invalidated
     assert not any("/iserver" in c for c in calls)
 
 
