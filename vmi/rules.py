@@ -65,6 +65,7 @@ class MoatRules:  # Step 3
     pricing_tolerance: float = 0.02        # margin may dip up to 2 points below the baseline average
     # "Review due" (approved proposal): a stored moat verdict is flagged when it is older than this, or when margins
     # or returns on capital fell this many years in a row (Adam: profit margins declining "at least 2–3 years").
+    review_alerts_enabled: bool = True     # False switches the "review due" alert off entirely
     review_max_age_days: int = 365
     review_decline_years: int = 2
     no_moat_industries: tuple[str, ...] = (

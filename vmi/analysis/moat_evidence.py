@@ -121,6 +121,8 @@ def review_status(verdict_date: str | None, f: Fundamentals, rules: VMIRules = R
     no date recorded, or the margin / ROIC decline signal. Without a verdict nothing is due."""
     if not reviewed:
         return {"reviewed_on": None, "age_days": None, "due": False, "reasons": []}
+    if not rules.moat.review_alerts_enabled:
+        return {"reviewed_on": verdict_date, "age_days": None, "due": False, "reasons": []}
     reasons, age = [], None
     if verdict_date:
         try:

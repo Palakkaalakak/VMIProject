@@ -48,6 +48,7 @@ SOURCES: dict[str, tuple[str, str]] = {
                                             "(Adam's pricing-power test itself has no numbers)"),
     "moat.pricing_baseline_years": (INTERP, "the approved test compares with the three years before the stress window"),
     "moat.pricing_tolerance": (INTERP, "how far margin may dip and still count as 'held'; our reading, no figure from Adam or the proposal"),
+    "moat.review_alerts_enabled": (OWNER, "owner request 2026-11-05: a switch to turn the 'review due' alert off"),
     "moat.review_max_age_days": (APPROVED, "docs/MOAT_PROPOSALS.md #7: moat check due 'after 12 months'"),
     "moat.review_decline_years": (APPROVED, "docs/MOAT_PROPOSALS.md #7: due when margins/ROIC fall 2 years; Adam (l.11030): "
                                             "profit margins declining 'at least 2–3 years' = deteriorating moat"),

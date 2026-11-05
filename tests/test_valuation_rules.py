@@ -166,6 +166,9 @@ def test_moat_evidence_history_decline_age_pricing_power_and_recurring_revenue(f
     assert not ME.review_status("2026-06-01", steady, today=today)["due"]
     assert ME.review_status(None, steady)["reasons"] == ["no review date recorded"]
     assert not ME.review_status(None, sliding, reviewed=False)["due"]
+    from vmi.rules import RULES
+    off = RULES.with_overrides({"moat": {"review_alerts_enabled": False}})  # owner switch: alert off entirely
+    assert not ME.review_status("2024-01-01", sliding, off, today=today)["due"]
 
 
 
