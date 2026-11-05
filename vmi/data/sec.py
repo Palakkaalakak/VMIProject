@@ -149,6 +149,29 @@ def _annual_flows(facts: list[dict]) -> dict[str, tuple[float, str, int | None]]
     return out
 
 
+RESTATEMENT_THRESHOLD = 0.15
+
+
+def restated_years(facts: list[dict], threshold: float = RESTATEMENT_THRESHOLD) -> list[tuple[str, float, float]]:
+    """Fiscal years whose annual value was later restated by more than `threshold` (spin-offs, discontinued
+    operations, accounting changes): [(end, first reported, latest)]. History before such a restatement is on a
+    different basis, so trend checks can be misleading; the data is flagged, a reviewer decides."""
+    first: dict[str, tuple[str, float]] = {}
+    last: dict[str, tuple[str, float]] = {}
+    for f in facts:
+        if "start" not in f or f.get("form", "") not in ("10-K", "10-K/A", "20-F", "20-F/A", "40-F", "10-KT"):
+            continue
+        if not 330 <= _days(f["start"], f["end"]) <= 400:
+            continue
+        filed, val, end = f.get("filed", ""), float(f["val"]), f["end"]
+        if end not in first or filed < first[end][0]:
+            first[end] = (filed, val)
+        if end not in last or filed >= last[end][0]:
+            last[end] = (filed, val)
+    return [(end, first[end][1], last[end][1]) for end in sorted(first)
+            if first[end][1] and abs(last[end][1] / first[end][1] - 1) > threshold]
+
+
 def _quarterly_flows(facts: list[dict], additive: bool = True) -> dict[str, float]:
     """end-date → single-quarter value. For additive flows, derives quarters from YTD cumulatives
     (cash-flow statements are only reported YTD in 10-Qs) and Q4 = FY − 9M. Non-additive values
@@ -258,6 +281,21 @@ def _to_points(d: dict, max_n: int = 12, annual: bool = True) -> list[Point]:
     return pts[-max_n:]
 
 
+def _flag_restatements(raw: dict, fund: Fundamentals, unit: str) -> None:
+    """Warn when revenue history mixes bases (e.g. GE after the GE HealthCare and GE Vernova spin-offs)."""
+    for tag in FLOW_CONCEPTS["revenue"]:
+        facts = _facts_for(raw, tag, (unit,))
+        latest = max((f["end"] for f in facts if "start" in f), default="")
+        window_start = f"{int(latest[:4]) - 10}{latest[4:]}" if latest else ""
+        hits = [h for h in restated_years(facts) if h[0] >= window_start]  # only the years the analysis uses
+        if hits:
+            years = ", ".join(f"{end[:4]} ({old / 1e9:.1f}→{new / 1e9:.1f}B)" for end, old, new in hits[-4:])
+            fund.warnings.append(f"revenue restated in later filings: {years}. Earlier years are on a different basis "
+                                 "(spin-off / discontinued operations?) — review Step 1 trends before trusting them.")
+            fund.meta["restated_years"] = [end for end, _, _ in hits]
+            return
+
+
 def normalise(raw: dict, ticker: str) -> Fundamentals:
     fund = Fundamentals(ticker=ticker.upper(), cik=int(raw.get("cik", 0)) or None,
                         name=raw.get("entityName", ""), source="sec")
@@ -316,6 +354,7 @@ def normalise(raw: dict, ticker: str) -> Fundamentals:
     _drop_stale_and_derive(fund)
     if not fund.annual.get("revenue"):
         fund.warnings.append("No revenue history found in XBRL")
+    _flag_restatements(raw, fund, cur)
     return fund
 
 
@@ -359,7 +398,7 @@ def fundamentals(ticker: str, force: bool = False) -> Fundamentals | None:
     if cik is None:
         return None
     cache = get_cache()
-    key = f"sec:fund:v7:{cik}"
+    key = f"sec:fund:v8:{cik}"  # bump when normalise() output changes
     if not force:
         cached = cache.get(key, get_settings().ttl_fundamentals)
         if cached:

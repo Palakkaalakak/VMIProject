@@ -97,14 +97,16 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
             tech_dict["buy_levels"] = [{"tranche": i, "price": p, "source": "judgement override", "touches": None,
                                         "confirmed": True} for i, p in enumerate(ov["buy_levels"], 1)]
     s7 = S.step7_entry(tech_dict or {})
+    g = growth_rate(f, est)
+    cat = ov.get("category") or category(biz, g, f, rules)
+    s1.notes += [w for w in f.warnings if w.startswith("revenue restated")]  # evidence for the reviewer
+    _turnaround_exception(s1, s3, cat)
     steps = _apply_step_overrides([s1, s2, s3, s4, s5, s6, s7], ov)
     s1, s2, s3, s4, s5, s6, s7 = steps
 
     great = all(s.passed for s in (s1, s2, s3, s4, s5))
     moat_reviewed = bool(s3.extra.get("reviewed")) or ov.get("step3") in ("pass", "fail")
-    g = growth_rate(f, est)
     moat = S.moat_grade(s3)
-    cat = ov.get("category") or category(biz, g, f, rules)
     alloc = 1.0
     if cat in ("speculative_growth", "turnaround"):
         alloc = rules.portfolio.speculative_multiplier
@@ -135,7 +137,7 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
         "steps": [s.to_dict() for s in (s1, s2, s3, s4, s5, s6, s7)],
         "valuation": val.to_dict(), "intrinsic_value": iv, "technicals": tech_dict, "metrics": metrics,
         "estimates": {k: v for k, v in est.to_dict().items() if k != "extra"},
-        "data": {"provenance": f.provenance, "completeness": f.meta.get("completeness"),
+        "data": {"provenance": f.provenance, "completeness": f.meta.get("completeness"), "warnings": f.warnings,
                  "latest_date": f.latest_date, "currency": f.currency},
         "overrides": ov,
         "overrides_applied": describe(ov),
@@ -146,6 +148,20 @@ def growth_controls(ov: dict) -> GrowthControls:
     """Per-ticker growth-input choices from the overrides (vmi/overrides.py: Growth group)."""
     return GrowthControls(source=ov.get("growth_source") or None, blend=ov.get("growth_blend") or None,
                           exclude=tuple(ov.get("exclude_sources") or ()), extra=dict(ov.get("extra_sources") or {}))
+
+
+def _turnaround_exception(s1, s3, cat: str) -> None:
+    """Adam's Category 7: a great business hit by temporary bad news, so profits fall while the moat stays
+    intact. Step 1 then passes, but only when a reviewer confirmed the moat and sales are still rising
+    (the dip is in profits, not in the business). The category's ½ position size applies separately."""
+    if s1.passed or cat != "turnaround":
+        return
+    moat_ok = ((s3.extra.get("verdict") or {}).get("grade")) in ("wide", "narrow")
+    sales_ok = any(c.name == "revenue_consistent" and c.passed for c in s1.checks)
+    if moat_ok and sales_ok:
+        s1.passed = True
+        s1.notes.append("Turnaround exception (Adam, Category 7): profits fell temporarily, sales still rising and "
+                        "the reviewed moat is intact; buy at ½–⅓ of a normal position only.")
 
 
 def _ten_year_return(hist) -> float | None:

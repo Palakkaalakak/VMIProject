@@ -150,6 +150,18 @@ def validate(data: dict) -> dict:
     return out
 
 
+REVIEW_GROUPS = ("Moat review",)  # recording a verdict does not change the numbers
+
+
+def pins_in_scanner(data: dict) -> bool:
+    """A ticker skips the scanner's cheap pre-filters when pinned explicitly, or when it has a judgement that
+    changes its numbers (the pre-filters work on raw data and would drop it). Moat reviews alone do not pin."""
+    if data.get("scan") == "exclude":
+        return False
+    return data.get("scan") == "pin" or any(k in BY_KEY and BY_KEY[k].group not in REVIEW_GROUPS and k != "scan"
+                                            for k in data)
+
+
 def describe(ov: dict) -> list[str]:
     """Human-readable list of the overrides in effect (shown in the analysis report)."""
     return [f"{BY_KEY[k].label}: {v}" for k, v in ov.items() if k in BY_KEY and v not in (None, "", [])]

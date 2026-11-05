@@ -72,3 +72,24 @@ def test_step_verdicts_can_be_forced():
     out = _apply_step_overrides(steps, {"step1": "pass", "step6": "fail", "note": "temporary dip"})
     assert out[0].passed and not out[5].passed and "temporary dip" in out[0].notes[0]
     assert out[1].passed  # untouched steps keep their verdict
+
+
+def test_scanner_pins_only_for_number_changing_judgements():
+    assert O.pins_in_scanner({"growth": 0.13}) and O.pins_in_scanner({"scan": "pin"})
+    assert not O.pins_in_scanner({"moat_grade": "wide", "moat_score": 9})
+    assert not O.pins_in_scanner({"growth": 0.13, "scan": "exclude"})
+
+
+def test_turnaround_exception_needs_reviewed_moat_and_rising_sales():
+    from vmi.analysis.pipeline import _turnaround_exception
+    from vmi.analysis.steps import Check, StepResult
+
+    def s1(sales_ok):
+        return StepResult(1, "track", False, 0.5, [Check("revenue_consistent", sales_ok), Check("earnings_consistent", False)])
+
+    reviewed = StepResult(3, "moat", True, 1.0, extra={"verdict": {"grade": "wide"}})
+    unreviewed = StepResult(3, "moat", True, 1.0, extra={"verdict": None})
+    for step1, moat, cat, want in ((s1(True), reviewed, "turnaround", True), (s1(False), reviewed, "turnaround", False),
+                                   (s1(True), unreviewed, "turnaround", False), (s1(True), reviewed, "growth", False)):
+        _turnaround_exception(step1, moat, cat)
+        assert step1.passed is want

@@ -2,31 +2,414 @@
   "_doc": "Human/AI-in-the-loop judgement overrides (ground rule: distorted data is handled per ticker, never by changing the general formula). Committed to git so they survive database resets; database overrides (UI / API / CLI) layer on top. Every key and its meaning: `python -m vmi.overrides schema` (declared in vmi/overrides.py). Edit with `python -m vmi.overrides set TICKER key=value --note '...' --commit`. Always give a `note` explaining why.",
   "TMO": {
     "growth": 0.13,
-    "note": "Consensus temporarily distorted very low after the post-COVID normalisation; Adam kept the prior long-term rate (heavenly-queen compounder). Use ~13% long-run EPS growth (pre-distortion consensus band 12-15%). Force DCF on FCF (Adam's method for TMO) instead of the P/S fallback the selector picks when the distorted data breaks consistency.",
-    "method": "dcf_fcf"
+    "method": "dcf_fcf",
+    "moat_grade": "wide",
+    "moat_sources": [
+      "scale",
+      "switching_costs"
+    ],
+    "moat_score": 8,
+    "note": "Consensus temporarily distorted very low after the post-COVID normalisation; Adam kept the prior long-term rate (heavenly-queen compounder). Use ~13% long-run EPS growth (pre-distortion consensus band 12-15%). Force DCF on FCF (Adam's method for TMO) instead of the P/S fallback the selector picks when the distorted data breaks consistency. | AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): scale distributor/manufacturer; validated consumables are sticky in regulated labs"
   },
   "ASML": {
     "growth": 0.2,
-    "note": "5y EPS estimates (FinViz 42%, Zacks 52%) look like a cyclical rebound off a depressed base and hit the 40% cap; next-year estimates are ~34-38%. Normalised to 20% (judgement; revisit when consensus settles)."
+    "moat_grade": "wide",
+    "moat_sources": [
+      "barriers",
+      "switching_costs",
+      "scale"
+    ],
+    "moat_score": 10,
+    "note": "5y EPS estimates (FinViz 42%, Zacks 52%) look like a cyclical rebound off a depressed base and hit the 40% cap; next-year estimates are ~34-38%. Normalised to 20% (judgement; revisit when consensus settles). | AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): EUV lithography monopoly; decades of IP and supplier ecosystem"
   },
   "AVGO": {
     "growth": 0.25,
-    "note": "FinViz 5y EPS 65% (next-year ~62-67%) reflects the current AI ramp; not plausible as a 5-year average at this scale. Normalised to 25% (judgement)."
+    "moat_grade": "wide",
+    "moat_sources": [
+      "switching_costs",
+      "barriers",
+      "scale"
+    ],
+    "moat_score": 8,
+    "note": "FinViz 5y EPS 65% (next-year ~62-67%) reflects the current AI ramp; not plausible as a 5-year average at this scale. Normalised to 25% (judgement). | AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): custom silicon/networking IP, VMware lock-in"
   },
   "VEEV": {
     "growth_blend": "lowest",
-    "note": "Sources disagree (FinViz 12.5%, Zacks 35%). Since 2026-11-05 the default lowest source applies; the earlier 18% judgement was removed because it pushed the IV further above Adam's."
+    "moat_grade": "wide",
+    "moat_sources": [
+      "switching_costs",
+      "barriers"
+    ],
+    "moat_score": 8,
+    "note": "Sources disagree (FinViz 12.5%, Zacks 35%). Since 2026-11-05 the default lowest source applies; the earlier 18% judgement was removed because it pushed the IV further above Adam's. | AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): validated, regulated life-sciences cloud is costly to replace"
   },
   "PLTR": {
     "method": "dcf_fcf",
-    "note": "Now consistently FCF-positive with rising FCF; Adam values it on DCF rather than PSG. Speculative sizing still applies."
+    "moat_grade": "wide",
+    "moat_sources": [
+      "barriers",
+      "switching_costs"
+    ],
+    "moat_score": 8,
+    "note": "Now consistently FCF-positive with rising FCF; Adam values it on DCF rather than PSG. Speculative sizing still applies. | AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): security clearances and embedded government/enterprise deployments (Adam: very strong)"
   },
   "ACGL": {
     "method": "pb_bank",
-    "note": "Specialty (re)insurer: book value compounding is the value driver; Adam's IV (109.38) matches P/B valuation (108.4). DNI overstates because float-driven earnings are lumpy."
+    "moat_grade": "narrow",
+    "moat_sources": [
+      "brand",
+      "scale"
+    ],
+    "moat_score": 7,
+    "note": "Specialty (re)insurer: book value compounding is the value driver; Adam's IV (109.38) matches P/B valuation (108.4). DNI overstates because float-driven earnings are lumpy. | AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): underwriting discipline and specialty scale; insurance moats are thin (Adam holds it)"
   },
   "UNH": {
     "method": "dcf_fcf",
-    "note": "Managed care is a cash-flow business (Adam values it by DCF). The 2025-26 medical-cost shock dented CFO, which fails strict consistency and pushes the selector to the P/S reference; use DCF on FCF. Growth stays automatic (lowest source)."
+    "moat_grade": "wide",
+    "moat_sources": [
+      "scale",
+      "network_effect",
+      "barriers"
+    ],
+    "moat_score": 8,
+    "note": "Managed care is a cash-flow business (Adam values it by DCF). The 2025-26 medical-cost shock dented CFO, which fails strict consistency and pushes the selector to the P/S reference; use DCF on FCF. Growth stays automatic (lowest source). | AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): scale in managed care, Optum provider network, regulation (Adam: market leader)"
+  },
+  "AAPL": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "brand",
+      "switching_costs",
+      "scale"
+    ],
+    "moat_score": 9,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): ecosystem lock-in, premium brand, unmatched scale"
+  },
+  "AMZN": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "brand",
+      "network_effect",
+      "switching_costs",
+      "scale"
+    ],
+    "moat_score": 9,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): marketplace network effect, AWS switching costs, logistics scale"
+  },
+  "GOOGL": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "brand",
+      "network_effect",
+      "scale"
+    ],
+    "moat_score": 9,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): search brand monopoly, data/network effects, scale (Adam: wide)"
+  },
+  "MA": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "brand",
+      "network_effect",
+      "barriers",
+      "scale"
+    ],
+    "moat_score": 9,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): two-sided payment network, global acceptance, regulatory barriers"
+  },
+  "V": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "brand",
+      "network_effect",
+      "barriers",
+      "scale"
+    ],
+    "moat_score": 9,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): largest payment network, acceptance + issuer network effect"
+  },
+  "META": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "brand",
+      "network_effect",
+      "scale"
+    ],
+    "moat_score": 9,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): social network effects across 3bn+ users (Adam: wide, AI score 9/10)"
+  },
+  "MSFT": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "brand",
+      "switching_costs",
+      "network_effect",
+      "scale"
+    ],
+    "moat_score": 9,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): Office/Azure/Windows lock-in, enterprise switching costs, scale"
+  },
+  "NVDA": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "switching_costs",
+      "barriers",
+      "scale"
+    ],
+    "moat_score": 8,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): CUDA software ecosystem lock-in, IP, scale in AI accelerators (Adam: wide)"
+  },
+  "PANW": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "switching_costs",
+      "brand",
+      "scale"
+    ],
+    "moat_score": 8,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): platform consolidation, embedded security stack is risky to replace"
+  },
+  "CRWD": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "switching_costs",
+      "network_effect",
+      "brand"
+    ],
+    "moat_score": 8,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): embedded endpoint platform; threat-data network effect"
+  },
+  "FTNT": {
+    "moat_grade": "narrow",
+    "moat_sources": [
+      "switching_costs",
+      "scale"
+    ],
+    "moat_score": 7,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): ASIC cost advantage and installed base, but crowded firewall market"
+  },
+  "SPGI": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "brand",
+      "barriers",
+      "network_effect"
+    ],
+    "moat_score": 9,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): ratings oligopoly (regulatory), index and data brands (Adam: wide)"
+  },
+  "MSCI": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "brand",
+      "switching_costs",
+      "barriers"
+    ],
+    "moat_score": 8,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): index licensing embedded in trillions of AUM; analytics switching costs"
+  },
+  "ICE": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "network_effect",
+      "switching_costs",
+      "barriers"
+    ],
+    "moat_score": 8,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): exchange liquidity network effect, mortgage-tech switching costs, licences"
+  },
+  "WM": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "barriers",
+      "scale"
+    ],
+    "moat_score": 8,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): landfill permits are near-impossible to replicate; route density"
+  },
+  "AZO": {
+    "moat_grade": "narrow",
+    "moat_sources": [
+      "scale",
+      "brand"
+    ],
+    "moat_score": 7,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): store density and parts availability; competes with ORLY/AAP"
+  },
+  "BABA": {
+    "moat_grade": "narrow",
+    "moat_sources": [
+      "network_effect",
+      "scale"
+    ],
+    "moat_score": 6,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): marketplace network effect eroded by PDD/JD; regulatory risk"
+  },
+  "BKNG": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "network_effect",
+      "brand",
+      "scale"
+    ],
+    "moat_score": 8,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): two-sided hotel network, brand, marketing scale"
+  },
+  "CNSWF": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "switching_costs",
+      "scale"
+    ],
+    "moat_score": 8,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): vertical-market software with very high switching costs; acquisition machine"
+  },
+  "CPRT": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "network_effect",
+      "barriers",
+      "scale"
+    ],
+    "moat_score": 9,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): auction buyer/seller network effect; land/yard permits"
+  },
+  "CTAS": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "scale",
+      "switching_costs"
+    ],
+    "moat_score": 8,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): route density cost advantage; service contracts"
+  },
+  "DSGX": {
+    "moat_grade": "narrow",
+    "moat_sources": [
+      "network_effect",
+      "switching_costs"
+    ],
+    "moat_score": 7,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): logistics network and integrations; niche scale"
+  },
+  "EVVTY": {
+    "moat_grade": "narrow",
+    "moat_sources": [
+      "scale",
+      "brand",
+      "barriers"
+    ],
+    "moat_score": 7,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): live-casino scale and licences; competition and regulation risk"
+  },
+  "GE": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "switching_costs",
+      "barriers",
+      "scale"
+    ],
+    "moat_score": 9,
+    "step1": "pass",
+    "note": "Step 1 judgement (AI oversight, 2026-11-05): reported revenue falls only because GE HealthCare (Jan 2023) and GE Vernova (Apr 2024) were spun off; SEC data mixes restated and original bases. GE Aerospace itself grows consistently. Valuation unchanged (automatic)."
+  },
+  "HCA": {
+    "moat_grade": "narrow",
+    "moat_sources": [
+      "scale"
+    ],
+    "moat_score": 7,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): local market density with payers; hospital economics are competitive"
+  },
+  "IDXX": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "switching_costs",
+      "brand",
+      "scale"
+    ],
+    "moat_score": 9,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): instrument installed base locks in consumables; vet brand"
+  },
+  "LVMUY": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "brand",
+      "scale"
+    ],
+    "moat_score": 9,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): portfolio of luxury brands with pricing power"
+  },
+  "LIN": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "scale",
+      "switching_costs",
+      "barriers"
+    ],
+    "moat_score": 9,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): on-site plants on long contracts, route density, oligopoly"
+  },
+  "MELI": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "network_effect",
+      "scale",
+      "switching_costs"
+    ],
+    "moat_score": 8,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): LatAm marketplace + fintech network effects, logistics scale (Adam: example)"
+  },
+  "MSI": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "switching_costs",
+      "barriers"
+    ],
+    "moat_score": 8,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): public-safety radio installed base; certification and contracts"
+  },
+  "NFLX": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "brand",
+      "scale"
+    ],
+    "moat_score": 8,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): content scale and global brand (Adam: wide)"
+  },
+  "NKE": {
+    "moat_grade": "narrow",
+    "moat_sources": [
+      "brand"
+    ],
+    "moat_score": 6,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): brand still strong but losing share to On/Hoka; pricing power weakened"
+  },
+  "NOW": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "switching_costs",
+      "network_effect"
+    ],
+    "moat_score": 9,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): workflow platform embedded across the enterprise (Adam's ServiceNow example)"
+  },
+  "NVO": {
+    "moat_grade": "narrow",
+    "moat_sources": [
+      "barriers",
+      "scale"
+    ],
+    "moat_score": 7,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): GLP-1 patents and manufacturing scale, but direct competition from Lilly"
+  },
+  "POOL": {
+    "moat_grade": "wide",
+    "moat_sources": [
+      "scale",
+      "network_effect"
+    ],
+    "moat_score": 7,
+    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): largest distribution network; dealer relationships"
   }
 }

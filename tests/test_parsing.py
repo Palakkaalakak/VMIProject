@@ -43,3 +43,14 @@ def test_fdic_holding_name_matching():
     assert _norm("Bank of New York Mellon Corporation") == _norm("BANK OF NY MELLON CORP THE")
     assert _score(_norm("U.S. Bancorp"), _norm("US METRO BCORP")) == 0  # single token must match exactly
     assert _score(_norm("Cullen/Frost Bankers, Inc."), _norm("CULLEN FROST BANKERS INC")) == 3
+
+
+def test_restated_years_detects_spin_off_restatements():
+    from vmi.data.sec import restated_years
+
+    def fact(end, val, filed):
+        return {"start": f"{int(end[:4]) - 1}{end[4:]}", "end": end, "val": val, "filed": filed, "form": "10-K"}
+
+    facts = [fact("2022-12-31", 76.6e9, "2023-02-10"), fact("2022-12-31", 29.1e9, "2025-02-01"),  # spin-off restated
+             fact("2023-12-31", 38.0e9, "2024-02-01"), fact("2023-12-31", 38.5e9, "2025-02-01")]   # small revision
+    assert restated_years(facts) == [("2022-12-31", 76.6e9, 29.1e9)]

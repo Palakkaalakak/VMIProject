@@ -287,8 +287,10 @@ def _pinned_candidates(cands: list[Candidate]) -> dict[str, Candidate]:
     """Tickers with a human judgement / DB override (e.g. TMO: distorted consensus, Adam keeps it).
     The cheap pre-filters work on raw data and would drop them, so they always reach the deep stage,
     where the full 7-step report (with the override applied) is the honest verdict."""
+    from vmi.overrides import pins_in_scanner
+
     ov = store.all_overrides()
-    return {c.symbol: c for c in cands if c.symbol in ov and _scan_flag(ov, c.symbol) != "exclude"}
+    return {c.symbol: c for c in cands if pins_in_scanner((ov.get(c.symbol) or {}).get("data") or {})}
 
 
 def _scan_flag(overrides: dict, symbol: str) -> str:
