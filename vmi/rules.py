@@ -59,10 +59,11 @@ class MoatRules:  # Step 3
     min_sources: int = 3                   # "at least THREE out of these FIVE"
     min_ai_score: int = 7                  # "7, 8 or 9 out of 10 gives me more confidence"
     no_moat_industries: tuple[str, ...] = (
-        "airline", "oil & gas", "oil and gas", "crude", "petroleum", "shipping", "marine",
+        # whole-word phrases (so "Fire, Marine & Casualty Insurance" or "Goldman" never match)
+        "airline", "oil & gas", "oil and gas", "crude", "petroleum", "shipping", "marine shipping", "deep sea",
         "auto manufacturer", "automobile", "motor vehicle", "construction", "homebuild",
         "property developer", "real estate develop", "steel", "metal mining", "gold", "silver",
-        "copper", "coal", "aluminum", "commodity", "drilling",
+        "copper", "coal", "aluminum", "commodity chemicals", "drilling",
     )
 
 
@@ -85,6 +86,9 @@ class DebtRules:  # Step 5
     min_bank_cet1: float = 0.10
     max_reit_gearing: float = 0.45
     safe_reit_gearing: float = 0.40
+    # "Passing 2 out of 3 is acceptable" (current ratio, debt/EBITDA, debt servicing): one weak ratio is fine
+    # when the others are strong (e.g. subscription businesses whose deferred revenue pushes the current ratio < 1).
+    min_core_ratios_passed: int = 2
 
 
 @dataclass(frozen=True)

@@ -10,6 +10,8 @@ strings from market data providers. User overrides always win (stored per ticker
 """
 from __future__ import annotations
 
+import re
+
 from enum import Enum
 
 from vmi.rules import RULES
@@ -81,14 +83,19 @@ def from_text(*texts: str) -> BizType | None:
     for keys, t in _TEXT_RULES:
         if any(k in blob for k in keys):
             return t
-    if any(k in blob for k in RULES.moat.no_moat_industries):
+    if _matches_no_moat(blob):
         return BizType.CYCLICAL
     return None
 
 
+def _matches_no_moat(blob: str) -> bool:
+    """Whole-word/phrase match against rules.moat.no_moat_industries (substrings caused false hits, e.g.
+    'marine' in insurance names, 'commodity' in exchanges, 'gold' in Goldman)."""
+    return any(re.search(rf"\b{re.escape(k)}s?\b", blob) for k in RULES.moat.no_moat_industries)  # plurals too
+
+
 def is_no_moat_industry(*texts: str) -> bool:
-    blob = " ".join(t.lower() for t in texts if t)
-    return any(k in blob for k in RULES.moat.no_moat_industries)
+    return _matches_no_moat(" ".join(t.lower() for t in texts if t))
 
 
 def classify(sic: int | None, sic_desc: str = "", sector: str = "", industry: str = "",

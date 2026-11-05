@@ -149,3 +149,22 @@ def test_base_period_choice(fund_factory):
     assert steady_base(f, "fcf", mode="last_fy")[0] == 14.0
     assert steady_base(f, "fcf", mode="average")[0] == pytest.approx(12.5)
     assert steady_base(f, "fcf")[0] == 14.0  # auto: TTM 1.43× FY = sudden jump → prior year
+
+
+def test_no_moat_industry_matches_whole_words_only():
+    from vmi.analysis.classify import is_no_moat_industry as no_moat
+
+    assert all(map(no_moat, ["Airlines", "Marine Shipping", "Gold", "Oil & Gas E&P", "Steel"]))
+    assert not any(map(no_moat, ["Fire, Marine & Casualty Insurance", "Security & Commodity Exchanges",
+                                 "Goldman Sachs", "Software - Application"]))
+
+
+def test_step5_two_of_three_core_ratios_and_financials_exempt(fund_factory):
+    from vmi.analysis.classify import BizType
+    from vmi.analysis.steps import step5_debt
+
+    # ServiceNow-like: current ratio < 1 (deferred revenue), no debt, strong cash flow → passes 2 of 3
+    f = fund_factory(cfo=[50, 60, 70, 80, 90], ttm={"cfo": 90.0, "ebitda": 100.0, "interest_expense": 0.0},
+                     latest={"current_assets": 90.0, "current_liabilities": 400.0})
+    assert step5_debt(f, BizType.NORMAL).passed
+    assert step5_debt(f, BizType.INSURANCE).passed and step5_debt(f, BizType.INSURANCE).checks == []

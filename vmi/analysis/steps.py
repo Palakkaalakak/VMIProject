@@ -318,6 +318,11 @@ def step5_debt(f: Fundamentals, biz: BizType, est: Estimates | None = None, rule
         checks.append(Check("gearing", g is not None and g <= d.max_reit_gearing, round(g, 4) if g else None,
                             f"≤{d.max_reit_gearing:.0%} (<40% safest)"))
         return _finish(5, "Conservative debt", checks, [], {"gearing"})
+    if biz in (BizType.INSURANCE, BizType.ASSET_MANAGER):
+        # "The three core debt ratios do not apply to banks, insurance/financial companies" (Step 5 table)
+        return StepResult(5, "Conservative debt", True, 1.0, [],
+                          ["Debt ratios do not apply to insurance/financial companies (Adam's Step 5 exception) — "
+                           "judge the balance sheet qualitatively (reserves, leverage vs peers)."])
     cr = _ratio_now(f, "current_ratio")
     ca, cl = f.latest.get("current_assets"), f.latest.get("current_liabilities")
     if cr is None and ca and cl:
@@ -352,7 +357,12 @@ def step5_debt(f: Fundamentals, biz: BizType, est: Estimates | None = None, rule
         checks.append(Check("interest_coverage", icr > d.min_interest_coverage, round(icr, 2), f">{d.min_interest_coverage} (>5 very safe)"))
     else:
         checks.append(Check("interest_coverage", True if interest == 0 else None, None, ">3", "no interest expense"))
-    return _finish(5, "Conservative debt", checks, [], {"debt_to_ebitda", "debt_servicing", "current_ratio"})
+    core = [c for c in checks if c.name in ("current_ratio", "debt_to_ebitda", "debt_servicing") and c.passed is not None]
+    res = _finish(5, "Conservative debt", checks, [])
+    res.passed = bool(core) and sum(c.passed for c in core) >= min(d.min_core_ratios_passed, len(core))
+    res.notes.append(f"{sum(c.passed for c in core)}/{len(core)} core ratios pass (≥{d.min_core_ratios_passed} required: "
+                     "one weak ratio is acceptable when the others are strong)")
+    return res
 
 
 # ------------------------------------------------------------------------------------------ STEP 6/7
