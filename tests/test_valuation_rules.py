@@ -100,8 +100,8 @@ def test_uncertainty_haircut_for_growth_stocks_and_single_source(fund_factory):
         return ValuationContext(fund_factory(), est, 100.0, **kw)
 
     assert ctx({"finviz": 0.10, "zacks": 0.11}).haircut == 0.0                     # slow grower, 2 sources
-    assert ctx({"finviz": 0.20, "zacks": 0.22}).haircut == pytest.approx(0.05)      # growth stock
-    assert ctx({"finviz": 0.10}).haircut == pytest.approx(0.05)                     # single source
+    assert ctx({"finviz": 0.20, "zacks": 0.22}).haircut == pytest.approx(0.075)     # growth stock
+    assert ctx({"finviz": 0.10}).haircut == pytest.approx(0.075)                    # single source
     assert ctx({"finviz": 0.20, "zacks": 0.22}, growth_override=0.2).haircut == 0.0  # human judgement
     assert ctx({"finviz": 0.20}, haircut_override=0.0).haircut == 0.0               # per-ticker override
 

@@ -14,7 +14,9 @@ Reference: `tests/fixtures/adam_reference.txt` (owner-supplied, 2026-11-04). Run
 - `calibrate.py` reports `suggested_flat_haircut` = smallest 5%-step cut that brings the median
   ours/Adam ratio of DCF/DNI results to ≤ 0.95 (conservative side).
 
-## Current setting: iv_haircut = 0.10
+## Setting history (current settings: see the 2026-11-05 (later) update at the bottom)
+
+### Until 2026-11-05: iv_haircut = 0.10
 Calibration run on 43 reference tickers (before haircut): median ratio 1.036, suggested haircut 10%.
 Reason: we lack FactSet; the free consensus (FinViz/Zacks/Yahoo) runs higher on average.
 
@@ -118,3 +120,65 @@ as insurer → P/B), POOL/LIN/WM 0.5–0.7 (conservative side — acceptable per
 - **BKNG** (re-checked): base FCF 9.24B, CFO 9.56B and diluted shares 816M are consistent with filings. At the same
   base and rate, Adam's IV implies ~5.5% growth vs the 15.6% consensus. The gap is Adam's growth input, not our
   data, so this is also a judgement case.
+
+## Update 2026-11-05 (later): lowest source, structural segments, editable everything
+Owner directive: conservative by default (lowest analyst source), every input overridable per stock, and any
+segment-specific treatment must have a structural reason (minimal fitting only on top of a structural rule).
+
+**Study:** `tools/segment_analysis.py` grouped Adam's 43 tickers by every feature: style, category, business
+type, moat, sector bucket, method, discount-rate band, growth band, number of sources and source agreement.
+Results are in `data/segment_analysis.json`. Groups with n ≥ 5 and a median outside 0.80–1.05:
+
+| Group | Median ours/Adam | What it pointed to |
+|---|---|---|
+| defensive style (n=22) | 0.79 | lowest source is too punitive for slow, stable compounders |
+| "growth" category / single source | 1.11 / 1.05 | growth input least reliable (optimism, no cross-check) |
+| sources disagree ≥1.5× (n=7–8) | 0.60–0.67 with lowest | lowest picks a stale outlier |
+| turnaround (n=6) | 0.43 | Step-1-fail names valued by an extreme method |
+
+**Rules adopted:**
+1. Growth blend: lowest source for growth stocks; the median source for defensives (median source <15%);
+   the median when sources disagree ≥1.5×. Reason: long-term analyst forecasts are over-optimistic mainly for
+   fast growers (Chan, Karceski & Lakonishok 2003), and a ≥1.5× disagreement usually means one stale source.
+2. Base haircut 0 (was 10%). The lowest-source blend already provides the conservatism; one knob, not two.
+3. Uncertainty haircut on growth stocks (≥15%, Adam's own growth/defensive line) and single-source estimates.
+   Level chosen with `tools/haircut_sweep.py` (full model, judgements applied):
+
+   | uncertainty haircut | median | ±15% | >1.10 | <0.75 | log-IQR |
+   |---|---|---|---|---|---|
+   | 0 | 0.875 | 16 | 12 | 6 | 0.33 |
+   | 0.025 | 0.867 | 16 | 11 | 6 | 0.31 |
+   | 0.05 | 0.861 | 15 | 11 | 7 | 0.28 |
+   | **0.075** | 0.851 | 15 | 10 | 7 | 0.28 |
+   | 0.10 | 0.849 | 14 | 9 | 9 | 0.27 |
+   | 0.15 | 0.847 | 14 | 9 | 11 | 0.29 |
+
+   7.5% is the most conservative level before under-valuations start rising.
+4. Step-1-fail reference value = the middle of P/S, DCF and DNI. Each method is distorted in its own direction
+   for a temporary dip. The middle beats first-applicable (NKE 1.9× on P/S, a value trap) and lowest
+   (CNSWF/MBGL ~0.3×).
+5. Judgements:
+   - Removed NVDA, MELI and AMZN (now covered by rule 1).
+   - VEEV set to the lowest source (its old 18% judgement pushed it further above Adam).
+   - Added UNH method = DCF on FCF.
+
+**Result (43 tickers):**
+
+| run | median | ±15% | in 0.85–1.02 | >1.05 | <0.75 |
+|---|---|---|---|---|---|
+| 2026-11-04, average + 10% haircut, with judgements | 0.809 | 14 | 9 | 8 | 10 |
+| now, pure formula | 0.861 | 13 | 8 | 14 | 8 |
+| **now, with judgements** | **0.851** | **15** | **10** | **11** | **7** |
+
+There are fewer under-valuations and more names in the target band. There are more names above 1.05 (11 vs
+8), but only 1.10–1.30× for most of them.
+
+**Remaining outliers (with judgements):**
+- Data/judgement cases: BKNG 1.87 (inputs match filings; Adam's IV implies ~5% growth), EVVTY 1.72,
+  NVO 1.30, VEEV 1.26, DSGX 1.25 (lowest discount rate), META 1.22 (normalised capex doubles the base during
+  the AI capex step-up), UNH 1.22.
+- Low side: MBGL 0.26 (DNI on depressed NI), POOL 0.55, LIN 0.58, CPRT 0.62, LVMUY 0.59 (ADR/currency;
+  Yahoo market cap is blocked in the sandbox, so recheck on the owner's PC).
+
+All of these can be edited on the stock's Analysis page (Judgement overrides). Every global setting above is
+on the Settings screen.

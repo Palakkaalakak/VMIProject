@@ -124,9 +124,10 @@ class ValuationRules:  # Lesson 5
     # Extra flat haircut where the growth input is structurally less reliable: growth stocks (yrs 1–5 growth
     # ≥ rules.growth.growth_stock_threshold, i.e. Adam's own 15% growth/defensive line: long-term analyst
     # forecasts are most over-optimistic for fast growers and DCF compounds the error over 20 years) and
-    # single-source estimates (no cross-check). Not applied to human growth overrides. 5% gave the tightest
-    # spread vs Adam's IVs in tools/segment_analysis.py; larger values did not reduce over-valuations further.
-    uncertainty_haircut: float = 0.05
+    # single-source estimates (no cross-check). Not applied to human growth overrides. Level from
+    # tools/haircut_sweep.py (2026-11-05, full model): 7.5% is the most conservative level before
+    # under-valuations start rising (0%: 12 names >1.10× Adam, 7.5%: 10, 15%: 9 but 11 names <0.75×).
+    uncertainty_haircut: float = 0.075
     # Alternative single knob: relative cut on consensus growth (years 1–5) BEFORE the DCF. Experiments
     # (docs/CALIBRATION.md) show 10% here ≈ 10% on IV at the median, with marginally tighter tails.
     # Keep ONE of the two non-zero; both 0 = pure Adam.

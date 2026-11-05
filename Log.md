@@ -12,7 +12,7 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Current state (2026-11-05)
 
-- Offline test suite: `python3 -m pytest -q tests`, 73 passing.
+- Offline test suite: `python3 -m pytest -q tests`, 79 passing.
 - Fundamentals: SEC EDGAR → stockanalysis → Yahoo, merged in `vmi/data/fundamentals.py`. IB is tried first:
   TWS XML (works only if IB still permits it for your login), then the Client Portal Gateway
   (`vmi/data/ibportal/`). **The gateway path is implemented and offline-tested, but it has not been run
@@ -28,7 +28,7 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 | how an IB row label maps to our concepts | `LABELS` in `vmi/data/ibportal/parse.py` |
 | IB cache keys / TTL / sync behaviour | `vmi/data/ibportal/service.py`, `ttl_ib_portal` in `vmi/config.py` |
 | the order IB sources are tried, breaker pauses | `vmi/data/ib_fundamentals.py` |
-| a VMI threshold | `vmi/rules.py` |
+| a VMI threshold | Settings screen in the UI (stored in `config/rules_settings.json`); defaults in `vmi/rules.py` |
 | a data provider or the merge order | `vmi/data/<provider>.py`, `vmi/data/fundamentals.py` |
 | business-type classification | `vmi/analysis/classify.py` |
 | a per-stock judgement (any input) | `python -m vmi.overrides …`, the UI card, or `config/judgements.json`; new keys in `vmi/overrides.py` |
@@ -37,6 +37,50 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 ---
 
 ## Entries
+
+### 2026-11-05 — Structural calibration, discretionary moat, Settings screen (everything editable in the UI)
+**Asked:**
+- conservative growth (lowest source) with per-stock overrides
+- understand and fix the valuation gaps vs Adam, looking at every company feature, with structural reasons only
+- the moat must be the reviewer's call
+- every nuance must be editable from the UI, not in code or GitHub
+
+**Done:**
+- *Growth.* Rules in `vmi/rules.py` `GrowthRules` (`blend`, `blend_defensive`, `disagreement_ratio`,
+  `blend_when_disagree`), logic in `vmi/analysis/valuation/growth.py`:
+  - growth stocks: lowest source
+  - defensives: median source
+  - sources disagree ≥1.5×: median
+- *Haircuts.* Base 0; `uncertainty_haircut` = 7.5% for growth stocks and single-source estimates
+  (`ValuationContext.haircut`). Evidence: `docs/CALIBRATION.md` (2026-11-05, later).
+- *Step-1-fail reference.* The middle of P/S, DCF and DNI (`selector.REFERENCE_ONLY`).
+- *Moat (Step 3).* Evidence only:
+  - industry, 10-year chart and return
+  - gross/operating/net/FCF margins with history, gross-margin stability
+  - ROIC/ROE persistence, consistency, scale
+  - Adam's five sources and the review questions
+
+  The verdict comes from the overrides `moat_grade` / `moat_sources` / `moat_score`. An unreviewed moat shows a
+  labelled data hint, and VMI buy requires a reviewed moat (`moat_reviewed` in the report).
+- *Settings screen* (`static/js/views/settings.js`, `vmi/settings.py`, `/api/settings`):
+  - every rule, with help taken from the code comments
+  - saved to `config/rules_settings.json` (differences only) and applied immediately in place
+  - lists every per-stock override with edit and clear
+- *Overrides.* The registry (`vmi/overrides.py`) now has the moat review keys; the earlier entry covers the rest.
+- *Tools.* `tools/segment_analysis.py` (segments by every feature), `tools/haircut_sweep.py` (sweeps any
+  setting through the full model).
+- *Judgements* (`config/judgements.json`): removed NVDA, MELI and AMZN (the rule covers them); VEEV → lowest;
+  added UNH method dcf_fcf.
+
+**Verified:**
+- 79 offline tests.
+- Calibration with judgements: median 0.851, 15 within ±15%, 10 in band, 11 >1.05, 7 <0.75.
+- UI screenshots of Settings and the NVDA analysis (overrides card and moat review).
+
+**Open:**
+- The remaining outliers listed in `docs/CALIBRATION.md`.
+- The sandbox lacks Yahoo (market cap, a third growth source), so ADR names and blends should be re-checked on
+  the owner's PC.
 
 ### 2026-11-05 — Growth = lowest analyst source by default; full judgement-override layer
 **Why:** owner directive: be conservative by default (lowest source, not the average), and make every input
