@@ -51,6 +51,9 @@ FLOW_CONCEPTS: dict[str, tuple[str, ...]] = {
     "dividends_paid": ("PaymentsOfDividends", "PaymentsOfDividendsCommonStock"),
     "buybacks": ("PaymentsForRepurchaseOfCommonStock",),
     "sbc": ("ShareBasedCompensation", "AllocatedShareBasedCompensationExpense"),
+    # moat evidence (Step 3): reinvestment / scale intensity
+    "rd": ("ResearchAndDevelopmentExpense", "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost"),
+    "sga": ("SellingGeneralAndAdministrativeExpense",),
 }
 PER_SHARE_CONCEPTS: dict[str, tuple[str, ...]] = {
     "eps_diluted": ("EarningsPerShareDiluted", "EarningsPerShareBasicAndDiluted", "EarningsPerShareBasic"),
@@ -86,6 +89,10 @@ INSTANT_CONCEPTS: dict[str, tuple[str, ...]] = {
     "inventory": ("InventoryNet",),
     "payables": ("AccountsPayableCurrent", "AccountsPayableAndAccruedLiabilitiesCurrent"),
     "shares_outstanding": ("CommonStockSharesOutstanding",),
+    # moat evidence (Step 3): switching costs / recurring business
+    "deferred_revenue": ("ContractWithCustomerLiabilityCurrent", "DeferredRevenueCurrent",
+                         "ContractWithCustomerLiability", "DeferredRevenue"),
+    "rpo": ("RevenueRemainingPerformanceObligation",),
 }
 DEI_SHARES = "EntityCommonStockSharesOutstanding"
 
@@ -398,7 +405,7 @@ def fundamentals(ticker: str, force: bool = False) -> Fundamentals | None:
     if cik is None:
         return None
     cache = get_cache()
-    key = f"sec:fund:v8:{cik}"  # bump when normalise() output changes
+    key = f"sec:fund:v9:{cik}"  # bump when normalise() output changes
     if not force:
         cached = cache.get(key, get_settings().ttl_fundamentals)
         if cached:

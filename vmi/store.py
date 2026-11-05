@@ -178,6 +178,11 @@ def get_override(symbol: str) -> dict:
     return out
 
 
+def _stamped(data: dict | None) -> dict | None:
+    from vmi.overrides import stamp_review  # local import: vmi.overrides imports nothing from the store at load time
+    return stamp_review(data) if data else data
+
+
 def _merge(current: dict, changes: dict | None, clear_all: bool) -> dict:
     """Apply changes to stored overrides: a None value removes that key; clear_all empties everything."""
     out = {} if clear_all else dict(current)
@@ -193,7 +198,7 @@ def set_override(symbol: str, data: dict | None, note: str = "", clear_all: bool
     """Merge validated changes into the DB override for one ticker (see vmi.overrides.validate)."""
     with session() as s:
         o = s.get(Override, symbol.upper())
-        merged = _merge(dict(o.data) if o else {}, data, clear_all)
+        merged = _merge(dict(o.data) if o else {}, _stamped(data), clear_all)
         if o is None:
             o = Override(symbol=symbol.upper(), data=merged, note=note)
             s.add(o)
@@ -212,7 +217,7 @@ def set_judgement(symbol: str, data: dict | None, note: str = "", clear_all: boo
     except (OSError, ValueError):
         raw = {}
     sym = symbol.upper()
-    entry = _merge({k: v for k, v in raw.get(sym, {}).items() if k != "note"}, data, clear_all)
+    entry = _merge({k: v for k, v in raw.get(sym, {}).items() if k != "note"}, _stamped(data), clear_all)
     note = "" if clear_all else (note or raw.get(sym, {}).get("note", ""))
     if entry or note:
         raw[sym] = {**entry, **({"note": note} if note else {})}

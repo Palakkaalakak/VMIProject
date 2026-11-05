@@ -168,3 +168,29 @@ def test_step5_two_of_three_core_ratios_and_financials_exempt(fund_factory):
                      latest={"current_assets": 90.0, "current_liabilities": 400.0})
     assert step5_debt(f, BizType.NORMAL).passed
     assert step5_debt(f, BizType.INSURANCE).passed and step5_debt(f, BizType.INSURANCE).checks == []
+
+
+def test_moat_evidence_pricing_power_switching_and_review(fund_factory):
+    from datetime import date
+
+    from vmi.analysis import moat_evidence as ME
+
+    years = tuple(range(2017, 2026))
+    held = fund_factory(years=years, revenue=[100] * 9, gross_profit=[60, 60, 61, 60, 59, 60, 61, 62, 62],
+                        deferred_revenue=[10, 11, 12, 14, 16, 18, 21, 24, 27], rd=[8] * 9)
+    cut = fund_factory(years=years, revenue=[100] * 9, gross_profit=[60, 60, 60, 60, 52, 48, 50, 55, 58])
+    assert ME.pricing_power(held)["held"] is True and ME.pricing_power(cut)["held"] is False
+    assert ME.pricing_power(fund_factory(years=(2024, 2025), revenue=[1, 1], gross_profit=[.5, .5]))["held"] is None
+    sw = ME.switching_costs(held)
+    assert sw["available"] and sw["deferred_trend"] == "rising" and not ME.switching_costs(cut)["available"]
+    assert ME.intensity(held)["rd"]["latest"] == 0.08
+    stale = ME.review_status("2024-01-01", cut, today=date(2026, 11, 5))
+    assert stale["due"] and any("days old" in r for r in stale["reasons"])
+    fresh = ME.review_status("2026-06-01", held, today=date(2026, 11, 5))
+    assert not fresh["due"] and ME.review_status(None, held)["reasons"] == ["no review date recorded"]
+    wobble = fund_factory(years=years, revenue=[1000] * 9, gross_profit=[600] * 6 + [599, 598, 597])
+    assert not ME.review_status("2026-06-01", wobble, today=date(2026, 11, 5))["due"]  # <1 point: noise
+    no_gross = fund_factory(years=years, revenue=[100] * 9, operating_income=[30, 30, 31, 30, 29, 30, 31, 30, 30])
+    assert ME.pricing_power(no_gross)["held"] is True and "operating" in ME.pricing_power(no_gross)["measure"]
+    fell = fund_factory(years=years, revenue=[100] * 9, gross_profit=[60, 60, 60, 60, 60, 60, 58, 56, 54])
+    assert any("fell 2 years" in r for r in ME.review_status("2026-06-01", fell, today=date(2026, 11, 5))["reasons"])

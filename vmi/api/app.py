@@ -158,6 +158,19 @@ def delete_override(symbol: str, commit: bool = False):
     return (store.set_judgement if commit else store.set_override)(symbol, None, "", clear_all=True)
 
 
+@ar.get("/{symbol}/moat-evidence")
+def moat_evidence(symbol: str):
+    """Network-backed moat evidence, loaded on demand: peer comparison + annual-report excerpts."""
+    from vmi.analysis import moat_peers
+    from vmi.data import filings
+    from vmi.data.fundamentals import resolve
+    ov = store.get_override(symbol)
+    f = resolve(symbol)
+    cik = f.cik if f else None
+    return {"peers": moat_peers.compare(symbol, ov.get("peers")),
+            "filing": filings.excerpts(cik) if cik else {}}
+
+
 @ar.get("/{symbol}/fundamentals")
 def fundamentals(symbol: str):
     from vmi.data.fundamentals import resolve

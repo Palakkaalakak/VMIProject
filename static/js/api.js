@@ -28,6 +28,7 @@ export const api = {
   override: (s) => request("GET", `/api/analysis/${s}/override`),
   setOverride: (s, body) => request("PUT", `/api/analysis/${s}/override`, body),
   clearOverride: (s, commit = false) => request("DELETE", `/api/analysis/${s}/override${qs({ commit })}`),
+  moatEvidence: (s) => request("GET", `/api/analysis/${s}/moat-evidence`),
   overrideSchema: () => request("GET", "/api/overrides/schema"),
   overridesAll: () => request("GET", "/api/overrides"),
   // settings (vmi/rules.py values, editable)

@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import asdict, dataclass
+from datetime import date
 
 GROWTH_SOURCES = ("ib", "finviz", "zacks", "yahoo", "stockanalysis")
 STEP_CHOICES = ("", "pass", "fail")
@@ -30,7 +31,7 @@ STEP_CHOICES = ("", "pass", "fail")
 @dataclass(frozen=True)
 class Field:
     key: str
-    kind: str          # number | percent | text | choice | list_number | list_choice | dict_percent | json
+    kind: str          # number | percent | text | choice | list_number | list_choice | list_text | dict_percent | json
     group: str
     label: str
     help: str
@@ -88,6 +89,10 @@ FIELDS: tuple[Field, ...] = (
           "Adam: ≥3 of 5 → invest (4+ wide, 3 narrow if no verdict given).",
           ("brand", "switching_costs", "network_effect", "barriers", "scale")),
     Field("moat_score", "number", "Moat review", "Moat score /10", "AI or human score; Adam wants 7–9 (8+ wide)."),
+    Field("moat_reviewed_on", "text", "Moat review", "Reviewed on",
+          "Date of the verdict (YYYY-MM-DD); filled in automatically when a verdict is saved."),
+    Field("peers", "list_text", "Moat review", "Peer tickers",
+          "Your own competitor list for the peer comparison (default: the same S&P 500 sub-industry)."),
     # --- verdicts ---------------------------------------------------------------------------------------------
     *(Field(f"step{i}", "choice", "Steps", f"Step {i}", "Force this step's verdict (the reason goes in the note).",
             STEP_CHOICES) for i in range(1, 8)),
@@ -138,6 +143,9 @@ def validate(data: dict) -> dict:
             if bad:
                 raise ValueError(f"{key}: unknown {bad}; choose from {list(choices)}")
             out[key] = [x.strip() for x in items]
+        elif f.kind == "list_text":
+            items = raw if isinstance(raw, list) else str(raw).replace(";", ",").split(",")
+            out[key] = [str(x).strip().upper() for x in items if str(x).strip()]
         elif f.kind == "dict_percent":
             pairs = raw.items() if isinstance(raw, dict) else (x.split("=", 1) for x in str(raw).split(",") if "=" in x)
             out[key] = {str(k).strip().lower(): float(v) for k, v in pairs}
@@ -160,6 +168,16 @@ def pins_in_scanner(data: dict) -> bool:
         return False
     return data.get("scan") == "pin" or any(k in BY_KEY and BY_KEY[k].group not in REVIEW_GROUPS and k != "scan"
                                             for k in data)
+
+
+MOAT_VERDICT_KEYS = ("moat_grade", "moat_sources", "moat_score")
+
+
+def stamp_review(data: dict, today: date | None = None) -> dict:
+    """Add today's date as `moat_reviewed_on` when a moat verdict is being saved (and no date was given)."""
+    if any(data.get(k) not in (None, "", []) for k in MOAT_VERDICT_KEYS) and not data.get("moat_reviewed_on"):
+        return {**data, "moat_reviewed_on": (today or date.today()).isoformat()}
+    return data
 
 
 def describe(ov: dict) -> list[str]:

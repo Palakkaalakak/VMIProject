@@ -58,6 +58,14 @@ class GrowthRules:  # Step 2 + Lesson 5 §4.6
 class MoatRules:  # Step 3
     min_sources: int = 3                   # "at least THREE out of these FIVE"
     min_ai_score: int = 7                  # "7, 8 or 9 out of 10 gives me more confidence"
+    # Pricing-power test ("can it raise prices every year without losing share?"): gross margin must hold through
+    # a cost-inflation stress window compared with the years before it.
+    pricing_baseline_years: tuple[int, ...] = (2018, 2019, 2020)
+    pricing_stress_years: tuple[int, ...] = (2021, 2022, 2023)
+    pricing_tolerance: float = 0.02        # margin may dip up to 2 points below the baseline
+    review_max_age_days: int = 365         # a moat verdict older than this is flagged "review due"
+    review_decline_years: int = 2          # ... or when a margin fell this many years in a row
+    review_decline_min: float = 0.01       # ... by at least this much in total (1 point; smaller moves are noise)
     no_moat_industries: tuple[str, ...] = (
         # whole-word phrases (so "Fire, Marine & Casualty Insurance" or "Goldman" never match)
         "airline", "oil & gas", "oil and gas", "crude", "petroleum", "shipping", "marine shipping", "deep sea",

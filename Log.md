@@ -12,7 +12,7 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Current state (2026-11-05)
 
-- Offline test suite: `python3 -m pytest -q tests`, 86 passing.
+- Offline test suite: `python3 -m pytest -q tests`, 90 passing.
 - Fundamentals: SEC EDGAR → stockanalysis → Yahoo, merged in `vmi/data/fundamentals.py`. IB is tried first:
   TWS XML (works only if IB still permits it for your login), then the Client Portal Gateway
   (`vmi/data/ibportal/`). **The gateway path is implemented and offline-tested, but it has not been run
@@ -37,6 +37,35 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 ---
 
 ## Entries
+
+### 2026-11-05 — Moat evidence expanded (no AI scorer, by decision)
+**Why:** the owner approved every proposed helper except the AI moat scorer, which isn't trustworthy enough.
+
+**Added to Step 3** (evidence only; the verdict stays with the reviewer):
+- `pricing_power_through_inflation`: margin before (2018–20) vs during (2021–23) the cost-inflation window. It uses
+  gross margin and falls back to operating margin when gross profit is missing or too short (e.g. Visa).
+  Thresholds are in `MoatRules` / Settings.
+- `recurring_revenue` (deferred revenue and contracted backlog vs sales) and `reinvestment_intensity` (R&D,
+  SG&A, capex vs sales). New SEC concepts: `rd`, `sga`, `deferred_revenue`, `rpo`.
+- Review dates and staleness: saving a moat verdict stamps `moat_reviewed_on`. "Review due" is flagged when the
+  verdict is older than 365 days, has no date, or a margin fell 2 years in a row by ≥1 point.
+- Peer comparison (`vmi/analysis/moat_peers.py`): S&P 500 sub-industry, or your own list in the `peers`
+  override. Size, share, margins, 3-year growth, ranks and a "looks like the leader" hint, from SEC frames.
+- Annual-report excerpts (`vmi/data/filings.py`): the 10-K competition passage and customer-concentration
+  sentences, verbatim with the filing date. Both network pieces load on demand (button in Step 3) via
+  `GET /api/analysis/{symbol}/moat-evidence`, so analysis stays fast.
+
+**Oversight findings:**
+- Visa's gross-profit history starts in 2022 → operating-margin fallback.
+- A 0.1-point margin wobble was flagged as "falling" → added the 1-point minimum.
+- The 42 earlier AI reviews had no dates → backfilled to 2026-11-05.
+- A review question still mentioned an AI scorer → reworded.
+- Flags that look right: UNH operating margin 8.7% → 4.2%; MSFT gross margin down (AI depreciation); LVMUY, MELI,
+  POOL margins down.
+
+**Verified:** 90 offline tests; live SEC data (V peer table, NVDA 10-K excerpts); browser run with no errors.
+
+**Open:** IB ratings (#8) once the gateway works. Many peers lack gross margin in SEC frames (shown as "—").
 
 ### 2026-11-05 — More control, an oversight run (AI reviewer), rules fixes found by reviewing
 **More per-stock control** (UI card / API / CLI; registry `vmi/overrides.py`):

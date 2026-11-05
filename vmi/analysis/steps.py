@@ -13,6 +13,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Any
 
 from vmi.analysis.classify import BizType, is_no_moat_industry
+from vmi.analysis import moat_evidence as ME
 from vmi.analysis.consistency import series_trend
 from vmi.analysis import negative_equity
 from vmi.analysis.trends import falling_streak, mean, trend
@@ -152,7 +153,7 @@ MOAT_QUESTIONS = (
     "Pricing power test: can it raise prices every year without losing market share? (yes → wide)",
     "Are the closest competitors clearly weaker? Is this the top dog of its industry?",
     "Could a bigger competitor disrupt it within 1–3 years (no moat) or beyond 10 years (narrow)?",
-    "Score each of the five sources /10 (an AI can do this); Adam wants ≥3 of 5 sources and an overall 7–9/10.",
+    "Score each of the five sources /10 yourself; Adam wants ≥3 of 5 sources and an overall 7–9/10.",
 )
 
 
@@ -229,19 +230,39 @@ def step3_moat(f: Fundamentals, est: Estimates, ten_year_uptrend: bool | None, b
         Check("scale", None, {"revenue": f.last("revenue"), "market_cap": mcap}, "evidence for economies of scale",
               "compare with the closest competitors"),
     ]
+    pricing, switching, intens = ME.pricing_power(f, rules), ME.switching_costs(f), ME.intensity(f)
+    checks += [
+        Check("pricing_power_through_inflation", pricing["held"], pricing["stress_min"],
+              f"{pricing['measure']} in {rules.moat.pricing_stress_years[0]}–{rules.moat.pricing_stress_years[-1]} within "
+              f"{rules.moat.pricing_tolerance:.0%} of the pre-inflation average",
+              "" if pricing["baseline"] is None else f"baseline {pricing['baseline']:.1%} → worst stress year "
+              f"{pricing['stress_min']:.1%}, latest {pricing['latest']:.1%}"),
+        Check("recurring_revenue", None, switching["deferred_revenue_pct"][-1:] or None,
+              "deferred revenue / backlog relative to sales (switching costs)",
+              f"deferred {switching['deferred_trend'] or 'n/a'}, backlog {switching['rpo_trend'] or 'n/a'}"
+              if switching["available"] else "not reported"),
+        Check("reinvestment_intensity", None, {k: v["latest"] for k, v in intens.items()},
+              "R&D, SG&A and capex as a share of sales (scale, out-spending competitors)",
+              ", ".join(f"{k} {v['trend']}" for k, v in intens.items() if v["trend"])),
+    ]
     signals = [c for c in checks if c.passed is not None]
     support = sum(c.passed for c in signals) / len(signals) if signals else 0.0
     hint = "none" if no_moat_ind else "wide" if support >= 0.8 else "narrow" if support >= 0.6 else "none"
 
     verdict = moat_verdict(review, rules)
     extra = {"reviewed": verdict is not None, "hint": hint, "support": round(support, 3),
-             "sources": MOAT_SOURCES, "questions": list(MOAT_QUESTIONS), "verdict": verdict}
+             "sources": MOAT_SOURCES, "questions": list(MOAT_QUESTIONS), "verdict": verdict,
+             "evidence": {"pricing_power": pricing, "switching_costs": switching, "intensity": intens},
+             "review": ME.review_status((review or {}).get("moat_reviewed_on") if verdict else None, f, rules)
+             if verdict else {"reviewed_on": None, "age_days": None, "due": False, "reasons": []}}
     if verdict:
         grade = verdict["grade"]
         checks.append(Check("reviewer_verdict", grade in ("wide", "narrow"), grade,
                             f"≥{rules.moat.min_sources} of 5 sources / score ≥{rules.moat.min_ai_score}",
                             f"sources: {', '.join(verdict['sources']) or '—'}; score: {verdict['score'] if verdict['score'] is not None else '—'}"))
         notes = [f"Moat reviewed: {grade}."]
+        if extra["review"]["due"]:
+            notes.append("MOAT REVIEW DUE: " + "; ".join(extra["review"]["reasons"]))
     else:
         grade = hint
         notes = [f"UNREVIEWED — data hint '{hint}' ({support:.0%} of signals supportive). Record a verdict "

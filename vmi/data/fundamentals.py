@@ -277,7 +277,7 @@ def _derive(f: Fundamentals) -> None:
     put_ratio("ccc", ccc)
 
 
-MERGED_KEY = "fund:merged:v10:{}"  # bump the version when the merge logic changes
+MERGED_KEY = "fund:merged:v11:{}"  # bump the version when the merge logic changes
 
 
 def invalidate(ticker: str) -> None:

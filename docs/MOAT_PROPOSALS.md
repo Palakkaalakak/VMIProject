@@ -1,4 +1,13 @@
-# Proposals: better evidence for the (discretionary) moat review
+# Moat-review evidence: proposals and status (updated 2026-11-05)
+
+**Built:** #1 peer comparison, #3 pricing-power test, #4 switching-cost proxies, #5 annual-report excerpts,
+#6 reinvestment intensity, #7 staleness alerts. **Dropped by decision: #2 AI moat scorer** (an AI score is not
+trustworthy enough to rank evidence; the reviewer scores the five sources). **Waiting:** #8 IB ratings, until
+the gateway is confirmed on the owner's PC. Code: `vmi/analysis/moat_evidence.py` (statement-based),
+`vmi/analysis/moat_peers.py` (SEC frames), `vmi/data/filings.py` (10-K text), endpoint
+`GET /api/analysis/{symbol}/moat-evidence`, UI button in Step 3. Thresholds are in Settings → moat.
+
+The original proposals follow.
 
 The moat verdict stays with the reviewer, a person or an AI. These additions would give the reviewer more and
 better evidence, ranked by value for effort. Each one maps to something Adam explicitly checks (master doc,
