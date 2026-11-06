@@ -38,6 +38,13 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-06 — Why conf.tws.yaml had no effect (and how to start the gateway)
+Real run: a 302 redirect to `api.ibkr.com` showed the gateway was still on `conf.yaml` even after
+`bin\run.bat root\conf.tws.yaml`. Cause (read from IBKR's scripts): `run.bat` only uses its argument to derive the
+folder and never passes the file to Java, whose `--conf` option defaults to `conf.yaml`. Fix for the owner: start Java
+directly with `--conf conf.tws.yaml` (command in README and in the error hint). Not yet verified: that the portal
+profile then authenticates and serves `/tws.proxy/fundamentals/...`.
+
 ### 2026-11-06 — First real IB gateway run: route fix
 Owner's run: login and ticker lookup worked (`session ok`, AAPL conid 265598). Every fundamentals request failed:
 `/v1/tws/...` gave "Unknown service tws", and `/v1/api/tws.proxy/...` gave 404.

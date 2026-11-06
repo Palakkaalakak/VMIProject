@@ -76,10 +76,14 @@ gateway must use **different usernames**. Your paper login counts as a separate 
    Settings → **Read-Only API** ticked. The app finds the port itself (tries 7496, 7497, 4001, 4002); set
    `VMI_IB_PORT` only to force one. It only reads market data; its paper trading is simulated locally.
 2. **IBKR Client Portal Gateway on your paper login:** download
-   https://download2.interactivebrokers.com/portal/clientportal.gw.zip (it needs Java), unzip it, run
-   `bin/run.sh root/conf.yaml` (Windows: `bin\run.bat root\conf.yaml`), and log in at https://localhost:5000 with the
-   paper username. No setting is needed: the app looks for the gateway at https://localhost:5000 by itself (rechecking
-   every minute) and skips it quietly when it isn't running or logged in. Set `VMI_IB_CP_URL=` (empty) to never try.
+   https://download2.interactivebrokers.com/portal/clientportal.gw.zip (it needs Java) and unzip it. IBKR's `bin\run.bat`
+   ignores the config name you give it and always loads `conf.yaml`, which serves IB's public Web API (no fundamentals).
+   Fundamentals need the `conf.tws.yaml` profile, so start Java directly from the `clientportal.gw` folder (one line):
+   ```
+   java -server -Dvertx.disableDnsResolver=true -Djava.net.preferIPv4Stack=true -classpath "root\;dist\ibgroup.web.core.iblink.router.clientportal.gw.jar;build\lib\runtime\*" ibgroup.web.core.clientportal.gw.GatewayStart --conf conf.tws.yaml
+   ```
+   Then log in at https://localhost:5000 with the paper username. The app finds the gateway by itself (rechecking every
+   minute) and skips it quietly when it isn't running or logged in. Set `VMI_IB_CP_URL=` (empty) to never try.
 3. Check what works, then fill the cache:
    ```bash
    python3 -m vmi.data.ib_fundamentals check AAPL

@@ -9,7 +9,9 @@ Where they come from (details and dates in Log.md, 2026-11-05):
     (`/v1/tws/...`) is never registered in this build ("Unknown service tws", confirmed on a real run 2026-11-06).
     The default `root/conf.yaml` points at IB's public Web API host (no fundamentals there: 404, confirmed);
     `root/conf.tws.yaml` points at the portal website host, which serves `/tws.proxy/fundamentals/...`.
-    So: run the gateway with the `root/conf.tws.yaml` profile and ask it for `/tws.proxy/...` directly.
+    So: run the gateway with the `conf.tws.yaml` profile and ask it for `/tws.proxy/...` directly. NOTE: IBKR's
+    `bin\run.bat` never passes its file argument to Java (it only derives the folder), so `run.bat root\conf.tws.yaml`
+    silently loads conf.yaml (confirmed on a real run 2026-11-06). Start Java yourself with `--conf conf.tws.yaml`.
 
 READ-ONLY RULE: this package only reads. It never calls /iserver routes (trading/brokerage). `client.Portal`
 refuses them, so the rule is enforced in code. Note that the gateway itself opens a brokerage session for
@@ -20,9 +22,11 @@ from __future__ import annotations
 # --- gateway services (path prefixes on the gateway) ----------------------------------------------------
 WEB_API = "/v1/api"                                  # session + contract routes
 FUNDAMENTALS_BASES = ("/tws.proxy", "/v1/api")  # tried in order; the first that answers is remembered
-GATEWAY_CONFIG_HINT = ("If every route failed, stop the gateway and restart it with the portal profile: "
-                       "bin\\run.bat root\\conf.tws.yaml (Windows) or bin/run.sh root/conf.tws.yaml, log in again, "
-                       "then retry. The default conf.yaml serves IB's public Web API, which has no fundamentals.")
+GATEWAY_CONFIG_HINT = ("If every route failed, the gateway is on its default conf.yaml (IB's public Web API, no fundamentals). "
+                       "IBKR's bin\\run.bat ignores the file name you give it, so start Java directly from the clientportal.gw "
+                       "folder: java -server -Djava.net.preferIPv4Stack=true -classpath \"root\\;dist\\"
+                       "ibgroup.web.core.iblink.router.clientportal.gw.jar;build\\lib\\runtime\\*\" "
+                       "ibgroup.web.core.clientportal.gw.GatewayStart --conf conf.tws.yaml  (then log in again)")
 
 # --- session (Web API) ------------------------------------------------------------------------------------
 SESSION_VALIDATE = "/sso/validate"   # GET → 200 + JSON while logged in, 401 otherwise
