@@ -285,3 +285,20 @@ def test_non_json_answer_falls_back_to_the_next_route_and_is_reported():
         with pytest.raises(C.PortalError, match="not JSON.*text/html.*nope.*conf.tws.yaml"):
             p.financials(1, "income")
     C._working_base.clear()
+
+
+def test_redirect_answer_reports_where_it_points_and_tries_the_next_route():
+    C._working_base.clear()
+
+    def handler(req: httpx.Request):
+        if req.url.path.startswith("/tws.proxy/"):
+            return httpx.Response(302, headers={"location": "https://gw.test/sso/Login?x=1"})
+        return httpx.Response(200, json=INCOME)
+
+    with portal(httpx.MockTransport(handler)) as p:
+        assert p.financials(1, "income")["table"]["rows"]
+    C._working_base.clear()
+    with portal(httpx.MockTransport(lambda r: httpx.Response(302, headers={"location": "https://gw.test/sso/Login"}))) as p:
+        with pytest.raises(C.PortalError, match="HTTP 302 → redirected to https://gw.test/sso/Login"):
+            p.financials(1, "income")
+    C._working_base.clear()

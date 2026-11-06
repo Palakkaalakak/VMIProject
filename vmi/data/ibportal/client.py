@@ -78,7 +78,8 @@ class Portal:
         if r.status_code == 401:
             raise PortalError(f"not logged in: open {self.base} in a browser and log in", 401)
         if r.status_code != 200:
-            raise PortalError(f"{method} {path} → HTTP {r.status_code}: {r.text[:160]}", r.status_code)
+            where = f" → redirected to {r.headers.get('location')}" if 300 <= r.status_code < 400 else ""
+            raise PortalError(f"{method} {path} → HTTP {r.status_code}{where}: {r.text[:160]}", r.status_code)
         if not r.content:
             return None
         try:
@@ -99,7 +100,7 @@ class Portal:
             try:
                 data = self._send("GET", b + route, params or None)
             except PortalError as exc:
-                if exc.status in (404, 405, NOT_JSON) and not known:  # this base doesn't serve it: try the next
+                if exc.status in (301, 302, 303, 307, 308, 404, 405, NOT_JSON) and not known:  # not served here: try the next
                     tried.append(str(exc))
                     continue
                 raise
