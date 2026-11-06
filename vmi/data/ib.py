@@ -28,6 +28,7 @@ from vmi.data import market_hours
 from vmi.data.models import OptionQuote, Quote
 
 log = logging.getLogger("vmi.ib")
+logging.getLogger("ib_async").setLevel(logging.CRITICAL)  # its "connection failed" line repeats on every retry; we keep the reason in last_error / port_errors
 
 
 def _clean(v: Any) -> float | None:
