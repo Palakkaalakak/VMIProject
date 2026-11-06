@@ -43,12 +43,6 @@ KEEPALIVE = "/tickle"                # POST → keeps the session alive (session
 # --- contracts (Web API) ------------------------------------------------------------------------------------
 STOCKS_BY_SYMBOL = "/trsrv/stocks"   # GET ?symbols=AAPL,MSFT → {SYM: [{assetClass, contracts: [{conid, isUS}]}]}
 SYMBOLS_PER_REQUEST = 50
-# Symbol → conid on the portal site (browser login). Evidence: the portal's own JS calls
-# PORTAL_BASE_URL("/portal.proxy/v1/portal") + "/iserver/secdef/search?symbol=<SYM>" (getSearchBySym). It is a contract
-# search, not trading, so it is the ONE /iserver route client.Portal lets through (READ_ONLY_EXCEPTIONS).
-SECDEF_SEARCH = "/iserver/secdef/search"   # GET ?symbol=AAPL → [{conid, symbol, description (exchange), sections:[{secType}]}]
-READ_ONLY_EXCEPTIONS = (SECDEF_SEARCH,)
-US_EXCHANGES = ("NYSE", "NASDAQ", "AMEX", "ARCA", "BATS", "NYSE ARCA")
 
 # --- fundamentals (served under FUNDAMENTALS_BASES) -------------------------------------------------------
 FINANCIALS = "/fundamentals/financials/{conid}"

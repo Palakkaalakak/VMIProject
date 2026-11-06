@@ -45,6 +45,11 @@ LABELS = {
     "total stockholders equity": "equity", "total shareholders equity": "equity",
     "long term debt": "lt_debt", "total long term debt": "lt_debt", "notes payable short term debt": "st_debt",
     "goodwill net": "goodwill", "intangibles net": "intangibles",
+    # exact row names seen in a real AAPL answer (2026-11-06), see Log.md
+    "Cost of Rev.": "cost_of_revenue", "Selling/General/Admin. Expenses, Total": "sga", "Rsrch and Dev. Exp.": "rd",
+    "Net Income bf/Tax": "pretax_income", "Net Inc. Incl. Ex. Items": "net_income",
+    "Diluted EPS Excluding ExtraOrd Items": "eps_diluted", "Dividend Per Share": "dps",
+    "Cash from Op. Act.": "cfo", "Shares Outstanding": "shares_outstanding",
     "total receivables net": "receivables", "accounts receivable trade net": "receivables",
     "total inventory": "inventory", "accounts payable": "payables",
     "total common shares outstanding": "shares_outstanding",
@@ -147,20 +152,6 @@ def pick_conid(payload, symbol: str) -> int | None:
 
 
 # ------------------------------------------------------------------------------------------- statements
-def pick_secdef_conid(rows, symbol: str) -> int | None:
-    """/iserver/secdef/search answer → the US stock conid whose symbol matches (first US-listed STK, else first STK)."""
-    want = symbol.upper().replace("-", " ").replace(".", " ")
-    stocks = [r for r in rows if isinstance(r, dict) and str(r.get("symbol", "")).upper() == want
-              and any(sec.get("secType") == "STK" for sec in r.get("sections") or [])]
-    us = [r for r in stocks if str(r.get("description", "")).upper().strip("() ") in routes.US_EXCHANGES]
-    for r in us + stocks:
-        try:
-            return int(r["conid"])
-        except (KeyError, TypeError, ValueError):
-            continue
-    return None
-
-
 def parse_financials(payload, f: Fundamentals, quarterly: bool = False) -> int:
     """Merge one financials payload into `f.annual` (or `f.quarterly`). Returns points added."""
     if not payload:

@@ -25,7 +25,7 @@ KEY_FUND = "ibportal:fund:v1:{}"
 KEY_EST = "ibportal:est:v1:{}"
 KEY_CONID = "ibportal:conid:{}"
 CONID_TTL = 180 * 24 * 3600  # conids are permanent identifiers
-KNOWN_CONIDS = {"AAPL": 265598}  # used only by check() when the contract route fails (confirmed on a real run 2026-11-06)
+KNOWN_CONIDS = {"AAPL": 265598, "MSFT": 272093}  # used only by check() when the contract route fails (confirmed on a real run 2026-11-06)
 
 
 def enabled() -> bool:
@@ -142,6 +142,12 @@ def check(tickers: Iterable[str], out_dir: Path, portal: Portal | None = None) -
             entry["analyst"] = parse.parse_analyst(raw.get("data_list") if isinstance(raw.get("data_list"), list)
                                                    else []).get(cid, {})
             entry["unmapped_rows"] = _unmapped_rows(raw)
+            entry["fin_trends"] = _fin_trends_sample(p, cid, raw)
+            kr = json.dumps(raw.get("key_ratios"), default=str)
+            entry["key_ratios_head"] = kr[:700]
+            km_raw = raw.get("key_metrics")
+            entry["key_metrics_values"] = {str(r.get("field_name")): r.get("display_value") for r in km_raw
+                                           if isinstance(r, dict)} if isinstance(km_raw, list) else None
             entry["data_list_values"] = parse.field_values(raw.get("data_list") if isinstance(raw.get("data_list"), list) else [])
             km = raw.get("key_metrics")
             entry["key_metrics_fields"] = sorted({str(r.get("field_name")) for r in km if isinstance(r, dict)})[:80] if isinstance(km, list) else None
@@ -150,6 +156,19 @@ def check(tickers: Iterable[str], out_dir: Path, portal: Portal | None = None) -
 
 
 # ------------------------------------------------------------------------------------------- internals
+def _fin_trends_sample(p: Portal, conid: int, raw: dict) -> dict:
+    """Analyst-estimate rows (hasEsimates) of the income statement → raw fin_trends answers, to find usable EPS/revenue estimates."""
+    table = (raw.get("income_annual") or {}).get("table") if isinstance(raw.get("income_annual"), dict) else None
+    rows = [r for r in (table or {}).get("rows", []) if isinstance(r, dict) and r.get("hasEsimates") and r.get("search_id")]
+    out = {}
+    for r in rows[:4]:
+        try:
+            out[str(r.get("metric_name"))] = json.dumps(p.fin_trends(conid, r["search_id"]), default=str)[:500]
+        except PortalError as exc:
+            out[str(r.get("metric_name"))] = str(exc)[:200]
+    return out or {"none": "no income row had hasEsimates + search_id"}
+
+
 def _unmapped_rows(raw: dict) -> dict[str, list[str]]:
     """Per annual statement: row labels IB returned that LABELS does not map (to extend parse.LABELS from evidence)."""
     out: dict[str, list[str]] = {}
@@ -198,9 +217,31 @@ def _conids(p: Portal, tickers: list[str]) -> dict[str, int]:
         else:
             missing.append(t)
     if missing:
-        for t, cid in p.conids(missing).items():
+        # The portal site has no symbol lookup that works without a trading session (/iserver/secdef/search answered
+        # "no bridge", 2026-11-06), so a browser login resolves symbols through the TWS API connection instead.
+        for t, cid in (_tws_conids(missing) if p.direct else p.conids(missing)).items():
             cache.set(KEY_CONID.format(t), cid)
             out[t] = cid
+    return out
+
+
+def _tws_conids(symbols: list[str], wait: float = 15.0) -> dict[str, int]:
+    """{SYMBOL: conid} from the running IB Gateway/TWS connection (the app's normal one)."""
+    from vmi.data.ib import gateway
+
+    gw = gateway()
+    gw.start()
+    deadline = time.monotonic() + wait
+    while not gw.connected and time.monotonic() < deadline:
+        time.sleep(0.5)
+    if not gw.connected:
+        raise PortalError("symbol lookup needs IB Gateway/TWS running (API enabled): " + str(gw.info().get("last_error")))
+    out = {}
+    for s in symbols:
+        try:
+            out[s] = gw.conid(s)
+        except Exception:
+            pass  # unknown to IB: omitted, like the gateway lookup
     return out
 
 

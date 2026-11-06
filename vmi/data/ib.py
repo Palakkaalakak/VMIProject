@@ -162,6 +162,10 @@ class IBGateway:
         return t
 
     # ------------------------------------------------------------------ public API (any thread)
+    def conid(self, symbol: str) -> int:
+        """IB contract id of a US stock (qualified on SMART)."""
+        return int(self.call(lambda: self._stock(symbol)).conId)
+
     def quote(self, symbol: str, wait: float = 2.0) -> Quote:
         async def run():
             c = await self._stock(symbol)

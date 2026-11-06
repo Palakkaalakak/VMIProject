@@ -78,7 +78,7 @@ class Portal:
     def _send(self, method: str, path: str, params: dict | None = None):
         import httpx
 
-        if "/iserver" in path and not any(path.endswith(ok) for ok in routes.READ_ONLY_EXCEPTIONS):
+        if "/iserver" in path:
             raise PortalError(f"refusing {path}: this client is read-only (no brokerage-session routes)")
         wait = self._last + self._gap - time.monotonic()
         if wait > 0:
@@ -153,16 +153,10 @@ class Portal:
     # ------------------------------------------------------------------------------------------ contracts
     def conids(self, symbols) -> dict[str, int]:
         """{SYMBOL: conid} for US stock listings (batched; symbols without a listing are omitted)."""
-        from vmi.data.ibportal.parse import pick_conid, pick_secdef_conid
+        from vmi.data.ibportal.parse import pick_conid
 
         syms = [s.upper() for s in symbols]
         out: dict[str, int] = {}
-        if self.direct:  # portal site: no /trsrv; one contract search per symbol
-            for s in syms:
-                rows = self._api("GET", routes.SECDEF_SEARCH, symbol=s.replace("-", " ").replace(".", " ")) or []
-                if (cid := pick_secdef_conid(rows, s)) is not None:
-                    out[s] = cid
-            return out
         for i in range(0, len(syms), routes.SYMBOLS_PER_REQUEST):
             chunk = syms[i:i + routes.SYMBOLS_PER_REQUEST]
             payload = self._api("GET", routes.STOCKS_BY_SYMBOL, symbols=",".join(chunk)) or {}
@@ -185,6 +179,9 @@ class Portal:
 
     def key_metrics(self, conid: int):
         return self._fundamentals(routes.KEY_METRICS.format(conid=conid), show="translations")
+
+    def fin_trends(self, conid: int, search_id, annual: bool = True):
+        return self._fundamentals(routes.FIN_TRENDS.format(conid=conid), search_id=search_id, annual=str(annual).lower())
 
     def key_ratios(self, conid: int):
         return self._fundamentals(routes.KEY_RATIOS.format(conid=conid))

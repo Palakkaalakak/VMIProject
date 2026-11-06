@@ -38,6 +38,21 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-06 — Real AAPL labels mapped; symbol lookup via TWS; growth-field hunt
+- Real run (AAPL, MSFT): `/iserver/secdef/search` on the portal site answered `400 {"error":"Bad Request: no bridge"}`
+  (needs a trading/brokerage session, which a browser login does not open). The secdef code and its read-only exception
+  were REMOVED (unverifiable). Symbol → conid in browser mode now uses the TWS API connection (`IBGateway.conid`, needs
+  the live IB Gateway running), cached 180 days. `KNOWN_CONIDS` only feeds `check`.
+- Row names from the real income/balance/cash answers added to `parse.LABELS` (net income = "Net Inc. Incl. Ex. Items",
+  CFO = "Cash from Op. Act.", plus cost of revenue, SG&A, R&D, pretax income, diluted EPS, DPS, shares outstanding).
+  Still unmapped on purpose: "Interest Inc.(Exp.),Net-Non-Op." (net, sign ambiguous), "Total Debt", PP&E rows.
+- Growth: `data_list` returned BETA only. `LONG_TERM_GROWTH` is a real IBKR column name (portal i18n
+  `col_LONG_TERM_GROWTH`, "Long Term Growth") but not returned for AAPL via data_list. `key_metrics` fields seen:
+  ADIVSHR ANALYST_CONSENSUS APR2TANBK APRICE2BK AQUICKRATI AREVPS AROEPCT DIVNQXDT DivYield_CurTTM EPSTRENDGR MKTCAP
+  PEEXCLXOR QREV TARGET_PRICE TARGET_TO_PRICE_PCT TICKER. `EPSTRENDGR` is not in the portal JS, so its meaning is
+  UNVERIFIED. `check` now prints key_metrics values, key_ratios head and `fin_trends` answers for the estimate rows
+  (hasEsimates + search_id) so the growth source is chosen from real data.
+
 ### 2026-11-06 — Browser path VERIFIED; conid lookup via secdef search; evidence lists in `check`
 - Real run `check AAPL --no-tws --browser`: all 9 fundamentals routes answered via `/tws.proxy` on the portal site;
   20 line items x 4 annual years parsed; `data_list` returned BETA only (1.09), not LONG_TERM_GROWTH. Contract route
