@@ -38,6 +38,21 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-06 — Browser path VERIFIED; conid lookup via secdef search; evidence lists in `check`
+- Real run `check AAPL --no-tws --browser`: all 9 fundamentals routes answered via `/tws.proxy` on the portal site;
+  20 line items x 4 annual years parsed; `data_list` returned BETA only (1.09), not LONG_TERM_GROWTH. Contract route
+  `/portal.proxy/v1/portal/trsrv/stocks` answered 401 (not a portal route).
+- Evidence for symbol lookup (portal JS in the 2026-11-05 research dump): `PORTAL_BASE_URL:"/portal.proxy/v1/portal"`,
+  `getSearchBySym` → `/iserver/secdef/search?symbol=`. `fundamentals/search/{conid}?query=` is a search INSIDE a
+  contract, not symbol → conid. Implemented: `Portal.conids` in direct mode calls secdef search per symbol;
+  `parse.pick_secdef_conid` picks the US-listed STK whose symbol matches. `routes.READ_ONLY_EXCEPTIONS` allows only that
+  one /iserver route (contract search, not trading). UNVERIFIED on a real login: the exact answer shape (documented
+  shape used: conid, symbol, description, sections[].secType).
+- Direct mode uses single bases (`DIRECT_*`), no fallback chains.
+- `check` now prints `unmapped_rows` (IB row labels not in parse.LABELS), `data_list_values` and `key_metrics_fields`,
+  so missing items (net income, CFO, interest, LONG_TERM_GROWTH) are fixed from the real labels, not guessed.
+- Ground rule added: research before building (docs/GROUND_RULES.md).
+
 ### 2026-11-06 — Browser login replaces the gateway for fundamentals (`--browser`)
 - Real run after the correction below: every gateway route 404s or 302s, so the gateway cannot carry fundamentals.
 - New `vmi/data/ibportal/browser.py`: `browser_portal()` opens Edge/Chrome (Playwright, `pip install playwright`, no

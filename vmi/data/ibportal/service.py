@@ -141,11 +141,26 @@ def check(tickers: Iterable[str], out_dir: Path, portal: Portal | None = None) -
             entry["parsed_annual"] = {c: len(v) for c, v in f.annual.items()} if f else {}
             entry["analyst"] = parse.parse_analyst(raw.get("data_list") if isinstance(raw.get("data_list"), list)
                                                    else []).get(cid, {})
+            entry["unmapped_rows"] = _unmapped_rows(raw)
+            entry["data_list_values"] = parse.field_values(raw.get("data_list") if isinstance(raw.get("data_list"), list) else [])
+            km = raw.get("key_metrics")
+            entry["key_metrics_fields"] = sorted({str(r.get("field_name")) for r in km if isinstance(r, dict)})[:80] if isinstance(km, list) else None
             entry["raw_file"] = str(out_dir / f"{sym}.json")
     return report
 
 
 # ------------------------------------------------------------------------------------------- internals
+def _unmapped_rows(raw: dict) -> dict[str, list[str]]:
+    """Per annual statement: row labels IB returned that LABELS does not map (to extend parse.LABELS from evidence)."""
+    out: dict[str, list[str]] = {}
+    for st in routes.STATEMENTS:
+        table = (raw.get(f"{st}_annual") or {}).get("table") if isinstance(raw.get(f"{st}_annual"), dict) else None
+        if isinstance(table, dict):
+            out[st] = [str(label) for label, _ in parse._table_rows(table) if not parse.concept_for(label)][:60]
+    return out
+
+
+
 _validated_until: dict[str, float] = {}  # gateway root → time until which the login is known to be valid
 SESSION_MEMO_S = 60
 

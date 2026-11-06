@@ -28,6 +28,10 @@ WEB_API = "/v1/api"
 # forwarded to portalBaseURL "/portal.proxy" in conf.tws.yaml, with the gateway's login cookies).
 API_BASES = ("/v1/api", "/v1/portal", "/portal.proxy/v1/portal")  # session + contract routes
 FUNDAMENTALS_BASES = ("/tws.proxy", "/v1/portal", "/v1/api")
+# Browser login straight on the portal site (browser.py). Verified on a real run 2026-11-06: /tws.proxy answers all
+# nine fundamentals routes; PORTAL_BASE_URL in the portal's own config is "/portal.proxy/v1/portal".
+DIRECT_FUNDAMENTALS_BASES = ("/tws.proxy",)
+DIRECT_API_BASES = ("/portal.proxy/v1/portal",)
 GATEWAY_CONFIG_HINT = ("If every route failed, the gateway is on its default conf.yaml (IB's public Web API, no fundamentals). "
                        "IBKR's bin\\run.bat ignores the file name you give it, so start the gateway with this repo's "
                        "launcher instead: tools\\start_cp_gateway.cmd C:\\path\\to\\clientportal.gw  (then log in again)")
@@ -39,6 +43,12 @@ KEEPALIVE = "/tickle"                # POST → keeps the session alive (session
 # --- contracts (Web API) ------------------------------------------------------------------------------------
 STOCKS_BY_SYMBOL = "/trsrv/stocks"   # GET ?symbols=AAPL,MSFT → {SYM: [{assetClass, contracts: [{conid, isUS}]}]}
 SYMBOLS_PER_REQUEST = 50
+# Symbol → conid on the portal site (browser login). Evidence: the portal's own JS calls
+# PORTAL_BASE_URL("/portal.proxy/v1/portal") + "/iserver/secdef/search?symbol=<SYM>" (getSearchBySym). It is a contract
+# search, not trading, so it is the ONE /iserver route client.Portal lets through (READ_ONLY_EXCEPTIONS).
+SECDEF_SEARCH = "/iserver/secdef/search"   # GET ?symbol=AAPL → [{conid, symbol, description (exchange), sections:[{secType}]}]
+READ_ONLY_EXCEPTIONS = (SECDEF_SEARCH,)
+US_EXCHANGES = ("NYSE", "NASDAQ", "AMEX", "ARCA", "BATS", "NYSE ARCA")
 
 # --- fundamentals (served under FUNDAMENTALS_BASES) -------------------------------------------------------
 FINANCIALS = "/fundamentals/financials/{conid}"

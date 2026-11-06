@@ -359,3 +359,39 @@ def test_browser_http_adapter_feeds_portal_like_httpx():
     p = C.Portal(http=BrowserHttp(Ctx, "https://site.test"))
     assert p.session() == {} and p.data_list([1], ["BETA"])[0]["field_name"] == "BETA"
     C._working_base.clear()
+
+
+import json
+
+
+def test_secdef_search_is_the_only_iserver_route_allowed_and_picks_the_us_stock():
+    from vmi.data.ibportal.browser import BrowserHttp
+    from vmi.data.ibportal.parse import pick_secdef_conid
+
+    rows = [{"conid": "9", "symbol": "AAPL", "description": "MEXI", "sections": [{"secType": "STK"}]},
+            {"conid": "265598", "symbol": "AAPL", "description": "NASDAQ", "sections": [{"secType": "STK"}, {"secType": "OPT"}]},
+            {"conid": "7", "symbol": "AAPLX", "description": "NASDAQ", "sections": [{"secType": "STK"}]}]
+    assert pick_secdef_conid(rows, "aapl") == 265598 and pick_secdef_conid([], "AAPL") is None
+
+    class R:
+        status, headers = 200, {}
+
+        def body(self):
+            return json.dumps(rows).encode()
+
+    seen = []
+
+    class Ctx:
+        class request:
+            @staticmethod
+            def fetch(url, **kw):
+                seen.append(url)
+                return R()
+
+    C._working_base.clear()
+    p = C.Portal(http=BrowserHttp(Ctx, "https://site.test"))
+    assert p.conids(["AAPL"]) == {"AAPL": 265598}
+    assert "iserver/secdef/search" in seen[0]
+    with pytest.raises(C.PortalError, match="read-only"):
+        p._send("GET", "/portal.proxy/v1/portal/iserver/account/orders")
+    C._working_base.clear()

@@ -147,6 +147,20 @@ def pick_conid(payload, symbol: str) -> int | None:
 
 
 # ------------------------------------------------------------------------------------------- statements
+def pick_secdef_conid(rows, symbol: str) -> int | None:
+    """/iserver/secdef/search answer → the US stock conid whose symbol matches (first US-listed STK, else first STK)."""
+    want = symbol.upper().replace("-", " ").replace(".", " ")
+    stocks = [r for r in rows if isinstance(r, dict) and str(r.get("symbol", "")).upper() == want
+              and any(sec.get("secType") == "STK" for sec in r.get("sections") or [])]
+    us = [r for r in stocks if str(r.get("description", "")).upper().strip("() ") in routes.US_EXCHANGES]
+    for r in us + stocks:
+        try:
+            return int(r["conid"])
+        except (KeyError, TypeError, ValueError):
+            continue
+    return None
+
+
 def parse_financials(payload, f: Fundamentals, quarterly: bool = False) -> int:
     """Merge one financials payload into `f.annual` (or `f.quarterly`). Returns points added."""
     if not payload:

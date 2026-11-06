@@ -78,7 +78,7 @@ class Portal:
     def _send(self, method: str, path: str, params: dict | None = None):
         import httpx
 
-        if "/iserver" in path:
+        if "/iserver" in path and not any(path.endswith(ok) for ok in routes.READ_ONLY_EXCEPTIONS):
             raise PortalError(f"refusing {path}: this client is read-only (no brokerage-session routes)")
         wait = self._last + self._gap - time.monotonic()
         if wait > 0:
@@ -129,10 +129,12 @@ class Portal:
                           + routes.GATEWAY_CONFIG_HINT, NOT_JSON)
 
     def _api(self, method: str, route: str, **params):
-        return self._routed("api", routes.API_BASES, method, route, params)
+        bases = routes.DIRECT_API_BASES if self.direct else routes.API_BASES
+        return self._routed("api", bases, method, route, params)
 
     def _fundamentals(self, route: str, **params):
-        return self._routed("fundamentals", routes.FUNDAMENTALS_BASES, "GET", route, params)
+        bases = routes.DIRECT_FUNDAMENTALS_BASES if self.direct else routes.FUNDAMENTALS_BASES
+        return self._routed("fundamentals", bases, "GET", route, params)
 
     # ------------------------------------------------------------------------------------------- session
     def session(self) -> dict:
@@ -151,10 +153,16 @@ class Portal:
     # ------------------------------------------------------------------------------------------ contracts
     def conids(self, symbols) -> dict[str, int]:
         """{SYMBOL: conid} for US stock listings (batched; symbols without a listing are omitted)."""
-        from vmi.data.ibportal.parse import pick_conid
+        from vmi.data.ibportal.parse import pick_conid, pick_secdef_conid
 
         syms = [s.upper() for s in symbols]
         out: dict[str, int] = {}
+        if self.direct:  # portal site: no /trsrv; one contract search per symbol
+            for s in syms:
+                rows = self._api("GET", routes.SECDEF_SEARCH, symbol=s.replace("-", " ").replace(".", " ")) or []
+                if (cid := pick_secdef_conid(rows, s)) is not None:
+                    out[s] = cid
+            return out
         for i in range(0, len(syms), routes.SYMBOLS_PER_REQUEST):
             chunk = syms[i:i + routes.SYMBOLS_PER_REQUEST]
             payload = self._api("GET", routes.STOCKS_BY_SYMBOL, symbols=",".join(chunk)) or {}
