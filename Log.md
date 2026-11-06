@@ -38,6 +38,18 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-06 — Browser login replaces the gateway for fundamentals (`--browser`)
+- Real run after the correction below: every gateway route 404s or 302s, so the gateway cannot carry fundamentals.
+- New `vmi/data/ibportal/browser.py`: `browser_portal()` opens Edge/Chrome (Playwright, `pip install playwright`, no
+  download needed), the owner logs in with the PAPER username, and `BrowserHttp` sends the GETs through that browser's
+  cookies to https://ndcdyn.interactivebrokers.com (`/tws.proxy/fundamentals/...`). `Portal(http=…)` is the same
+  client as before (same parse/cache code), `session()` is skipped because the login wait already proved the routes answer.
+- CLI: `python -m vmi.data.ib_fundamentals check AAPL --no-tws --browser`, `sync … --browser`. Results land in the
+  14-day cache, so a sync is needed about every two weeks, and the browser is closed afterwards.
+- UNVERIFIED on a real login: whether the portal site serves `/tws.proxy/fundamentals/*` to this client, and the
+  contract route (`/portal.proxy/v1/portal/trsrv/stocks`, `check` falls back to the AAPL conid if it fails).
+- The gateway path stays as is but is known not to work for fundamentals; remove it if the browser path is confirmed.
+
 ### 2026-11-06 — Correction: the gateway REDIRECTS unknown paths, it does not proxy them
 - Disassembly of GatewayHttpProxy (router setup): only `^/(v1|qa|ci|alpha|local)/(portal|am|api|tws)/…` is proxied
   (`generalHandler`, "api" is mapped to "portal"; "tws" has no registered service). The final `/*` route is

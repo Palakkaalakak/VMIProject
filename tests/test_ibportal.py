@@ -337,3 +337,25 @@ def test_redirect_to_the_same_path_is_retried_with_the_cookie_it_set():
         assert p.financials(1, "income")["table"]["rows"]
     assert len(seen) == 2 and "probe=1" in seen[1]
     C._working_base.clear()
+
+
+def test_browser_http_adapter_feeds_portal_like_httpx():
+    from vmi.data.ibportal.browser import BrowserHttp
+
+    class R:  # playwright APIResponse subset
+        status, headers = 200, {"Content-Type": "application/json"}
+
+        def body(self):
+            return b'[{"conid": 1, "field_name": "BETA", "display_value": "1.2"}]'
+
+    class Ctx:
+        class request:
+            @staticmethod
+            def fetch(url, **kw):
+                assert url == "https://site.test/tws.proxy/fundamentals/data_list" and kw["method"] == "GET"
+                return R()
+
+    C._working_base.clear()
+    p = C.Portal(http=BrowserHttp(Ctx, "https://site.test"))
+    assert p.session() == {} and p.data_list([1], ["BETA"])[0]["field_name"] == "BETA"
+    C._working_base.clear()

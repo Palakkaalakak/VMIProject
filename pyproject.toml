@@ -20,6 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+ibrowser = ["playwright>=1.40"]  # IB fundamentals through a browser login (vmi.data.ibportal.browser)
 
 [project.scripts]
 vmi = "vmi.cli:main"

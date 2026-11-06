@@ -257,11 +257,13 @@ def main(argv: list[str] | None = None) -> None:
     c = sub.add_parser("check", help="test the TWS and gateway paths and save raw gateway JSON")
     c.add_argument("tickers", nargs="*", default=["AAPL"])
     c.add_argument("--no-tws", action="store_true", help="skip the TWS probe")
+    c.add_argument("--browser", action="store_true", help="log in through a browser window instead of the gateway")
     p = sub.add_parser("probe", help="raw status/headers/body of every candidate gateway route (for debugging)")
     p.add_argument("conid", nargs="?", type=int, default=265598)
     s = sub.add_parser("sync", help="fill the IB cache from the gateway")
     s.add_argument("tickers", nargs="*")
     s.add_argument("--sp500", action="store_true", help="add every S&P 500 constituent")
+    s.add_argument("--browser", action="store_true", help="log in through a browser window instead of the gateway")
     s.add_argument("--no-statements", action="store_true", help="analyst fields only (fast)")
     a = ap.parse_args(argv)
 
@@ -274,8 +276,15 @@ def main(argv: list[str] | None = None) -> None:
         report: dict = {}
         if not a.no_tws:
             report["tws"] = tws_probe(a.tickers[0])
-        report["gateway"] = (ibportal.check(a.tickers, get_settings().data_dir / "ib_portal_samples")
-                             if ibportal.enabled() else "VMI_IB_CP_URL not set (e.g. https://localhost:5000)")
+        out = get_settings().data_dir / "ib_portal_samples"
+        if a.browser:
+            from vmi.data.ibportal.browser import browser_portal
+
+            with browser_portal() as p:
+                report["browser"] = ibportal.check(a.tickers, out, portal=p)
+        else:
+            report["gateway"] = (ibportal.check(a.tickers, out) if ibportal.enabled()
+                                 else "VMI_IB_CP_URL not set (e.g. https://localhost:5000)")
         print(json.dumps(report, indent=2, default=str))
         return
     tickers = list(a.tickers)
@@ -285,7 +294,14 @@ def main(argv: list[str] | None = None) -> None:
         tickers += [r["symbol"] for r in sp500()]
     if not tickers:
         ap.error("give tickers or --sp500")
-    print(json.dumps(ibportal.sync(tickers, statements=not a.no_statements, progress=print), indent=2))
+    if a.browser:
+        from vmi.data.ibportal.browser import browser_portal
+
+        with browser_portal() as p:
+            report = ibportal.sync(tickers, statements=not a.no_statements, progress=print, portal=p)
+    else:
+        report = ibportal.sync(tickers, statements=not a.no_statements, progress=print)
+    print(json.dumps(report, indent=2))
 
 
 if __name__ == "__main__":

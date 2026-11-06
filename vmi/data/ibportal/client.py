@@ -48,15 +48,20 @@ class Portal:
     """One gateway connection. `transport` lets tests inject httpx.MockTransport."""
 
     def __init__(self, base: str | None = None, *, transport=None, timeout: float = 20.0,
-                 max_rps: float | None = None):
+                 max_rps: float | None = None, http=None):
+        """`http` replaces the HTTP client (browser.BrowserHttp: direct portal access with a browser login)."""
         import httpx
 
-        self.base = base_url() if base is None else base.rstrip("/")
+        self.direct = http is not None
+        self.base = http.base if self.direct else (base_url() if base is None else base.rstrip("/"))
         if not self.base:
             raise PortalError("VMI_IB_CP_URL is not set (e.g. https://localhost:5000)")
         s = get_settings()
         self._gap = 1.0 / (max_rps or s.ib_cp_max_rps)
         self._last = 0.0
+        if self.direct:
+            self._http = http
+            return
         self._http = httpx.Client(base_url=self.base, verify=s.ib_cp_verify, timeout=timeout,
                                   transport=transport, headers={"User-Agent": "vmi-toolkit"})
 
@@ -132,6 +137,8 @@ class Portal:
     # ------------------------------------------------------------------------------------------- session
     def session(self) -> dict:
         """Validate the gateway login (raises PortalError when not logged in) and keep it alive."""
+        if self.direct:  # browser login: browser_portal() already waited until the routes answered
+            return {}
         info = self._api("GET", routes.SESSION_VALIDATE) or {}
         try:
             self._api("POST", routes.KEEPALIVE)
