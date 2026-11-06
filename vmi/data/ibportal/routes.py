@@ -27,7 +27,7 @@ WEB_API = "/v1/api"
 # "/v1/portal" is the gateway's own portal service (route ^/(v1|…)/(portal|am|api|tws)/(.*) in GatewayHttpProxy,
 # forwarded to portalBaseURL "/portal.proxy" in conf.tws.yaml, with the gateway's login cookies).
 API_BASES = ("/v1/api", "/v1/portal", "/portal.proxy/v1/portal")  # session + contract routes
-FUNDAMENTALS_BASES = ("/tws.proxy", "/v1/tws", "/v1/api")
+FUNDAMENTALS_BASES = ("/tws.proxy", "/v1/portal", "/v1/api")
 GATEWAY_CONFIG_HINT = ("If every route failed, the gateway is on its default conf.yaml (IB's public Web API, no fundamentals). "
                        "IBKR's bin\\run.bat ignores the file name you give it, so start the gateway with this repo's "
                        "launcher instead: tools\\start_cp_gateway.cmd C:\\path\\to\\clientportal.gw  (then log in again)")

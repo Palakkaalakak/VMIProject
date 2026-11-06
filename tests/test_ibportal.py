@@ -277,7 +277,7 @@ def test_non_json_answer_falls_back_to_the_next_route_and_is_reported():
 
     with portal(httpx.MockTransport(handler)) as p:
         assert p.financials(1, "income")["table"]["rows"]   # second route served it
-    assert calls[0].startswith("/tws.proxy/") and calls[1].startswith("/v1/tws/fundamentals/")
+    assert calls[0].startswith("/tws.proxy/") and calls[1].startswith("/v1/portal/fundamentals/")
     C._working_base.clear()
 
     with portal(httpx.MockTransport(lambda r: httpx.Response(200, text="<html>nope</html>",
