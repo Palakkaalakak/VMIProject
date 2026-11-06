@@ -38,6 +38,17 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-06 — Self-redirect retry, gateway /v1/portal and /v1/tws routes
+- Real run: `/portal.proxy/...` and `/tws.proxy/...` answered 302 → the SAME path on ndcdyn.interactivebrokers.com.
+  I read this as IBKR setting a cookie and expecting a retry. The gateway passes such redirects through
+  (HttpProxy only strips its own host from Location), so `_send` now retries a same-path redirect twice with
+  the cookie jar. Error messages also say whether the 302 carried a Set-Cookie.
+- The disassembled GatewayHttpProxy routes `^/(v1|qa|ci|alpha|local)/(portal|am|api|tws)/(.*)` to its own services. With
+  conf.tws.yaml, `portalBaseURL: "/portal.proxy"`, so `/v1/portal` is now tried for the session and contract
+  routes, and `/v1/tws` for the fundamentals routes.
+- If this still fails, the next step is to drop the portal path: SEC/stockanalysis/Yahoo already cover the
+  statements. The only unique IB field was LONG_TERM_GROWTH.
+
 ### 2026-11-06 — Gateway on conf.tws.yaml: Web API routes moved to /portal.proxy
 - Real run with the launcher: login succeeded ("authenticated to cp"), but `/v1/api/sso/validate` returned 404.
   The tws profile forwards to the portal website, which doesn't serve `/v1/api`. The gateway's own brokerage init

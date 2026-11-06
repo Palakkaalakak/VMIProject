@@ -18,6 +18,14 @@ _working_base: dict[tuple[str, str], str] = {}  # (gateway root, route group) �
 
 NOT_JSON = 200  # PortalError.status for "answered 200 but the body is not JSON"
 NOT_SERVED = (301, 302, 303, 307, 308, 404, 405, NOT_JSON)  # "this base does not serve the route": try the next
+SELF_REDIRECT_RETRIES = 2
+
+
+def _same_path(location: str, path: str) -> bool:
+    """True when a redirect points back at the path we asked for (any host)."""
+    from urllib.parse import urlsplit
+
+    return bool(location) and urlsplit(location).path.rstrip("/") == path.rstrip("/")
 
 
 class PortalError(RuntimeError):
@@ -73,12 +81,21 @@ class Portal:
         self._last = time.monotonic()
         try:
             r = self._http.request(method, path, params=params)
+            # IBKR's backend answers some first requests with a 302 to the SAME path (it sets a cookie and
+            # expects a retry). The gateway passes that 302 through, so retry ourselves; the httpx cookie
+            # jar now holds what was set, and the gateway forwards our cookies upstream.
+            for _ in range(SELF_REDIRECT_RETRIES):
+                if not (300 <= r.status_code < 400 and _same_path(r.headers.get("location", ""), path)):
+                    break
+                time.sleep(0.3)
+                r = self._http.request(method, path, params=params)
         except httpx.HTTPError as exc:
             raise PortalError(f"gateway unreachable at {self.base}: {type(exc).__name__}: {exc}") from exc
         if r.status_code == 401:
             raise PortalError(f"not logged in: open {self.base} in a browser and log in", 401)
         if r.status_code != 200:
-            where = f" → redirected to {r.headers.get('location')}" if 300 <= r.status_code < 400 else ""
+            where = (f" → redirected to {r.headers.get('location')} (set-cookie: {'yes' if 'set-cookie' in r.headers else 'no'})"
+                     if 300 <= r.status_code < 400 else "")
             raise PortalError(f"{method} {path} → HTTP {r.status_code}{where}: {r.text[:160]}", r.status_code)
         if not r.content:
             return None

@@ -277,7 +277,7 @@ def test_non_json_answer_falls_back_to_the_next_route_and_is_reported():
 
     with portal(httpx.MockTransport(handler)) as p:
         assert p.financials(1, "income")["table"]["rows"]   # second route served it
-    assert calls[0].startswith("/tws.proxy/") and calls[1].startswith("/v1/api/fundamentals/")
+    assert calls[0].startswith("/tws.proxy/") and calls[1].startswith("/v1/tws/fundamentals/")
     C._working_base.clear()
 
     with portal(httpx.MockTransport(lambda r: httpx.Response(200, text="<html>nope</html>",
@@ -317,6 +317,23 @@ def test_web_api_routes_fall_back_to_portal_proxy_on_the_tws_profile():
 
     with portal(httpx.MockTransport(handler)) as p:
         assert p.session()["USER_NAME"] == "paper1"
-    assert calls[:2] == ["/v1/api/sso/validate", "/portal.proxy/v1/portal/sso/validate"]
-    assert calls[2] == "/portal.proxy/v1/portal/tickle"  # the working base is remembered for the group
+    assert calls[:2] == ["/v1/api/sso/validate", "/v1/portal/sso/validate"]
+    assert calls[2] == "/v1/portal/tickle"  # the working base is remembered for the group
+    C._working_base.clear()
+
+
+def test_redirect_to_the_same_path_is_retried_with_the_cookie_it_set():
+    C._working_base.clear()
+    seen = []
+
+    def handler(req: httpx.Request):
+        seen.append(req.headers.get("cookie", ""))
+        if "probe=1" not in req.headers.get("cookie", ""):
+            return httpx.Response(302, headers={"location": "https://ndcdyn.example" + req.url.path,
+                                                "set-cookie": "probe=1; Path=/"})
+        return httpx.Response(200, json=INCOME)
+
+    with portal(httpx.MockTransport(handler)) as p:
+        assert p.financials(1, "income")["table"]["rows"]
+    assert len(seen) == 2 and "probe=1" in seen[1]
     C._working_base.clear()
