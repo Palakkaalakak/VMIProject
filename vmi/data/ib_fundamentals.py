@@ -257,12 +257,19 @@ def main(argv: list[str] | None = None) -> None:
     c = sub.add_parser("check", help="test the TWS and gateway paths and save raw gateway JSON")
     c.add_argument("tickers", nargs="*", default=["AAPL"])
     c.add_argument("--no-tws", action="store_true", help="skip the TWS probe")
+    p = sub.add_parser("probe", help="raw status/headers/body of every candidate gateway route (for debugging)")
+    p.add_argument("conid", nargs="?", type=int, default=265598)
     s = sub.add_parser("sync", help="fill the IB cache from the gateway")
     s.add_argument("tickers", nargs="*")
     s.add_argument("--sp500", action="store_true", help="add every S&P 500 constituent")
     s.add_argument("--no-statements", action="store_true", help="analyst fields only (fast)")
     a = ap.parse_args(argv)
 
+    if a.cmd == "probe":
+        from vmi.data.ibportal.probe import probe
+
+        print(json.dumps(probe(a.conid), indent=1))
+        return
     if a.cmd == "check":
         report: dict = {}
         if not a.no_tws:

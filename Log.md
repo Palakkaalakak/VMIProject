@@ -38,6 +38,13 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-06 — `probe` command (raw gateway answers)
+- `python -m vmi.data.ib_fundamentals probe [conid]` (vmi/data/ibportal/probe.py) prints status, key headers, Set-Cookie
+  names and the body start for every candidate route, following redirects by hand. Added because the gateway log shows
+  its own calls to ndcdyn failing ("Access Denied" on get user, "ssodh failed"), so our 302s need the raw reply to explain.
+- `ssodh` = the gateway's Diffie-Hellman handshake that opens a brokerage session after login. It fails for the tws
+  profile. We never need it (read-only), but it shows ndcdyn rejects the gateway's own follow-up requests.
+
 ### 2026-11-06 — Self-redirect retry, gateway /v1/portal and /v1/tws routes
 - Real run: `/portal.proxy/...` and `/tws.proxy/...` answered 302 → the SAME path on ndcdyn.interactivebrokers.com.
   I read this as IBKR setting a cookie and expecting a retry. The gateway passes such redirects through
