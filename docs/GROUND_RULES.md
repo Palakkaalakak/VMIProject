@@ -79,3 +79,13 @@
 ## Change log rule (owner, 2026-11-05)
 - Every change is logged in `Log.md` (what, why, files, verification, open items) so future AIs and coders can
   continue without guesswork. Code must stay clean and modular: one job per module, one place per setting.
+
+## Research before building, never blind (owner, 2026-11-06)
+- Do not ship code that rests on an unverified guess about an outside system and hand it over with "the check will
+  show whether it works". That cost five round trips on the IB gateway (a wrong belief that the gateway proxies
+  unknown paths, which the disassembled gateway code contradicts).
+- Before writing integration code: read the actual source (the vendor's own JS/docs, the disassembled binary, a
+  captured response). If a route, field name or behaviour cannot be verified, say so, and make the first step a
+  diagnostic that prints the raw evidence, not a feature that assumes the answer.
+- Every claim about an outside system goes in `Log.md` with its evidence (file, line, URL, run date) or is marked
+  UNVERIFIED there.
