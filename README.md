@@ -42,7 +42,7 @@ Settings come from environment variables or `.env` with the `VMI_` prefix (see `
 | Moat = reviewer's verdict; the app gathers the evidence + Adam's 5-source checklist; VMI buy needs a reviewed moat | ✅ | `vmi/analysis/steps.py` |
 | Judgement overrides for every input (growth, blend, sources, method, beta, shares, cash/debt, haircut, IV, steps, buy levels, sizing, scanner pin/exclude): UI card, API, CLI | ✅ | `vmi/overrides.py`, `config/judgements.json` |
 
-**Not done yet:** a first live run of the IB gateway path (`python3 -m vmi.data.ib_fundamentals check AAPL`); full-market
+**Not done yet:** the full IB `sync --sp500 --browser` run and the calibration re-run after it; full-market
 scanner run benchmark; judgement-only calibration cases (BKNG and UNH growth input, NKE/LVMUY on P/S), see
 `docs/CALIBRATION.md`; companies with a short history. Progress and reasoning for every change: `Log.md`.
 
