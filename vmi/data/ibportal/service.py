@@ -133,7 +133,6 @@ def check(tickers: Iterable[str], out_dir: Path, portal: Portal | None = None) -
                 except PortalError as exc:
                     raw[name] = {"error": str(exc)}
                     entry[name] = str(exc)
-            (out_dir / f"{sym}.json").write_text(json.dumps(raw, indent=1, default=str))
             f = Fundamentals(ticker=sym, source="ib_portal")
             for st in routes.STATEMENTS:
                 parse.parse_financials(raw.get(f"{st}_annual"), f)
@@ -143,6 +142,7 @@ def check(tickers: Iterable[str], out_dir: Path, portal: Portal | None = None) -
                                                    else []).get(cid, {})
             entry["unmapped_rows"] = _unmapped_rows(raw)
             entry["fin_trends"] = _fin_trends_sample(p, cid, raw)
+            entry["short_series_rows"] = _short_rows(raw, f) if f else {}
             kr = json.dumps(raw.get("key_ratios"), default=str)
             entry["key_ratios_head"] = kr[:700]
             km_raw = raw.get("key_metrics")
@@ -151,22 +151,43 @@ def check(tickers: Iterable[str], out_dir: Path, portal: Portal | None = None) -
             entry["data_list_values"] = parse.field_values(raw.get("data_list") if isinstance(raw.get("data_list"), list) else [])
             km = raw.get("key_metrics")
             entry["key_metrics_fields"] = sorted({str(r.get("field_name")) for r in km if isinstance(r, dict)})[:80] if isinstance(km, list) else None
+            (out_dir / f"{sym}.json").write_text(json.dumps(raw, indent=1, default=str))
             entry["raw_file"] = str(out_dir / f"{sym}.json")
     return report
 
 
 # ------------------------------------------------------------------------------------------- internals
 def _fin_trends_sample(p: Portal, conid: int, raw: dict) -> dict:
-    """Analyst-estimate rows (hasEsimates) of the income statement → raw fin_trends answers, to find usable EPS/revenue estimates."""
+    """Analyst-estimate rows (hasEsimates) → {row: [[fiscal_year, actual, estimate], …]} digest of fin_trends."""
     table = (raw.get("income_annual") or {}).get("table") if isinstance(raw.get("income_annual"), dict) else None
     rows = [r for r in (table or {}).get("rows", []) if isinstance(r, dict) and r.get("hasEsimates") and r.get("search_id")]
-    out = {}
-    for r in rows[:4]:
+    out: dict = {}
+    for r in rows[:6]:
+        name = str(r.get("metric_name"))
         try:
-            out[str(r.get("metric_name"))] = json.dumps(p.fin_trends(conid, r["search_id"]), default=str)[:500]
+            data = p.fin_trends(conid, r["search_id"])
         except PortalError as exc:
-            out[str(r.get("metric_name"))] = str(exc)[:200]
+            out[name] = str(exc)[:200]
+            continue
+        raw.setdefault("fin_trends", {})[name] = data
+        periods = (data or {}).get("periods") if isinstance(data, dict) else None
+        out[name] = [[x.get("fiscal_year"), x.get("actual"), x.get("estimate")] for x in periods or []
+                     if isinstance(x, dict)] or str(data)[:200]
     return out or {"none": "no income row had hasEsimates + search_id"}
+
+
+def _short_rows(raw: dict, f: Fundamentals) -> dict[str, list]:
+    """Mapped concepts with fewer than 4 annual points → the raw cells of their rows (why are periods missing?)."""
+    most = max((len(v) for v in f.annual.values()), default=0)
+    short = {c for c, v in f.annual.items() if len(v) < most}
+    out: dict[str, list] = {}
+    for st in routes.STATEMENTS:
+        payload = raw.get(f"{st}_annual")
+        table = payload.get("table") if isinstance(payload, dict) else None
+        for label, cells in (parse._table_rows(table) if isinstance(table, dict) else []):
+            if parse.concept_for(label) in short:
+                out[f"{st}:{label}"] = [[c[0][0] if c[0] else None, c[1]] for c in cells]
+    return out
 
 
 def _unmapped_rows(raw: dict) -> dict[str, list[str]]:

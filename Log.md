@@ -38,6 +38,19 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-06 — Real run #2 (AAPL, MSFT) and what is still open
+- Verified: with the new LABELS AAPL parses 29 concepts x 4 annual years (net income, CFO, EPS, SG&A, R&D, ...). MSFT parses
+  the same but with short series: eps_diluted 1, eps_diluted_norm 1, shares_outstanding 1, st_debt 1, cfo 2 (cause
+  unknown: `check` now prints `short_series_rows`, the raw cells of those rows).
+- Verified shapes: `fin_trends` (Refinitiv I/B/E/S consensus) = `{name, search_id, forecast_id, value, source,
+  periods:[{title, fiscal_year, fiscal_period_number, search_id, actual, estimate, suprise…}]}`; only Revenue, Net Income
+  bf/Tax and Dividend Per Share have estimates (no EPS row). `key_metrics` has `EPSTRENDGR` (AAPL 9.85%, MSFT 17.38%),
+  TARGET_PRICE, ANALYST_CONSENSUS; meaning of EPSTRENDGR is UNVERIFIED (not in portal JS). `check` now prints the
+  fin_trends digest `[fiscal_year, actual, estimate]` per row and saves the full answers in the raw JSON.
+- Symbol → conid needs the TWS API (IB Gateway running); without it only AAPL/MSFT (KNOWN_CONIDS) work in `check`.
+- Open: choose the growth source from the digest (candidates: CAGR of consensus pretax income / revenue from
+  fin_trends; EPSTRENDGR once its meaning is confirmed). Wire it into `parse_analyst`/`estimates` only then.
+
 ### 2026-11-06 — Real AAPL labels mapped; symbol lookup via TWS; growth-field hunt
 - Real run (AAPL, MSFT): `/iserver/secdef/search` on the portal site answered `400 {"error":"Bad Request: no bridge"}`
   (needs a trading/brokerage session, which a browser login does not open). The secdef code and its read-only exception
