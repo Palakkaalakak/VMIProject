@@ -263,3 +263,25 @@ def test_gateway_and_tws_port_are_found_without_configuration():
 
     assert Settings().ib_cp_url == "https://localhost:5000" and Settings().ib_port == 0  # defaults need no .env
     assert candidate_ports(0) == AUTO_PORTS and candidate_ports(7497) == (7497,)  # a configured port is used alone
+
+
+def test_non_json_answer_falls_back_to_the_next_route_and_is_reported():
+    C._working_base.clear()
+    calls = []
+
+    def handler(req: httpx.Request):
+        calls.append(req.url.path)
+        if req.url.path.startswith("/v1/tws/"):
+            return httpx.Response(200, text="<html>Client login</html>", headers={"content-type": "text/html"})
+        return httpx.Response(200, json=INCOME)
+
+    with portal(httpx.MockTransport(handler)) as p:
+        assert p.financials(1, "income")["table"]["rows"]   # second route served it
+    assert calls[0].startswith("/v1/tws/") and calls[1].startswith("/v1/api/tws.proxy/")
+    C._working_base.clear()
+
+    with portal(httpx.MockTransport(lambda r: httpx.Response(200, text="<html>nope</html>",
+                                                               headers={"content-type": "text/html"}))) as p:
+        with pytest.raises(C.PortalError, match="not JSON.*text/html.*nope"):
+            p.financials(1, "income")
+    C._working_base.clear()

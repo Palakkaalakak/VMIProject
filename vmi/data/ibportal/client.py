@@ -17,6 +17,9 @@ from vmi.data.ibportal import routes
 _working_base: dict[str, str] = {}  # gateway root → fundamentals base that answered (see routes.FUNDAMENTALS_BASES)
 
 
+NOT_JSON = 200  # PortalError.status for "answered 200 but the body is not JSON"
+
+
 class PortalError(RuntimeError):
     def __init__(self, message: str, status: int | None = None):
         super().__init__(message)
@@ -76,7 +79,13 @@ class Portal:
             raise PortalError(f"not logged in: open {self.base} in a browser and log in", 401)
         if r.status_code != 200:
             raise PortalError(f"{method} {path} → HTTP {r.status_code}: {r.text[:160]}", r.status_code)
-        return r.json() if r.content else None
+        if not r.content:
+            return None
+        try:
+            return r.json()
+        except ValueError:  # 200 OK but not JSON (a login/error web page, an empty route): say what came back
+            raise PortalError(f"{method} {path} → HTTP 200 but not JSON ({r.headers.get('content-type', '?')}): "
+                              f"{r.text[:160]!r}", NOT_JSON) from None
 
     def _api(self, method: str, route: str, **params):
         return self._send(method, routes.WEB_API + route, params or None)
@@ -85,18 +94,18 @@ class Portal:
         """GET a fundamentals route, trying each base in routes.FUNDAMENTALS_BASES until one answers."""
         known = _working_base.get(self.base)
         bases = [known] if known else list(routes.FUNDAMENTALS_BASES)
-        last: PortalError | None = None
+        tried: list[str] = []
         for b in bases:
             try:
                 data = self._send("GET", b + route, params or None)
             except PortalError as exc:
-                if exc.status in (404, 405) and not known:
-                    last = exc
+                if exc.status in (404, 405, NOT_JSON) and not known:  # this base doesn't serve it: try the next
+                    tried.append(str(exc))
                     continue
                 raise
             _working_base[self.base] = b
             return data
-        raise last or PortalError(f"no fundamentals base answered for {route}")
+        raise PortalError("no fundamentals route answered with data: " + " | ".join(tried), NOT_JSON)
 
     # ------------------------------------------------------------------------------------------- session
     def session(self) -> dict:
