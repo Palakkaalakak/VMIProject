@@ -38,6 +38,14 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-06 — First full `sync --sp500` (VERIFIED on a real login)
+- 503 tickers, fast mode (copied browser cookies accepted by the portal), 8 workers: 350 s. Result: 503 conids, 496 analyst
+  records, 497 statement sets. That is ≈ 10 requests/s, i.e. bound by `ib_portal_max_rps` (10), not by the workers; raising
+  it is untested against IBKR's real limit (no 429 was seen at 10/s).
+- 6 stocks have no IB data (HTTP 404 `{"type":"MISSING_DATA","message":"No estimates data for isin …"}`): FOX, KKR, L, MPC, NWS, ZTS.
+  This is IBKR's side; the other sources (SEC, stockanalysis, Yahoo) cover them as before.
+- Next: re-run the calibration (docs/CALIBRATION.md) with the new IB growth source before trusting it.
+
 ### 2026-11-06 — Speed + cleanup: parallel `sync`, gateway path removed
 - Cost model of `sync --sp500`: ~500 tickers x 7 requests (6 statements + key metrics) + 10 batched data_list calls
   ≈ 3,500 requests, previously one at a time through the browser and capped at 5/s (≥ 12 min, realistically more).

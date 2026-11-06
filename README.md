@@ -37,12 +37,12 @@ Settings come from environment variables or `.env` with the `VMI_` prefix (see `
 | Watchlists: import (Adam pipe / CSV / TradingView), auto-fill IV + levels, 60s alerts | ✅ | `vmi/watchlist/service.py` |
 | Options chain (IB → Yahoo, rows never disappear), VMI CSP/CC suggestions | ✅ | `vmi/options/chain.py` |
 | Web UI (analysis, scanner, watchlists, portfolios, options, alerts) | ✅ | `static/` |
-| IB fundamentals via a browser login on the portal site (Fundamentals Explorer backend), parallel bulk `sync` | ✅ browser login verified live (AAPL, MSFT); full `sync` pending | `vmi/data/ibportal/`, `vmi/data/ib_fundamentals.py` |
+| IB fundamentals via a browser login on the portal site (Fundamentals Explorer backend), parallel bulk `sync` | ✅ verified live: full S&P 500 `sync` in ~6 min (497/503) | `vmi/data/ibportal/`, `vmi/data/ib_fundamentals.py` |
 | Settings screen: every rule editable in the UI (no code), saved to `config/rules_settings.json` | ✅ | `vmi/settings.py`, `static/js/views/settings.js` |
 | Moat = reviewer's verdict; the app gathers the evidence + Adam's 5-source checklist; VMI buy needs a reviewed moat | ✅ | `vmi/analysis/steps.py` |
 | Judgement overrides for every input (growth, blend, sources, method, beta, shares, cash/debt, haircut, IV, steps, buy levels, sizing, scanner pin/exclude): UI card, API, CLI | ✅ | `vmi/overrides.py`, `config/judgements.json` |
 
-**Not done yet:** the full IB `sync --sp500` run and the calibration re-run after it; full-market
+**Not done yet:** the calibration re-run with the new IB data; full-market
 scanner run benchmark; judgement-only calibration cases (BKNG and UNH growth input, NKE/LVMUY on P/S), see
 `docs/CALIBRATION.md`; companies with a short history. Progress and reasoning for every change: `Log.md`.
 
