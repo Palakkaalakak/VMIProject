@@ -38,6 +38,27 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-06 — Speed + cleanup: parallel `sync`, gateway path removed
+- Cost model of `sync --sp500`: ~500 tickers x 7 requests (6 statements + key metrics) + 10 batched data_list calls
+  ≈ 3,500 requests, previously one at a time through the browser and capped at 5/s (≥ 12 min, realistically more).
+- Fast mode (`browser.login`): after the browser login, the browser's cookies and user agent are copied into an httpx
+  client, which is checked with one real request; if it answers, `sync` runs `ib_portal_workers` (8) tickers in
+  parallel under one shared, thread-safe rate limit (`ib_portal_max_rps` 10; IBKR documents ~10 req/s per session for
+  its Web API, the portal's own limit is unpublished) and retries 429/502/503/504 with backoff (Retry-After honoured).
+  If the copied cookies are refused, the browser sends every request serially, as before. Verified locally: the cookie
+  copy (browser cookie + UA reach the server via httpx; local HTTP server, Chromium). UNVERIFIED on IBKR: whether the
+  portal accepts the copied session (the run prints which mode it used, `check` reports `mode`).
+- Removed the Client Portal Gateway path (proven unable to carry fundamentals): gateway fallbacks and base chains,
+  self-redirect retry, `probe.py`, `tools/start_cp_gateway.cmd`, `/trsrv` contract lookup (`parse.pick_conid`),
+  settings `ib_cp_url/ib_cp_verify/ib_cp_max_rps`, the PORTAL breaker. The app now READS the IB portal cache only
+  (`cached_fundamentals/estimates`); before, every uncached analysis tried https://localhost:5000 first.
+- CLI: the browser is the only path, so `--browser` is accepted but no longer needed; `sync --workers N`;
+  ib_async's per-port "API connection failed" log spam is silenced in the CLI (the error message lists every port).
+- `check` trimmed to route status, parsed counts, analyst values, unmapped labels and raw dump (the one-off
+  investigation outputs are recorded in the entries below).
+- Tests: 90 pass (gateway-only tests removed; new: parallel sync on >1 thread, 429 retry, cross-thread rate limit,
+  401 abort, cache-only app reads, browser fallback is serial).
+
 ### 2026-11-06 — Contract-id lookup in batches
 - First `sync --sp500 --browser` took ~10 min before the login window opened: `_tws_conids` qualified one symbol per round
   trip (~500). Now `IBGateway.conids()` qualifies 50 per call and prints progress. UNVERIFIED on a live Gateway (tests

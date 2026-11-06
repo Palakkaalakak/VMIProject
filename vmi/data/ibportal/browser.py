@@ -1,14 +1,14 @@
-"""Direct access to IBKR's portal site through a real browser window (no Client Portal Gateway).
+"""Log in to IBKR's portal site in a real browser window and hand back a `Portal` on that session.
 
-Why: the gateway only forwards /v1/api and /v1/portal; for every other path it answers 302 to the portal site, and
-those two services 404 on the Fundamentals routes (confirmed on a real run 2026-11-06). The portal site itself serves
-/tws.proxy/fundamentals/... to a logged-in browser, so we log in in a browser and send our GETs through its cookies.
+    with login() as p:                  # opens Edge/Chrome, waits for you to log in (PAPER username)
+        ibportal.sync([...], portal=p)
 
-    with browser_portal() as p:          # opens Edge/Chrome, waits for you to log in (paper username)
-        ibportal.sync([...], portal=p)   # same Portal API as the gateway client
+Fast mode: after the login, the browser's cookies and user agent are copied into an httpx client, which is checked
+with one real request. If the portal accepts it, `sync` runs many requests in parallel; if not, the browser itself
+sends every request (one at a time, slower). Either way the browser window stays open until the work is done.
 
-Needs `pip install playwright` only: it drives the Edge or Chrome that is already installed (falls back to
-Playwright's own Chromium if you ran `playwright install chromium`). Read-only: Portal still refuses /iserver.
+Needs `pip install playwright`: it drives the Edge or Chrome already installed (Playwright's own Chromium if you ran
+`python -m playwright install chromium`). Read-only: Portal refuses /iserver.
 """
 from __future__ import annotations
 
@@ -17,11 +17,10 @@ import time
 from contextlib import contextmanager
 from typing import Callable, Iterator
 
+from vmi.data.ibportal import routes
 from vmi.data.ibportal.client import Portal, PortalError
 
-SITE = "https://ndcdyn.interactivebrokers.com"
-LOGIN = SITE + "/sso/Login?forwardTo=22&RL=1&ip2loc=US"
-LOGIN_PROBE_CONID = 265598  # AAPL: a cheap fundamentals call that only answers with JSON when logged in
+PROBE_CONID = 265598  # AAPL: a cheap call that only answers with JSON when logged in
 BROWSERS = ("msedge", "chrome", None)  # None = Playwright's bundled Chromium
 
 
@@ -41,19 +40,15 @@ class _Response:
 class BrowserHttp:
     """Duck-types httpx.Client.request over a Playwright browser context (cookies, redirects, TLS: the browser's)."""
 
-    def __init__(self, context, base: str = SITE, timeout: float = 20.0):
+    def __init__(self, context, base: str = routes.SITE, timeout: float = 20.0):
         self.context, self.base, self.timeout = context, base, timeout
 
     def request(self, method: str, path: str, params: dict | None = None) -> _Response:
-        try:
-            r = self.context.request.fetch(self.base + path, method=method, params=params or None,
-                                           max_redirects=5, fail_on_status_code=False,
-                                           timeout=self.timeout * 1000)
-        except Exception as exc:  # playwright raises its own Error type
-            raise PortalError(f"browser request failed: {type(exc).__name__}: {str(exc)[:200]}") from exc
+        r = self.context.request.fetch(self.base + path, method=method, params=params or None, max_redirects=5,
+                                       fail_on_status_code=False, timeout=self.timeout * 1000)
         return _Response(r)
 
-    def close(self) -> None:  # the context belongs to browser_portal
+    def close(self) -> None:  # the context belongs to login()
         pass
 
 
@@ -68,9 +63,28 @@ def _launch(pw):
                       "python -m playwright install chromium")
 
 
+def _answers(p: Portal) -> bool:
+    try:
+        return p.data_list([PROBE_CONID], ["BETA"]) is not None
+    except PortalError:
+        return False
+
+
+def _cookie_portal(context, page) -> Portal:
+    """An httpx Portal carrying the browser's cookies and user agent."""
+    import httpx
+
+    jar = httpx.Cookies()
+    for c in context.cookies():
+        jar.set(c["name"], c["value"], domain=c.get("domain", ""), path=c.get("path", "/"))
+    headers = {"User-Agent": page.evaluate("navigator.userAgent"), "Accept": "application/json, text/plain, */*",
+               "Referer": routes.SITE + "/portal/"}
+    return Portal(cookies=jar, headers=headers)
+
+
 @contextmanager
-def browser_portal(login_timeout: float = 600.0, say: Callable[[str], None] = print) -> Iterator[Portal]:
-    """Open a browser at the IBKR login, wait until the fundamentals routes answer, yield a Portal on it."""
+def login(login_timeout: float = 600.0, say: Callable[[str], None] = print) -> Iterator[Portal]:
+    """Open a browser at the IBKR login, wait until the fundamentals routes answer, yield the fastest working Portal."""
     try:
         from playwright.sync_api import sync_playwright
     except ImportError as exc:
@@ -79,20 +93,22 @@ def browser_portal(login_timeout: float = 600.0, say: Callable[[str], None] = pr
         browser = _launch(pw)
         try:
             context = browser.new_context()
-            context.new_page().goto(LOGIN)
-            portal = Portal(http=BrowserHttp(context))
+            page = context.new_page()
+            page.goto(routes.LOGIN)
+            slow = Portal(http=BrowserHttp(context))
             say("A browser window opened: log in with your PAPER username (not the live one). Waiting for the login ...")
-            deadline, last = time.monotonic() + login_timeout, ""
-            while True:
-                try:
-                    if portal.data_list([LOGIN_PROBE_CONID], ["BETA"]) is not None:
-                        break
-                except PortalError as exc:
-                    last = str(exc)
+            deadline = time.monotonic() + login_timeout
+            while not _answers(slow):
                 if time.monotonic() > deadline:
-                    raise PortalError(f"not logged in within {login_timeout:.0f}s; last answer: {last[:300]}")
-                time.sleep(3)
-            say("Logged in: fundamentals routes answer.")
-            yield portal
+                    raise PortalError(f"not logged in within {login_timeout:.0f}s")
+                time.sleep(2)
+            fast = _cookie_portal(context, page)
+            if _answers(fast):
+                say("Logged in. Fast mode: parallel requests with the browser's login cookies.")
+                with fast:
+                    yield fast
+            else:
+                say("Logged in. Fast mode refused by the portal: the browser sends every request (slower).")
+                yield slow
         finally:
             browser.close()

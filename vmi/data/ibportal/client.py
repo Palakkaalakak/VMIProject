@@ -1,31 +1,23 @@
-"""HTTP client for the local IBKR Client Portal Gateway. Read-only by construction.
+"""HTTP client for IBKR's Fundamentals Explorer routes on the portal site. Read-only by construction.
 
-    with Portal() as p:                      # base URL from VMI_IB_CP_URL, e.g. https://localhost:5000
-        p.session()                          # raises PortalError("not logged in …") when needed
-        ids = p.conids(["AAPL", "MSFT"])     # {"AAPL": 265598, …}
-        income = p.financials(ids["AAPL"], "income", annual=True)
+    with browser.login() as p:                    # a Portal on the logged-in session
+        income = p.financials(265598, "income", annual=True)
 
+`Portal` is thread-safe when it runs on httpx (the fast mode): many workers share one connection pool and one rate
+limit. On the browser fallback (`http=BrowserHttp`) it must be used from one thread (`p.parallel` is False).
 All network I/O of the package lives here; parsing lives in parse.py, caching in service.py.
 """
 from __future__ import annotations
 
+import threading
 import time
 
 from vmi.config import get_settings
 from vmi.data.ibportal import routes
 
-_working_base: dict[tuple[str, str], str] = {}  # (gateway root, route group) → base that answered
-
-NOT_JSON = 200  # PortalError.status for "answered 200 but the body is not JSON"
-NOT_SERVED = (301, 302, 303, 307, 308, 404, 405, NOT_JSON)  # "this base does not serve the route": try the next
-SELF_REDIRECT_RETRIES = 2
-
-
-def _same_path(location: str, path: str) -> bool:
-    """True when a redirect points back at the path we asked for (any host)."""
-    from urllib.parse import urlsplit
-
-    return bool(location) and urlsplit(location).path.rstrip("/") == path.rstrip("/")
+NOT_JSON = 200          # PortalError.status for "answered 200 but the body is not JSON"
+RETRY_STATUSES = (429, 502, 503, 504)  # throttled or briefly unavailable: wait and retry
+RETRIES = 4
 
 
 class PortalError(RuntimeError):
@@ -34,36 +26,37 @@ class PortalError(RuntimeError):
         self.status = status
 
 
-def base_url() -> str:
-    """Gateway root from VMI_IB_CP_URL ('' = disabled). Accepts 'localhost:5000' or a URL ending in /v1/api."""
-    raw = (get_settings().ib_cp_url or "").strip().rstrip("/")
-    if not raw:
-        return ""
-    if not raw.startswith("http"):
-        raw = "https://" + raw
-    return raw[: -len(routes.WEB_API)] if raw.endswith(routes.WEB_API) else raw
+class RateLimiter:
+    """At most `rps` request starts per second across all threads."""
+
+    def __init__(self, rps: float):
+        self._gap, self._next, self._lock = 1.0 / rps, 0.0, threading.Lock()
+
+    def wait(self) -> None:
+        with self._lock:
+            now = time.monotonic()
+            start = max(now, self._next)
+            self._next = start + self._gap
+        if start > now:
+            time.sleep(start - now)
 
 
 class Portal:
-    """One gateway connection. `transport` lets tests inject httpx.MockTransport."""
+    """One logged-in portal session. Pass `http` (browser fallback) or cookies/headers (fast httpx mode);
+    `transport` lets tests inject httpx.MockTransport."""
 
-    def __init__(self, base: str | None = None, *, transport=None, timeout: float = 20.0,
-                 max_rps: float | None = None, http=None):
-        """`http` replaces the HTTP client (browser.BrowserHttp: direct portal access with a browser login)."""
-        import httpx
-
-        self.direct = http is not None
-        self.base = http.base if self.direct else (base_url() if base is None else base.rstrip("/"))
-        if not self.base:
-            raise PortalError("VMI_IB_CP_URL is not set (e.g. https://localhost:5000)")
-        s = get_settings()
-        self._gap = 1.0 / (max_rps or s.ib_cp_max_rps)
-        self._last = 0.0
-        if self.direct:
+    def __init__(self, base: str = routes.SITE, *, http=None, cookies=None, headers: dict | None = None,
+                 transport=None, max_rps: float | None = None, timeout: float = 20.0):
+        self.base = base.rstrip("/")
+        self.parallel = http is None
+        self._limit = RateLimiter(max_rps or get_settings().ib_portal_max_rps)
+        if http is not None:
             self._http = http
-            return
-        self._http = httpx.Client(base_url=self.base, verify=s.ib_cp_verify, timeout=timeout,
-                                  transport=transport, headers={"User-Agent": "vmi-toolkit"})
+        else:
+            import httpx
+
+            self._http = httpx.Client(base_url=self.base, cookies=cookies, headers=headers, transport=transport,
+                                      timeout=timeout, follow_redirects=False)
 
     def close(self) -> None:
         self._http.close()
@@ -75,113 +68,54 @@ class Portal:
         self.close()
 
     # ------------------------------------------------------------------------------------------ transport
-    def _send(self, method: str, path: str, params: dict | None = None):
-        import httpx
-
+    def _send(self, path: str, params: dict | None = None):
         if "/iserver" in path:
             raise PortalError(f"refusing {path}: this client is read-only (no brokerage-session routes)")
-        wait = self._last + self._gap - time.monotonic()
-        if wait > 0:
-            time.sleep(wait)
-        self._last = time.monotonic()
-        try:
-            r = self._http.request(method, path, params=params)
-            # IBKR's backend answers some first requests with a 302 to the SAME path (it sets a cookie and
-            # expects a retry). The gateway passes that 302 through, so retry ourselves; the httpx cookie
-            # jar now holds what was set, and the gateway forwards our cookies upstream.
-            for _ in range(SELF_REDIRECT_RETRIES):
-                if not (300 <= r.status_code < 400 and _same_path(r.headers.get("location", ""), path)):
-                    break
-                time.sleep(0.3)
-                r = self._http.request(method, path, params=params)
-        except httpx.HTTPError as exc:
-            raise PortalError(f"gateway unreachable at {self.base}: {type(exc).__name__}: {exc}") from exc
+        for attempt in range(RETRIES + 1):
+            self._limit.wait()
+            try:
+                r = self._http.request("GET", path, params=params)
+            except PortalError:
+                raise
+            except Exception as exc:  # httpx / playwright network errors
+                raise PortalError(f"portal unreachable: {type(exc).__name__}: {exc}") from exc
+            if r.status_code not in RETRY_STATUSES or attempt == RETRIES:
+                break
+            retry_after = r.headers.get("retry-after", "")
+            time.sleep(float(retry_after) if retry_after.isdigit() else 2.0 * 2 ** attempt)
         if r.status_code == 401:
-            raise PortalError(f"not logged in: open {self.base} in a browser and log in", 401)
+            raise PortalError(f"not logged in (HTTP 401 on {path}): log in again", 401)
         if r.status_code != 200:
-            where = (f" → redirected to {r.headers.get('location')} (set-cookie: {'yes' if 'set-cookie' in r.headers else 'no'})"
-                     if 300 <= r.status_code < 400 else "")
-            raise PortalError(f"{method} {path} → HTTP {r.status_code}{where}: {r.text[:160]}", r.status_code)
+            where = f" → {r.headers.get('location')}" if 300 <= r.status_code < 400 else ""
+            raise PortalError(f"GET {path} → HTTP {r.status_code}{where}: {r.text[:160]}", r.status_code)
         if not r.content:
             return None
         try:
             return r.json()
-        except ValueError:  # 200 OK but not JSON (a login/error web page, an empty route): say what came back
-            raise PortalError(f"{method} {path} → HTTP 200 but not JSON ({r.headers.get('content-type', '?')}): "
+        except ValueError:  # 200 OK but not JSON (a login/error web page): say what came back
+            raise PortalError(f"GET {path} → HTTP 200 but not JSON ({r.headers.get('content-type', '?')}): "
                               f"{r.text[:160]!r}", NOT_JSON) from None
 
-    def _routed(self, group: str, bases: tuple[str, ...], method: str, route: str, params: dict):
-        """Send to the first base in `bases` that serves `route`; remember it per gateway and group."""
-        memo = (self.base, group)
-        known = _working_base.get(memo)
-        tried: list[str] = []
-        for b in [known] if known else bases:
-            try:
-                data = self._send(method, b + route, params or None)
-            except PortalError as exc:
-                if exc.status in NOT_SERVED and not known:  # not served under this base: try the next
-                    tried.append(str(exc))
-                    continue
-                raise
-            _working_base[memo] = b
-            return data
-        raise PortalError(f"no {group} route answered with data: " + " | ".join(tried) + " — "
-                          + routes.GATEWAY_CONFIG_HINT, NOT_JSON)
-
-    def _api(self, method: str, route: str, **params):
-        bases = routes.DIRECT_API_BASES if self.direct else routes.API_BASES
-        return self._routed("api", bases, method, route, params)
-
-    def _fundamentals(self, route: str, **params):
-        bases = routes.DIRECT_FUNDAMENTALS_BASES if self.direct else routes.FUNDAMENTALS_BASES
-        return self._routed("fundamentals", bases, "GET", route, params)
-
-    # ------------------------------------------------------------------------------------------- session
-    def session(self) -> dict:
-        """Validate the gateway login (raises PortalError when not logged in) and keep it alive."""
-        if self.direct:  # browser login: browser_portal() already waited until the routes answered
-            return {}
-        info = self._api("GET", routes.SESSION_VALIDATE) or {}
-        try:
-            self._api("POST", routes.KEEPALIVE)
-        except PortalError:
-            pass  # keep-alive is best effort
-        if isinstance(info, dict) and info.get("RESULT") is False:
-            raise PortalError(f"not logged in: open {self.base} in a browser and log in", 401)
-        return info if isinstance(info, dict) else {}
-
-    # ------------------------------------------------------------------------------------------ contracts
-    def conids(self, symbols) -> dict[str, int]:
-        """{SYMBOL: conid} for US stock listings (batched; symbols without a listing are omitted)."""
-        from vmi.data.ibportal.parse import pick_conid
-
-        syms = [s.upper() for s in symbols]
-        out: dict[str, int] = {}
-        for i in range(0, len(syms), routes.SYMBOLS_PER_REQUEST):
-            chunk = syms[i:i + routes.SYMBOLS_PER_REQUEST]
-            payload = self._api("GET", routes.STOCKS_BY_SYMBOL, symbols=",".join(chunk)) or {}
-            for s in chunk:
-                if (cid := pick_conid(payload, s)) is not None:
-                    out[s] = cid
-        return out
+    def _get(self, route: str, **params):
+        return self._send(routes.FUNDAMENTALS_BASE + route, params or None)
 
     # --------------------------------------------------------------------------------------- fundamentals
     def financials(self, conid: int, statement: str, annual: bool = True):
-        return self._fundamentals(routes.FINANCIALS.format(conid=conid), annual=str(annual).lower(), type=statement)
+        return self._get(routes.FINANCIALS.format(conid=conid), annual=str(annual).lower(), type=statement)
 
     def data_list(self, conids, fields) -> list[dict]:
         """[{conid, field_name, display_value}] for many conids at once (batched)."""
         ids, names, rows = [str(c) for c in conids], ",".join(fields), []
         for i in range(0, len(ids), routes.CONIDS_PER_DATA_LIST):
             chunk = ",".join(ids[i:i + routes.CONIDS_PER_DATA_LIST])
-            rows.extend(self._fundamentals(routes.DATA_LIST, conids=chunk, field_names=names) or [])
+            rows.extend(self._get(routes.DATA_LIST, conids=chunk, field_names=names) or [])
         return rows
 
     def key_metrics(self, conid: int):
-        return self._fundamentals(routes.KEY_METRICS.format(conid=conid), show="translations")
+        return self._get(routes.KEY_METRICS.format(conid=conid), show="translations")
 
     def fin_trends(self, conid: int, search_id, annual: bool = True):
-        return self._fundamentals(routes.FIN_TRENDS.format(conid=conid), search_id=search_id, annual=str(annual).lower())
+        return self._get(routes.FIN_TRENDS.format(conid=conid), search_id=search_id, annual=str(annual).lower())
 
     def key_ratios(self, conid: int):
-        return self._fundamentals(routes.KEY_RATIOS.format(conid=conid))
+        return self._get(routes.KEY_RATIOS.format(conid=conid))

@@ -20,7 +20,7 @@ Run the server on the same machine as **TWS or IB Gateway** with the API enabled
 server rather than a Workers app. Without IB the app still works, falling back to Yahoo for quotes and options.
 
 Settings come from environment variables or `.env` with the `VMI_` prefix (see `vmi/config.py`): `VMI_IB_HOST`,
-`VMI_IB_PORT`, `VMI_IB_CLIENT_ID`, `VMI_IB_CP_URL`, `VMI_SEC_USER_AGENT`, `VMI_PORT`, …
+`VMI_IB_PORT`, `VMI_IB_CLIENT_ID`, `VMI_IB_PORTAL_WORKERS`, `VMI_SEC_USER_AGENT`, `VMI_PORT`, …
 
 ## Features (status)
 
@@ -37,12 +37,12 @@ Settings come from environment variables or `.env` with the `VMI_` prefix (see `
 | Watchlists: import (Adam pipe / CSV / TradingView), auto-fill IV + levels, 60s alerts | ✅ | `vmi/watchlist/service.py` |
 | Options chain (IB → Yahoo, rows never disappear), VMI CSP/CC suggestions | ✅ | `vmi/options/chain.py` |
 | Web UI (analysis, scanner, watchlists, portfolios, options, alerts) | ✅ | `static/` |
-| IB fundamentals via the Client Portal Gateway (Fundamentals Explorer backend), bulk `sync` | ✅ browser login verified live (AAPL, MSFT); full `sync` pending | `vmi/data/ibportal/`, `vmi/data/ib_fundamentals.py` |
+| IB fundamentals via a browser login on the portal site (Fundamentals Explorer backend), parallel bulk `sync` | ✅ browser login verified live (AAPL, MSFT); full `sync` pending | `vmi/data/ibportal/`, `vmi/data/ib_fundamentals.py` |
 | Settings screen: every rule editable in the UI (no code), saved to `config/rules_settings.json` | ✅ | `vmi/settings.py`, `static/js/views/settings.js` |
 | Moat = reviewer's verdict; the app gathers the evidence + Adam's 5-source checklist; VMI buy needs a reviewed moat | ✅ | `vmi/analysis/steps.py` |
 | Judgement overrides for every input (growth, blend, sources, method, beta, shares, cash/debt, haircut, IV, steps, buy levels, sizing, scanner pin/exclude): UI card, API, CLI | ✅ | `vmi/overrides.py`, `config/judgements.json` |
 
-**Not done yet:** the full IB `sync --sp500 --browser` run and the calibration re-run after it; full-market
+**Not done yet:** the full IB `sync --sp500` run and the calibration re-run after it; full-market
 scanner run benchmark; judgement-only calibration cases (BKNG and UNH growth input, NKE/LVMUY on P/S), see
 `docs/CALIBRATION.md`; companies with a short history. Progress and reasoning for every change: `Log.md`.
 
@@ -54,9 +54,9 @@ The app tries IB first (`vmi/data/ib_fundamentals.py`, each path behind a circui
 
 0. **IB**:
    - **TWS XML**, which works automatically wherever IB still allows it.
-   - **IB's Client Portal Gateway** (`vmi/data/ibportal/`): financial statements plus analyst long-term growth from the
-     Fundamentals Explorer backend. The routes were taken from IB's own portal and gateway code (`Log.md`).
-     Read-only, cached for 14 days, with a bulk `sync`.
+   - **IB's portal site** (`vmi/data/ibportal/`): financial statements plus analyst growth from the Fundamentals
+     Explorer backend, read after a browser login. Routes taken from IB's own portal code (`Log.md`). Read-only,
+     cached for 14 days, filled by a parallel bulk `sync`; the app only reads the cache.
 
 1. **SEC EDGAR XBRL**: official statements for every US filer. Companyfacts serve deep analysis; frames serve cheap cross-market scans.
 2. **stockanalysis.com**: gap fill, ratio histories, newer fiscal years.
@@ -80,16 +80,16 @@ Two separate things, using two usernames:
    pip install playwright
    ```
    ```bash
-   python3 -m vmi.data.ib_fundamentals check AAPL MSFT --no-tws --browser
+   python3 -m vmi.data.ib_fundamentals check AAPL MSFT --no-tws
    ```
    ```bash
-   python3 -m vmi.data.ib_fundamentals sync --sp500 --browser
+   python3 -m vmi.data.ib_fundamentals sync --sp500
    ```
-   Start IB Gateway first (step 1): `sync` resolves contract ids before opening the browser. Log in with the paper username in
+   Start IB Gateway first (step 1): `sync` resolves contract ids before opening the browser. After the login it copies the
+   browser's cookies into a fast HTTP client (8 tickers in parallel); if the portal refuses that, the browser does the work. Log in with the paper username in
    the window that opens; the command continues by itself. Results are cached 14 days, so repeat about every two weeks.
-   `check` saves raw JSON to `data/ib_portal_samples/`. `/api/health` shows the state of both IB paths.
+   `check` saves raw JSON to `data/ib_portal_samples/`. `/api/health` shows the TWS path state.
 
-The old gateway path (`tools/start_cp_gateway.cmd`, `VMI_IB_CP_URL`) still exists in code but does not return fundamentals.
 
 ## Calibration vs Adam
 
@@ -111,7 +111,7 @@ vmi/
   data/               providers → provider-agnostic models (models.py). Analysis never imports a provider.
     fundamentals.py   resolve(ticker): IB → SEC → stockanalysis → Yahoo merge + TTM reconciliation
     ib_fundamentals.py  IB coordinator: TWS XML → Client Portal Gateway; CLI `check` / `sync`
-    ibportal/         gateway client: routes.py (all URLs) · client.py (read-only HTTP) · parse.py · service.py (cache, sync)
+    ibportal/         portal client: routes.py (all URLs) · browser.py (login) · client.py (read-only HTTP) · parse.py · service.py (cache, sync)
     breaker.py        circuit breakers for optional sources (state shown by /api/health)
     market.py, ib.py  quotes / history / options (IB first, Yahoo fallback); market_hours.py = session logic
   analysis/

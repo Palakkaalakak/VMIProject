@@ -1,17 +1,16 @@
 """IB fundamentals: the one place that decides how the app gets fundamentals from Interactive Brokers.
 
-Two paths, tried in this order, each behind its own circuit breaker (a refusal costs one call per pause):
-  1. TWS API `reqFundamentalData` (LSEG XML: statements, snapshot ratios, analyst estimates).
-     IBKR removed it from its API library in 10.47; current TWS/Gateway builds refuse it locally with error
-     10358 unless the login carries IB's fundamentals-for-API permission. Kept because it costs one call to
-     try, and it works automatically wherever IB still allows it.
-  2. Client Portal Gateway → Fundamentals Explorer backend (vmi.data.ibportal): statements + analyst
-     long-term growth. Read from the cache first; `sync` fills the cache for a whole universe at once.
+Two sources, in this order:
+  1. TWS API `reqFundamentalData` (LSEG XML), behind a 6 h circuit breaker. IBKR removed it in API 10.47 and current
+     TWS/Gateway builds refuse it with error 10358 unless the login has the fundamentals-for-API permission. Kept
+     because one refused call per 6 h costs nothing and it works wherever IB still allows it.
+  2. The IB portal cache (vmi.data.ibportal): statements + analyst growth from IBKR's Fundamentals Explorer, filled by
+     `sync` after a browser login on the PAPER username. The app only reads that cache.
 
-CLI (run it on the PC where TWS and/or the gateway run):
-    python -m vmi.data.ib_fundamentals check AAPL MSFT    # what works right now? raw JSON is saved
-    python -m vmi.data.ib_fundamentals sync --sp500       # fill the IB cache for the S&P 500
-Research notes and the setup decision: Log.md (2026-11-05).
+CLI (on the PC with IB Gateway running on the live login, for contract ids):
+    python -m vmi.data.ib_fundamentals check AAPL MSFT --no-tws   # call every route, save raw JSON
+    python -m vmi.data.ib_fundamentals sync --sp500               # fill the IB cache for the S&P 500 (parallel)
+Research notes, evidence and dead ends: Log.md (2026-11-05/06).
 """
 from __future__ import annotations
 
@@ -30,7 +29,6 @@ from vmi.data.models import Fundamentals, Point
 log = logging.getLogger("vmi.ib_fund")
 
 TWS = Breaker("ib_tws_fundamentals", seconds=6 * 3600)
-PORTAL = Breaker("ib_portal", seconds=60)  # not running / not logged in is the normal state: recheck every minute
 TWS_REFUSALS = ("10358", "not allowed")  # account-wide refusal → pause; 430 (one security lacks data) is not
 
 # ============================================================================================ TWS XML
@@ -188,31 +186,20 @@ def tws_report(symbol: str, report: str) -> str | None:
     return xml
 
 
-# ======================================================================================== Portal path
-def _portal(read, ticker: str, empty):
-    """Cache first; a live gateway call only when configured and not paused by the breaker."""
-    live = ibportal.enabled() and PORTAL.ready
-    try:
-        return read(ticker, live=live)
-    except Exception as exc:  # gateway down, not logged in, route changed …
-        PORTAL.trip(f"{type(exc).__name__}: {exc}")
-        return empty
-
-
 # ============================================================================================= public
 def fundamentals(ticker: str) -> Fundamentals | None:
-    """TWS XML first, then the Client Portal Gateway; None when neither has data."""
+    """TWS XML first, then the IB portal cache (filled by `sync --browser`); None when neither has data."""
     xml = tws_report(ticker, "ReportsFinStatements")
     f = parse_fin_statements(xml, ticker) if xml else None
     if f is not None:
         if snap := tws_report(ticker, "ReportSnapshot"):
             f.meta["ib_snapshot"] = parse_snapshot(snap)
         return f
-    return _portal(ibportal.fundamentals, ticker, None)
+    return ibportal.cached_fundamentals(ticker)
 
 
 def estimates(ticker: str) -> dict:
-    """Analyst growth / beta from IB (decimals): TWS snapshot + RESC first, then the gateway."""
+    """Analyst growth / beta from IB (decimals): TWS snapshot + RESC first, then the IB portal cache."""
     out: dict = {}
     if snap := tws_report(ticker, "ReportSnapshot"):
         s = parse_snapshot(snap)
@@ -225,14 +212,13 @@ def estimates(ticker: str) -> dict:
     ltg = parse_resc(resc).get("eps_ltg") if resc else None
     if ltg is not None:
         out.setdefault("eps_growth_5y", ltg)
-    for k, v in _portal(ibportal.estimates, ticker, {}).items():
+    for k, v in ibportal.cached_estimates(ticker).items():
         out.setdefault(k, v)
     return out
 
 
 def status() -> dict:
-    return {"tws": TWS.status(), "portal": {**PORTAL.status(), "configured": ibportal.enabled(),
-                                            "gateway": ibportal.base_url()}}
+    return {"tws": TWS.status(), "portal": "cache only; refresh with: python -m vmi.data.ib_fundamentals sync --sp500"}
 
 
 # ================================================================================================ CLI
@@ -254,37 +240,26 @@ def tws_probe(symbol: str, wait: float = 10.0) -> dict:
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="python -m vmi.data.ib_fundamentals", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
-    c = sub.add_parser("check", help="test the TWS and gateway paths and save raw gateway JSON")
+    c = sub.add_parser("check", help="log in, call every route for a few tickers, save raw JSON")
     c.add_argument("tickers", nargs="*", default=["AAPL"])
-    c.add_argument("--no-tws", action="store_true", help="skip the TWS probe")
-    c.add_argument("--browser", action="store_true", help="log in through a browser window instead of the gateway")
-    p = sub.add_parser("probe", help="raw status/headers/body of every candidate gateway route (for debugging)")
-    p.add_argument("conid", nargs="?", type=int, default=265598)
-    s = sub.add_parser("sync", help="fill the IB cache from the gateway")
+    c.add_argument("--no-tws", action="store_true", help="skip the TWS reqFundamentalData probe")
+    s = sub.add_parser("sync", help="log in and fill the IB cache (parallel)")
     s.add_argument("tickers", nargs="*")
     s.add_argument("--sp500", action="store_true", help="add every S&P 500 constituent")
-    s.add_argument("--browser", action="store_true", help="log in through a browser window instead of the gateway")
     s.add_argument("--no-statements", action="store_true", help="analyst fields only (fast)")
+    s.add_argument("--workers", type=int, help="parallel tickers (default: settings ib_portal_workers)")
+    for p in (c, s):
+        p.add_argument("--browser", action="store_true", help=argparse.SUPPRESS)  # old flag: the browser is the only path now
     a = ap.parse_args(argv)
+    logging.getLogger("ib_async").setLevel(logging.CRITICAL)  # its per-port "connection failed" spam; we report ports ourselves
 
-    if a.cmd == "probe":
-        from vmi.data.ibportal.probe import probe
+    from vmi.data.ibportal.browser import login
+    from vmi.data.ibportal.client import PortalError
 
-        print(json.dumps(probe(a.conid), indent=1))
-        return
     if a.cmd == "check":
-        report: dict = {}
-        if not a.no_tws:
-            report["tws"] = tws_probe(a.tickers[0])
-        out = get_settings().data_dir / "ib_portal_samples"
-        if a.browser:
-            from vmi.data.ibportal.browser import browser_portal
-
-            with browser_portal() as p:
-                report["browser"] = ibportal.check(a.tickers, out, portal=p)
-        else:
-            report["gateway"] = (ibportal.check(a.tickers, out) if ibportal.enabled()
-                                 else "VMI_IB_CP_URL not set (e.g. https://localhost:5000)")
+        report: dict = {"tws": tws_probe(a.tickers[0])} if not a.no_tws else {}
+        with login() as p:
+            report["portal"] = ibportal.check(a.tickers, get_settings().data_dir / "ib_portal_samples", p)
         print(json.dumps(report, indent=2, default=str))
         return
     tickers = list(a.tickers)
@@ -294,19 +269,13 @@ def main(argv: list[str] | None = None) -> None:
         tickers += [r["symbol"] for r in sp500()]
     if not tickers:
         ap.error("give tickers or --sp500")
-    if a.browser:
-        from vmi.data.ibportal.browser import browser_portal
-        from vmi.data.ibportal.client import PortalError
-
-        try:  # contract ids come from the TWS API: fail now, not after the browser login
-            print(f"Contract ids resolved via IB Gateway/TWS: {ibportal.prefetch_conids(tickers)} new")
-        except PortalError as exc:
-            raise SystemExit(f"{exc}\nStart IB Gateway (live login, API enabled) and run this again; "
-                             "ids are cached for 180 days, so this is only needed for new tickers.")
-        with browser_portal() as p:
-            report = ibportal.sync(tickers, statements=not a.no_statements, progress=print, portal=p)
-    else:
-        report = ibportal.sync(tickers, statements=not a.no_statements, progress=print)
+    try:  # contract ids come from the TWS API: fail now, not after the browser login
+        print(f"Contract ids looked up via IB Gateway/TWS: {ibportal.prefetch_conids(tickers)} (the rest were cached)")
+    except PortalError as exc:
+        raise SystemExit(f"{exc}\nStart IB Gateway (live login) and run this again; "
+                         "ids are cached for 180 days, so this is only needed for new tickers.")
+    with login() as p:
+        report = ibportal.sync(tickers, p, statements=not a.no_statements, workers=a.workers, progress=print)
     print(json.dumps(report, indent=2))
 
 

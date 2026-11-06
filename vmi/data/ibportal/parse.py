@@ -1,7 +1,6 @@
 """Pure parsing helpers for IB Portal payloads: no network, no cache, fully unit-testable.
 
 Entry points:
-    pick_conid(payload, symbol)               /trsrv/stocks answer → primary US stock conid
     parse_financials(payload, f, quarterly)   one statement payload → Points added to `f`
     finalize(f)                               after all statements: sort, latest values, TTM, provenance
     harmonize(f, sec)                         units + fiscal-year end dates checked against SEC
@@ -137,21 +136,7 @@ def is_estimate(label) -> bool:
 
 
 # ------------------------------------------------------------------------------------------------ conid
-def pick_conid(payload, symbol: str) -> int | None:
-    """/trsrv/stocks → {SYM: [{assetClass, contracts: [{conid, isUS}]}]}: prefer the US listing."""
-    entries = payload.get(symbol.upper()) or [] if isinstance(payload, dict) else []
-    fallback = None
-    for entry in entries:
-        if entry.get("assetClass", "STK") != "STK":
-            continue
-        for contract in entry.get("contracts") or []:
-            if contract.get("conid") and contract.get("isUS"):
-                return int(contract["conid"])
-            fallback = fallback or contract.get("conid")
-    return int(fallback) if fallback else None
 
-
-# ------------------------------------------------------------------------------------------- statements
 def parse_financials(payload, f: Fundamentals, quarterly: bool = False) -> int:
     """Merge one financials payload into `f.annual` (or `f.quarterly`). Returns points added."""
     if not payload:

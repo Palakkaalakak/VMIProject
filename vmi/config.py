@@ -26,13 +26,11 @@ class Settings(BaseSettings):
     ib_client_id: int = 17
     ib_market_data_type: int = 1  # 1 live, 2 frozen, 3 delayed, 4 delayed-frozen
     ib_connect_timeout: float = 4.0
-    # IBKR Client Portal Gateway (a separate IBKR app, not TWS) for the Fundamentals Explorer backend
-    # (vmi.data.ibportal). Default: where the gateway listens. If it is not running or not logged in, the app
-    # quietly skips it and rechecks every minute. Empty string = never try. Log the gateway in with a DIFFERENT
-    # username than TWS (e.g. the paper login): see Log.md.
-    ib_cp_url: str = "https://localhost:5000"
-    ib_cp_verify: bool = False  # the local gateway uses a self-signed certificate
-    ib_cp_max_rps: float = 5.0  # stay well under IBKR's Web API rate limit (~10 requests/s)
+    # IB fundamentals via a browser login on the portal site (vmi.data.ibportal, `sync --browser`).
+    # Rate limit: IBKR documents ~10 requests/s per session for its Web API; the portal site's own limit is not
+    # published, so stay at that and back off on HTTP 429 (client.RETRY_STATUSES).
+    ib_portal_max_rps: float = 10.0
+    ib_portal_workers: int = 8  # parallel tickers in `sync` (only in fast mode; the browser fallback is serial)
 
     # Cache TTLs (seconds)
     ttl_quote: int = 15

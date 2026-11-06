@@ -107,47 +107,28 @@ def test_parse_analyst_converts_percent():
     assert P.parse_analyst(rows) == {265598: {"eps_growth_5y": pytest.approx(0.0907), "beta": 1.21}}
 
 
-def test_pick_conid_prefers_us_listing():
-    payload = {"AAPL": [{"assetClass": "STK", "contracts": [{"conid": 38708077, "isUS": False},
-                                                            {"conid": 265598, "isUS": True}]}]}
-    assert P.pick_conid(payload, "AAPL") == 265598
-    assert P.pick_conid({}, "AAPL") is None
-
-
 # ----------------------------------------------------------------------------------------------- client
-@pytest.mark.parametrize("raw,want", [("https://localhost:5000", "https://localhost:5000"),
-                                      ("localhost:5000/v1/api/", "https://localhost:5000"), ("", "")])
-def test_base_url(monkeypatch, raw, want):
-    monkeypatch.setattr(get_settings(), "ib_cp_url", raw)
-    assert C.base_url() == want
-
-
-def fake_gateway(logged_in=True, tws_service=True):
-    """A mock gateway: fundamentals at /tws.proxy (portal profile), or only at /v1/api when tws_service=False."""
-    calls = []
-    ltg = {"AAPL": "9.07", "MSFT": "12.5"}
-    conids = {"AAPL": 265598, "MSFT": 272093}
+def fake_portal(logged_in=True, throttle_first=0):
+    """A mock portal site: fundamentals routes under /tws.proxy only (as verified on real runs)."""
+    calls, state = [], {"throttled": 0}
+    ltg = {265598: "9.07", 272093: "12.5"}
 
     def handler(req: httpx.Request):
         path, q = req.url.path, req.url.params
         calls.append(path)
         if not logged_in:
             return httpx.Response(401, json={"error": "not authenticated"})
-        if path == "/v1/api/sso/validate":
-            return httpx.Response(200, json={"RESULT": True, "USER_NAME": "paperuser"})
-        if path == "/v1/api/tickle":
-            return httpx.Response(200, json={"session": "x"})
-        if path == "/v1/api/trsrv/stocks":
-            return httpx.Response(200, json={s: [{"assetClass": "STK", "contracts": [{"conid": conids[s], "isUS": True}]}]
-                                             for s in q["symbols"].split(",") if s in conids})
-        base = "/tws.proxy" if tws_service else "/v1/api"
-        if not path.startswith(base + "/fundamentals/"):
+        if state["throttled"] < throttle_first:
+            state["throttled"] += 1
+            return httpx.Response(429, headers={"retry-after": "0"})
+        if not path.startswith("/tws.proxy/fundamentals/"):
             return httpx.Response(404, text="not found")
-        route = path[len(base):]
+        route = path[len("/tws.proxy"):]
         if route == "/fundamentals/data_list":
-            by_conid = {v: k for k, v in conids.items()}
             return httpx.Response(200, json=[{"conid": int(c), "field_name": "LONG_TERM_GROWTH",
-                                              "display_value": ltg[by_conid[int(c)]]} for c in q["conids"].split(",")])
+                                              "display_value": ltg[int(c)]} for c in q["conids"].split(",")])
+        if route.startswith("/fundamentals/data/predefined/nextg_qd/"):
+            return httpx.Response(200, json=[{"field_name": "EPSTRENDGR", "display_value": "8.00%"}])
         if route.startswith("/fundamentals/financials/"):
             if q["annual"] != "true":
                 return httpx.Response(200, json={})
@@ -161,71 +142,88 @@ def portal(transport):
     return C.Portal(base=GW, transport=transport, max_rps=1000)
 
 
+def seed_conids(cache, **ids):
+    from vmi.data.ibportal.service import KEY_CONID
+
+    for sym, cid in ids.items():
+        cache.set(KEY_CONID.format(sym), cid)
+
+
 def test_client_refuses_brokerage_routes():
-    t, calls = fake_gateway()
+    t, calls = fake_portal()
     with portal(t) as p, pytest.raises(C.PortalError, match="read-only"):
-        p._send("GET", "/v1/api/iserver/accounts")
+        p._send("/portal.proxy/v1/portal/iserver/accounts")
     assert calls == []
 
 
-def test_fundamentals_base_falls_back_and_is_remembered():
-    C._working_base.clear()
-    t, calls = fake_gateway(tws_service=False)
-    with portal(t) as p:
-        assert p.financials(265598, "income")["table"]["rows"]
-        p.financials(265598, "cash")
-    assert calls.count("/tws.proxy/fundamentals/financials/265598") == 1  # tried once, then remembered
-    assert calls.count("/v1/api/fundamentals/financials/265598") == 2
-    C._working_base.clear()
-
-
 def test_not_logged_in_is_a_401_portal_error():
-    t, _ = fake_gateway(logged_in=False)
+    t, _ = fake_portal(logged_in=False)
     with portal(t) as p, pytest.raises(C.PortalError) as err:
-        p.session()
+        p.financials(265598, "income")
     assert err.value.status == 401
 
 
+def test_throttled_requests_are_retried():
+    t, calls = fake_portal(throttle_first=2)
+    with portal(t) as p:
+        assert p.financials(265598, "income")["table"]["rows"]
+    assert len(calls) == 3  # two 429s, then the answer
+
+
+def test_non_json_answer_is_reported():
+    t = httpx.MockTransport(lambda r: httpx.Response(200, text="<html>login</html>", headers={"content-type": "text/html"}))
+    with portal(t) as p, pytest.raises(C.PortalError, match="not JSON.*text/html.*login"):
+        p.financials(1, "income")
+
+
+def test_rate_limiter_spaces_requests_across_threads():
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    limit = C.RateLimiter(rps=50)  # 20 ms apart
+    started = time.monotonic()
+    with ThreadPoolExecutor(8) as ex:
+        list(ex.map(lambda _: limit.wait(), range(11)))
+    assert time.monotonic() - started >= 0.18  # 10 gaps of 20 ms, whatever the thread count
+
+
 # ---------------------------------------------------------------------------------------------- service
-def test_sync_fills_cache_without_touching_brokerage_routes(isolated_cache):
-    C._working_base.clear()
-    t, calls = fake_gateway()
+def test_sync_fills_cache_in_parallel(isolated_cache):
+    import threading
+
+    t, calls = fake_portal()
+    threads = set()
+    real = t.handle_request
+    t.handle_request = lambda req: (threads.add(threading.get_ident()), real(req))[1]
     from vmi.data.fundamentals import MERGED_KEY
 
+    seed_conids(isolated_cache, AAPL=265598, MSFT=272093)
     isolated_cache.set(MERGED_KEY.format("AAPL"), {"stale": True})
     with portal(t) as p:
-        report = ibportal.sync(["aapl", "MSFT", "NOPE"], portal=p)
+        report = ibportal.sync(["aapl", "MSFT", "NOPE"], p, workers=4)
     assert report["conids"] == 2 and report["analyst"] == 2 and report["statements"] == 2
-    assert report["failed"] == {"NOPE": "no US stock conid"}
-    assert ibportal.cached_estimates("AAPL") == {"eps_growth_5y": pytest.approx(0.0907)}
+    assert list(report["failed"]) == ["NOPE"] and report["workers"] == 4
+    assert ibportal.cached_estimates("AAPL") == {"eps_growth_5y": pytest.approx(0.0907)}  # data_list wins over key metric
     assert ibportal.cached_fundamentals("MSFT").annual["revenue"][-1].fy == 2024
     assert isolated_cache.get(MERGED_KEY.format("AAPL")) is None  # merged cache invalidated
     assert not any("/iserver" in c for c in calls)
+    assert len(threads) > 1  # really ran on several threads
 
 
-def test_live_reads_use_cache_after_first_call():
-    C._working_base.clear()
-    t, calls = fake_gateway()
-    with portal(t) as p:
-        assert ibportal.estimates("MSFT", portal=p) == {"eps_growth_5y": pytest.approx(0.125)}
-        n = len(calls)
-        assert ibportal.estimates("MSFT", portal=p)["eps_growth_5y"] == pytest.approx(0.125)
-    assert len(calls) == n
+def test_sync_stops_when_the_session_ends(isolated_cache):
+    t, _ = fake_portal(logged_in=False)
+    seed_conids(isolated_cache, AAPL=265598)
+    with portal(t) as p, pytest.raises(C.PortalError):
+        ibportal.sync(["AAPL"], p)  # data_list is the first call: a 401 there aborts at once
 
 
-# -------------------------------------------------------------------------------- ib_fundamentals glue
-def test_portal_path_trips_breaker_and_falls_back_to_cache(monkeypatch):
-    monkeypatch.setattr(get_settings(), "ib_cp_url", GW)
-    monkeypatch.setattr(ib_fundamentals, "PORTAL", Breaker("test_portal", seconds=60))
+def test_app_reads_ib_portal_data_from_cache_only(isolated_cache, monkeypatch):
+    from vmi.data.ibportal.service import KEY_EST
 
-    def broken(ticker, live):
-        if live:
-            raise C.PortalError("gateway unreachable")
-        return {"eps_growth_5y": 0.1}
-
-    assert ib_fundamentals._portal(broken, "AAPL", {}) == {}
-    assert not ib_fundamentals.PORTAL.ready  # paused after the failure …
-    assert ib_fundamentals._portal(broken, "AAPL", {}) == {"eps_growth_5y": 0.1}  # … cache-only meanwhile
+    monkeypatch.setattr(ib_fundamentals, "tws_report", lambda *a, **k: None)
+    isolated_cache.set(KEY_EST.format("AAPL"), {"eps_growth_5y": 0.1})
+    assert ib_fundamentals.estimates("AAPL") == {"eps_growth_5y": 0.1}
+    assert ib_fundamentals.fundamentals("ZZZZ") is None  # nothing cached: no network attempt
 
 
 def test_breaker():
@@ -238,105 +236,25 @@ def test_breaker():
     assert get_cache() is not None
 
 
-def test_check_reports_routes_and_saves_raw_json(tmp_path):
-    C._working_base.clear()
-    t, _ = fake_gateway()
+def test_check_reports_routes_and_saves_raw_json(tmp_path, isolated_cache):
+    t, _ = fake_portal()
+    seed_conids(isolated_cache, AAPL=265598)
     with portal(t) as p:
-        report = ibportal.check(["AAPL"], tmp_path, portal=p)
-    assert report["session"] == {"ok": True, "user": "paperuser"}
+        report = ibportal.check(["AAPL"], tmp_path, p)
     entry = report["AAPL"]
+    assert report["mode"] == "fast (httpx)"
     assert entry["conid"] == 265598 and entry["income_annual"] == "ok"
     assert entry["parsed_annual"]["revenue"] == 3
     assert entry["analyst"] == {"eps_growth_5y": pytest.approx(0.0907)}
     assert (tmp_path / "AAPL.json").exists()
 
 
-def test_cli_check_without_gateway(monkeypatch, capsys):
-    monkeypatch.setattr(get_settings(), "ib_cp_url", "")
-    ib_fundamentals.main(["check", "AAPL", "--no-tws"])
-    assert "VMI_IB_CP_URL not set" in capsys.readouterr().out
-
-
-def test_gateway_and_tws_port_are_found_without_configuration():
+def test_tws_port_is_found_without_configuration():
     from vmi.config import Settings
     from vmi.data.ib import AUTO_PORTS, candidate_ports
 
-    assert Settings().ib_cp_url == "https://localhost:5000" and Settings().ib_port == 0  # defaults need no .env
+    assert Settings().ib_port == 0  # defaults need no .env
     assert candidate_ports(0) == AUTO_PORTS and candidate_ports(7497) == (7497,)  # a configured port is used alone
-
-
-def test_non_json_answer_falls_back_to_the_next_route_and_is_reported():
-    C._working_base.clear()
-    calls = []
-
-    def handler(req: httpx.Request):
-        calls.append(req.url.path)
-        if req.url.path.startswith("/tws.proxy/"):
-            return httpx.Response(200, text="<html>Client login</html>", headers={"content-type": "text/html"})
-        return httpx.Response(200, json=INCOME)
-
-    with portal(httpx.MockTransport(handler)) as p:
-        assert p.financials(1, "income")["table"]["rows"]   # second route served it
-    assert calls[0].startswith("/tws.proxy/") and calls[1].startswith("/v1/portal/fundamentals/")
-    C._working_base.clear()
-
-    with portal(httpx.MockTransport(lambda r: httpx.Response(200, text="<html>nope</html>",
-                                                               headers={"content-type": "text/html"}))) as p:
-        with pytest.raises(C.PortalError, match="not JSON.*text/html.*nope.*start_cp_gateway"):
-            p.financials(1, "income")
-    C._working_base.clear()
-
-
-def test_redirect_answer_reports_where_it_points_and_tries_the_next_route():
-    C._working_base.clear()
-
-    def handler(req: httpx.Request):
-        if req.url.path.startswith("/tws.proxy/"):
-            return httpx.Response(302, headers={"location": "https://gw.test/sso/Login?x=1"})
-        return httpx.Response(200, json=INCOME)
-
-    with portal(httpx.MockTransport(handler)) as p:
-        assert p.financials(1, "income")["table"]["rows"]
-    C._working_base.clear()
-    with portal(httpx.MockTransport(lambda r: httpx.Response(302, headers={"location": "https://gw.test/sso/Login"}))) as p:
-        with pytest.raises(C.PortalError, match="HTTP 302 → redirected to https://gw.test/sso/Login"):
-            p.financials(1, "income")
-    C._working_base.clear()
-
-
-def test_web_api_routes_fall_back_to_portal_proxy_on_the_tws_profile():
-    """conf.tws.yaml forwards to the portal website: /v1/api 404s there, /portal.proxy/v1/portal answers."""
-    C._working_base.clear()
-    calls = []
-
-    def handler(req: httpx.Request):
-        calls.append(req.url.path)
-        if req.url.path.startswith("/v1/api/"):
-            return httpx.Response(404, text="<html><body><h1>Resource not found</h1></body></html>")
-        return httpx.Response(200, json={"USER_NAME": "paper1", "RESULT": True})
-
-    with portal(httpx.MockTransport(handler)) as p:
-        assert p.session()["USER_NAME"] == "paper1"
-    assert calls[:2] == ["/v1/api/sso/validate", "/v1/portal/sso/validate"]
-    assert calls[2] == "/v1/portal/tickle"  # the working base is remembered for the group
-    C._working_base.clear()
-
-
-def test_redirect_to_the_same_path_is_retried_with_the_cookie_it_set():
-    C._working_base.clear()
-    seen = []
-
-    def handler(req: httpx.Request):
-        seen.append(req.headers.get("cookie", ""))
-        if "probe=1" not in req.headers.get("cookie", ""):
-            return httpx.Response(302, headers={"location": "https://ndcdyn.example" + req.url.path,
-                                                "set-cookie": "probe=1; Path=/"})
-        return httpx.Response(200, json=INCOME)
-
-    with portal(httpx.MockTransport(handler)) as p:
-        assert p.financials(1, "income")["table"]["rows"]
-    assert len(seen) == 2 and "probe=1" in seen[1]
-    C._working_base.clear()
 
 
 def test_browser_http_adapter_feeds_portal_like_httpx():
@@ -355,10 +273,8 @@ def test_browser_http_adapter_feeds_portal_like_httpx():
                 assert url == "https://site.test/tws.proxy/fundamentals/data_list" and kw["method"] == "GET"
                 return R()
 
-    C._working_base.clear()
-    p = C.Portal(http=BrowserHttp(Ctx, "https://site.test"))
-    assert p.session() == {} and p.data_list([1], ["BETA"])[0]["field_name"] == "BETA"
-    C._working_base.clear()
+    p = C.Portal("https://site.test", http=BrowserHttp(Ctx, "https://site.test"))
+    assert not p.parallel and p.data_list([1], ["BETA"])[0]["field_name"] == "BETA"  # browser fallback: serial
 
 
 def test_real_aapl_row_names_map_to_concepts():
