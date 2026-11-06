@@ -38,6 +38,11 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-06 — `sync --browser` fails fast without IB Gateway
+- `sync --sp500 --browser` died after the browser login because contract ids need the TWS API (IB Gateway was closed).
+  `service.prefetch_conids()` now resolves and caches uncached ids BEFORE the browser opens; if TWS is down the command
+  exits with a clear message. Cached ids (180 days) make later runs independent of IB Gateway.
+
 ### 2026-11-06 — Real run #3: growth source wired (EPSTRENDGR), MSFT gaps are IBKR's
 - MSFT short series (EPS, normalised EPS, shares outstanding, short-term debt, CFO): IBKR's own table has null cells for
   most years in those rows (e.g. EPS only FY2025, CFO FY2023 and FY2025). Source-side gaps, not a parser bug; the SEC series

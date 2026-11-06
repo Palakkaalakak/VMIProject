@@ -246,6 +246,17 @@ def _conids(p: Portal, tickers: list[str]) -> dict[str, int]:
     return out
 
 
+def prefetch_conids(tickers: Iterable[str]) -> int:
+    """Resolve and cache the conids of tickers not cached yet via the TWS API (call BEFORE the browser login,
+    so a missing IB Gateway fails fast). Returns how many were looked up; raises PortalError when TWS is down."""
+    cache = get_cache()
+    missing = [t for t in sorted({t.upper() for t in tickers}) if not cache.get(KEY_CONID.format(t), CONID_TTL)]
+    found = _tws_conids(missing) if missing else {}
+    for t, cid in found.items():
+        cache.set(KEY_CONID.format(t), cid)
+    return len(found)
+
+
 def _tws_conids(symbols: list[str], wait: float = 15.0) -> dict[str, int]:
     """{SYMBOL: conid} from the running IB Gateway/TWS connection (the app's normal one)."""
     from vmi.data.ib import gateway

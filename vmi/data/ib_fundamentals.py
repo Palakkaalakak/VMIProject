@@ -296,7 +296,13 @@ def main(argv: list[str] | None = None) -> None:
         ap.error("give tickers or --sp500")
     if a.browser:
         from vmi.data.ibportal.browser import browser_portal
+        from vmi.data.ibportal.client import PortalError
 
+        try:  # contract ids come from the TWS API: fail now, not after the browser login
+            print(f"Contract ids resolved via IB Gateway/TWS: {ibportal.prefetch_conids(tickers)} new")
+        except PortalError as exc:
+            raise SystemExit(f"{exc}\nStart IB Gateway (live login, API enabled) and run this again; "
+                             "ids are cached for 180 days, so this is only needed for new tickers.")
         with browser_portal() as p:
             report = ibportal.sync(tickers, statements=not a.no_statements, progress=print, portal=p)
     else:

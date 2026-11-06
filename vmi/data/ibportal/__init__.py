@@ -15,7 +15,7 @@ then `python -m vmi.data.ib_fundamentals check AAPL`.
 """
 from vmi.data.ibportal.client import Portal, PortalError, base_url
 from vmi.data.ibportal.service import (cached_estimates, cached_fundamentals, check, enabled, estimates,
-                                       fundamentals, sync)
+                                       fundamentals, prefetch_conids, sync)
 
 __all__ = ["Portal", "PortalError", "base_url", "cached_estimates", "cached_fundamentals", "check", "enabled",
-           "estimates", "fundamentals", "sync"]
+           "estimates", "fundamentals", "prefetch_conids", "sync"]
