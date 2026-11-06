@@ -105,7 +105,8 @@ class Portal:
                 raise
             _working_base[self.base] = b
             return data
-        raise PortalError("no fundamentals route answered with data: " + " | ".join(tried), NOT_JSON)
+        raise PortalError("no fundamentals route answered with data: " + " | ".join(tried) + " — "
+                          + routes.GATEWAY_CONFIG_HINT, NOT_JSON)
 
     # ------------------------------------------------------------------------------------------- session
     def session(self) -> dict:

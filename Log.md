@@ -38,6 +38,17 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-06 — First real IB gateway run: route fix
+Owner's run: login and ticker lookup worked (`session ok`, AAPL conid 265598). Every fundamentals request failed:
+`/v1/tws/...` gave "Unknown service tws", and `/v1/api/tws.proxy/...` gave 404.
+- Cause (from the gateway's own code, build a27ed42): `TwsService` is never registered, so `/v1/tws` can never work.
+  The gateway forwards any unrecognised path unchanged, with the login cookies, to `proxyRemoteHost`. The default
+  `conf.yaml` points at IB's public Web API (no fundamentals); `conf.tws.yaml` points at the portal website host,
+  which serves `/tws.proxy/fundamentals/...`.
+- Fix: fundamentals bases are now `/tws.proxy` then `/v1/api`. When every route fails, the error tells the user to
+  restart the gateway with `root/conf.tws.yaml`. Non-JSON 200 answers fall back instead of crashing.
+- Unverified until the next run: whether login and conid lookup also work under `conf.tws.yaml`.
+
 ### 2026-11-06 — IB connections need no configuration
 Owner: having to set `VMI_IB_CP_URL` by hand makes no sense, so the app now finds both IB programs itself.
 - Client Portal Gateway: `ib_cp_url` defaults to `https://localhost:5000`. If it isn't running or logged in the app

@@ -4,8 +4,12 @@ Where they come from (details and dates in Log.md, 2026-11-05):
   * IBKR's own Client Portal web app (ndcdyn.interactivebrokers.com/portal) calls the Fundamentals Explorer
     backend (LSEG data, free to all IBKR clients) as `/tws.proxy/<route>`. The routes and response shapes
     below were read from that app's public JavaScript.
-  * IBKR's Client Portal Gateway (clientportal.gw, class TwsService) forwards `<gateway>/v1/tws/<route>` to
-    `/tws.proxy/<route>`, and `<gateway>/v1/api/<route>` to the Web API.
+  * IBKR's Client Portal Gateway (clientportal.gw build a27ed42, disassembled) forwards every path it does not
+    recognise, unchanged and with your login cookies, to `proxyRemoteHost` from its config file. Its `TwsService`
+    (`/v1/tws/...`) is never registered in this build ("Unknown service tws", confirmed on a real run 2026-11-06).
+    The default `root/conf.yaml` points at IB's public Web API host (no fundamentals there: 404, confirmed);
+    `root/conf.tws.yaml` points at the portal website host, which serves `/tws.proxy/fundamentals/...`.
+    So: run the gateway with the `root/conf.tws.yaml` profile and ask it for `/tws.proxy/...` directly.
 
 READ-ONLY RULE: this package only reads. It never calls /iserver routes (trading/brokerage). `client.Portal`
 refuses them, so the rule is enforced in code. Note that the gateway itself opens a brokerage session for
@@ -15,7 +19,10 @@ from __future__ import annotations
 
 # --- gateway services (path prefixes on the gateway) ----------------------------------------------------
 WEB_API = "/v1/api"                                  # session + contract routes
-FUNDAMENTALS_BASES = ("/v1/tws", "/v1/api/tws.proxy")  # tried in order; the first that answers is remembered
+FUNDAMENTALS_BASES = ("/tws.proxy", "/v1/api")  # tried in order; the first that answers is remembered
+GATEWAY_CONFIG_HINT = ("If every route failed, stop the gateway and restart it with the portal profile: "
+                       "bin\\run.bat root\\conf.tws.yaml (Windows) or bin/run.sh root/conf.tws.yaml, log in again, "
+                       "then retry. The default conf.yaml serves IB's public Web API, which has no fundamentals.")
 
 # --- session (Web API) ------------------------------------------------------------------------------------
 SESSION_VALIDATE = "/sso/validate"   # GET → 200 + JSON while logged in, 401 otherwise
