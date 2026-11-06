@@ -42,6 +42,14 @@ def _clean(v: Any) -> float | None:
     return f
 
 
+AUTO_PORTS = (7496, 7497, 4001, 4002)  # TWS live, TWS paper, IB Gateway live, IB Gateway paper
+
+
+def candidate_ports(configured: int) -> tuple[int, ...]:
+    """Ports to try, in order: the configured one, or (0 = auto) the usual TWS / IB Gateway ports."""
+    return (configured,) if configured else AUTO_PORTS
+
+
 class IBGateway:
     def __init__(self):
         self.settings = get_settings()
@@ -51,6 +59,7 @@ class IBGateway:
         self.status = "disabled" if not self.settings.ib_enabled else "starting"
         self.last_error = ""
         self._tickers: OrderedDict[int, Any] = OrderedDict()  # conId → Ticker (streaming pool)
+        self.port = self.settings.ib_port or AUTO_PORTS[0]  # the port actually connected to (or last tried)
         self._max_lines = 90
         self._contract_cache: dict[str, Any] = {}
 
@@ -86,19 +95,27 @@ class IBGateway:
         while True:
             if not self.ib.isConnected():
                 self.status = "connecting"
-                try:
-                    await self.ib.connectAsync(self.settings.ib_host, self.settings.ib_port,
-                                               clientId=self.settings.ib_client_id,
-                                               timeout=self.settings.ib_connect_timeout, readonly=True)
+                if await self._connect_any():
                     self.ib.reqMarketDataType(self.settings.ib_market_data_type)
                     self.status = "connected"
                     self._tickers.clear()
                     delay = 2.0
-                except Exception as exc:
+                else:
                     self.status = "disconnected"
-                    self.last_error = f"connect: {exc!s}"[:200]
                     delay = min(60.0, delay * 1.5)
             await asyncio.sleep(delay if not self.ib.isConnected() else 5.0)
+
+    async def _connect_any(self) -> bool:
+        """Try each candidate port until one accepts the (read-only) connection; remember which one worked."""
+        for port in candidate_ports(self.settings.ib_port):
+            try:
+                await self.ib.connectAsync(self.settings.ib_host, port, clientId=self.settings.ib_client_id,
+                                           timeout=self.settings.ib_connect_timeout, readonly=True)
+                self.port = port
+                return True
+            except Exception as exc:
+                self.last_error = f"connect {port}: {exc!s}"[:200]
+        return False
 
     @property
     def connected(self) -> bool:
@@ -113,7 +130,7 @@ class IBGateway:
 
     def info(self) -> dict:
         return {"status": self.status, "connected": self.connected, "host": self.settings.ib_host,
-                "port": self.settings.ib_port, "client_id": self.settings.ib_client_id,
+                "port": self.port, "tried_ports": list(candidate_ports(self.settings.ib_port)), "client_id": self.settings.ib_client_id,
                 "last_error": self.last_error, "streaming_lines": len(self._tickers)}
 
     # ------------------------------------------------------------------ helpers (IB-loop side)

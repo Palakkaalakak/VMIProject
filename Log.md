@@ -38,6 +38,14 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-06 — IB connections need no configuration
+Owner: having to set `VMI_IB_CP_URL` by hand makes no sense, so the app now finds both IB programs itself.
+- Client Portal Gateway: `ib_cp_url` defaults to `https://localhost:5000`. If it isn't running or logged in the app
+  skips it and rechecks every minute (breaker 60 s, was 30 min). `VMI_IB_CP_URL=` (empty) disables it.
+- TWS / IB Gateway: `ib_port` defaults to 0 = try 7496, 7497, 4001, 4002 in turn (`vmi/data/ib.py`
+  `candidate_ports`); a configured port is used alone. The port in use is shown in `/api/health`.
+- Verified: 90 tests; with no gateway running the check fails fast with a clear message.
+
 ### 2026-11-05 — Correction: approved moat items restored (I had removed too much)
 The owner clarified that things they explicitly said to leave, or that I proposed and they approved, stay. My criteria
 audit wrongly removed three approved moat-proposal items. Restored as evidence (they never change a verdict):

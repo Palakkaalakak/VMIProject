@@ -255,3 +255,11 @@ def test_cli_check_without_gateway(monkeypatch, capsys):
     monkeypatch.setattr(get_settings(), "ib_cp_url", "")
     ib_fundamentals.main(["check", "AAPL", "--no-tws"])
     assert "VMI_IB_CP_URL not set" in capsys.readouterr().out
+
+
+def test_gateway_and_tws_port_are_found_without_configuration():
+    from vmi.config import Settings
+    from vmi.data.ib import AUTO_PORTS, candidate_ports
+
+    assert Settings().ib_cp_url == "https://localhost:5000" and Settings().ib_port == 0  # defaults need no .env
+    assert candidate_ports(0) == AUTO_PORTS and candidate_ports(7497) == (7497,)  # a configured port is used alone

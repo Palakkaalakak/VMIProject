@@ -22,14 +22,15 @@ class Settings(BaseSettings):
     # Interactive Brokers (TWS / IB Gateway). Paper 7497 / live 7496; Gateway paper 4002 / live 4001.
     ib_enabled: bool = True
     ib_host: str = "127.0.0.1"
-    ib_port: int = 7497
+    ib_port: int = 0  # 0 = find it: tries the usual ports of TWS and IB Gateway (see vmi.data.ib.AUTO_PORTS)
     ib_client_id: int = 17
     ib_market_data_type: int = 1  # 1 live, 2 frozen, 3 delayed, 4 delayed-frozen
     ib_connect_timeout: float = 4.0
-    # Optional: IBKR Client Portal Gateway (a separate IBKR app, not TWS) for the Fundamentals Explorer
-    # backend (vmi.data.ibportal). Gateway root URL, e.g. https://localhost:5000. Empty = disabled.
-    # Log the gateway in with a DIFFERENT username than TWS (e.g. the paper login): see Log.md.
-    ib_cp_url: str = ""
+    # IBKR Client Portal Gateway (a separate IBKR app, not TWS) for the Fundamentals Explorer backend
+    # (vmi.data.ibportal). Default: where the gateway listens. If it is not running or not logged in, the app
+    # quietly skips it and rechecks every minute. Empty string = never try. Log the gateway in with a DIFFERENT
+    # username than TWS (e.g. the paper login): see Log.md.
+    ib_cp_url: str = "https://localhost:5000"
     ib_cp_verify: bool = False  # the local gateway uses a self-signed certificate
     ib_cp_max_rps: float = 5.0  # stay well under IBKR's Web API rate limit (~10 requests/s)
 

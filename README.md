@@ -73,12 +73,13 @@ IBKR allows one brokerage session per username, and the Client Portal Gateway op
 gateway must use **different usernames**. Your paper login counts as a separate username.
 
 1. **TWS (or IB Gateway) on your live login:** API port 7496 (IB Gateway: 4001), with Global Configuration → API →
-   Settings → **Read-Only API** ticked. Set `VMI_IB_PORT=7496`. The app only reads market data; its paper trading is
-   simulated locally.
+   Settings → **Read-Only API** ticked. The app finds the port itself (tries 7496, 7497, 4001, 4002); set
+   `VMI_IB_PORT` only to force one. It only reads market data; its paper trading is simulated locally.
 2. **IBKR Client Portal Gateway on your paper login:** download
    https://download2.interactivebrokers.com/portal/clientportal.gw.zip (it needs Java), unzip it, run
    `bin/run.sh root/conf.yaml` (Windows: `bin\run.bat root\conf.yaml`), and log in at https://localhost:5000 with the
-   paper username. Set `VMI_IB_CP_URL=https://localhost:5000`.
+   paper username. No setting is needed: the app looks for the gateway at https://localhost:5000 by itself (rechecking
+   every minute) and skips it quietly when it isn't running or logged in. Set `VMI_IB_CP_URL=` (empty) to never try.
 3. Check what works, then fill the cache:
    ```bash
    python3 -m vmi.data.ib_fundamentals check AAPL

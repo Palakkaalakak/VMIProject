@@ -30,7 +30,7 @@ from vmi.data.models import Fundamentals, Point
 log = logging.getLogger("vmi.ib_fund")
 
 TWS = Breaker("ib_tws_fundamentals", seconds=6 * 3600)
-PORTAL = Breaker("ib_portal", seconds=30 * 60)  # shorter: the usual cause is "gateway not logged in yet"
+PORTAL = Breaker("ib_portal", seconds=60)  # not running / not logged in is the normal state: recheck every minute
 TWS_REFUSALS = ("10358", "not allowed")  # account-wide refusal → pause; 430 (one security lacks data) is not
 
 # ============================================================================================ TWS XML
@@ -248,7 +248,7 @@ def tws_probe(symbol: str, wait: float = 10.0) -> dict:
     xml, err = _tws_request(symbol, "ReportSnapshot", timeout=20)
     verdict = ("works" if xml else "not connected" if not gw.connected
                else "refused by IB for this login (10358)" if "10358" in err else "failed")
-    return {"port": gw.settings.ib_port, "connected": gw.connected, "fundamentals": verdict, "detail": err}
+    return {"port": gw.port, "connected": gw.connected, "fundamentals": verdict, "detail": err}
 
 
 def main(argv: list[str] | None = None) -> None:
