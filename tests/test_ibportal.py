@@ -291,3 +291,17 @@ def test_epstrendgr_key_metric_becomes_the_five_year_growth_source():
 
     rows = [{"field_name": "EPSTRENDGR", "display_value": "9.85%"}, {"field_name": "MKTCAP", "display_value": "5.08T"}]
     assert parse_key_metrics(rows)["eps_growth_5y"] == pytest.approx(0.0985) and parse_key_metrics(None) == {}
+
+
+def test_ib_ab_drops_only_ib_growth_and_restores_the_source(monkeypatch):
+    from vmi.analysis import calibrate, ib_ab
+    from vmi.data import estimates
+
+    monkeypatch.setattr(estimates, "from_ib", lambda t: {"eps_growth_5y": 0.1, "beta": 1.2})
+    seen = []
+    monkeypatch.setattr(calibrate, "run", lambda syms, tech, judged: seen.append(estimates.SOURCES["ib"]("X")) or [])
+    original = estimates.SOURCES["ib"]
+    ib_ab._run(None, False, keep_ib_growth=False)
+    ib_ab._run(None, False, keep_ib_growth=True)
+    assert seen == [{"beta": 1.2}, {"eps_growth_5y": 0.1, "beta": 1.2}]
+    assert estimates.SOURCES["ib"] is original
