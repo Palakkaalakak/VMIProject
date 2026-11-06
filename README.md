@@ -37,7 +37,7 @@ Settings come from environment variables or `.env` with the `VMI_` prefix (see `
 | Watchlists: import (Adam pipe / CSV / TradingView), auto-fill IV + levels, 60s alerts | ✅ | `vmi/watchlist/service.py` |
 | Options chain (IB → Yahoo, rows never disappear), VMI CSP/CC suggestions | ✅ | `vmi/options/chain.py` |
 | Web UI (analysis, scanner, watchlists, portfolios, options, alerts) | ✅ | `static/` |
-| IB fundamentals via the Client Portal Gateway (Fundamentals Explorer backend), bulk `sync` | ✅ (offline-tested; live check pending) | `vmi/data/ibportal/`, `vmi/data/ib_fundamentals.py` |
+| IB fundamentals via the Client Portal Gateway (Fundamentals Explorer backend), bulk `sync` | ✅ browser login verified live (AAPL, MSFT); full `sync` pending | `vmi/data/ibportal/`, `vmi/data/ib_fundamentals.py` |
 | Settings screen: every rule editable in the UI (no code), saved to `config/rules_settings.json` | ✅ | `vmi/settings.py`, `static/js/views/settings.js` |
 | Moat = reviewer's verdict; the app gathers the evidence + Adam's 5-source checklist; VMI buy needs a reviewed moat | ✅ | `vmi/analysis/steps.py` |
 | Judgement overrides for every input (growth, blend, sources, method, beta, shares, cash/debt, haircut, IV, steps, buy levels, sizing, scanner pin/exclude): UI card, API, CLI | ✅ | `vmi/overrides.py`, `config/judgements.json` |
@@ -67,36 +67,29 @@ The app tries IB first (`vmi/data/ib_fundamentals.py`, each path behind a circui
 
 Coverage audit: `python3 -m vmi.data.coverage` writes `data/coverage_sp500.json`.
 
-### IB setup (one session per username; reasoning and sources in `Log.md`, 2026-11-05)
+### IB setup (reasoning, evidence and the dead ends are in `Log.md`, 2026-11-05 and 2026-11-06)
 
-IBKR allows one brokerage session per username, and the Client Portal Gateway opens one when you log in. So TWS and the
-gateway must use **different usernames**. Your paper login counts as a separate username.
+Two separate things, using two usernames:
 
-1. **TWS (or IB Gateway) on your live login:** API port 7496 (IB Gateway: 4001), with Global Configuration → API →
-   Settings → **Read-Only API** ticked. The app finds the port itself (tries 7496, 7497, 4001, 4002); set
-   `VMI_IB_PORT` only to force one. It only reads market data; its paper trading is simulated locally.
-2. **IBKR Client Portal Gateway on your paper login:** download
-   https://download2.interactivebrokers.com/portal/clientportal.gw.zip (it needs Java) and unzip it. IBKR's `bin\run.bat`
-   ignores the config name you give it and always loads `conf.yaml`, which serves IB's public Web API (no fundamentals).
-   Fundamentals need the `conf.tws.yaml` profile, so start it with the launcher in this repo (cmd or PowerShell):
-   ```
-   tools\start_cp_gateway.cmd C:\path\to\clientportal.gw
-   ```
-   (It runs Java directly with `--conf conf.tws.yaml`. Typing the java line yourself in PowerShell needs every `-D...`
-   argument in quotes, otherwise you get "Could not find or load main class .disableDnsResolver=true".)
-   Then log in at https://localhost:5000 with the paper username. The app finds the gateway by itself (rechecking every
-   minute) and skips it quietly when it isn't running or logged in. Set `VMI_IB_CP_URL=` (empty) to never try.
-3. Check what works, then fill the cache:
+1. **Live quotes: IB Gateway (or TWS) on your live login**, API port 7496 / 4001, with Read-Only API ticked. The app finds
+   the port itself (tries 7496, 7497, 4001, 4002; set `VMI_IB_PORT` only to force one). It only reads market data; its
+   paper trading is simulated locally. It also resolves ticker → IB contract id (cached 180 days).
+2. **Fundamentals + analyst growth: a browser login on your PAPER username** (no gateway, no Java). IBKR's Client Portal
+   Gateway cannot carry these routes (it redirects them; verified 2026-11-06), so the app drives your installed Edge/Chrome:
    ```bash
-   python3 -m vmi.data.ib_fundamentals check AAPL
+   pip install playwright
    ```
    ```bash
-   python3 -m vmi.data.ib_fundamentals sync --sp500
+   python3 -m vmi.data.ib_fundamentals check AAPL MSFT --no-tws --browser
    ```
+   ```bash
+   python3 -m vmi.data.ib_fundamentals sync --sp500 --browser
+   ```
+   Start IB Gateway first (step 1): `sync` resolves contract ids before opening the browser. Log in with the paper username in
+   the window that opens; the command continues by itself. Results are cached 14 days, so repeat about every two weeks.
    `check` saves raw JSON to `data/ib_portal_samples/`. `/api/health` shows the state of both IB paths.
 
-If the paper login can't read fundamentals, use one login at a time: log the gateway in while TWS is closed and run
-`sync`. The cache then serves the app for 14 days.
+The old gateway path (`tools/start_cp_gateway.cmd`, `VMI_IB_CP_URL`) still exists in code but does not return fundamentals.
 
 ## Calibration vs Adam
 
