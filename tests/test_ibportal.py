@@ -302,3 +302,21 @@ def test_redirect_answer_reports_where_it_points_and_tries_the_next_route():
         with pytest.raises(C.PortalError, match="HTTP 302 → redirected to https://gw.test/sso/Login"):
             p.financials(1, "income")
     C._working_base.clear()
+
+
+def test_web_api_routes_fall_back_to_portal_proxy_on_the_tws_profile():
+    """conf.tws.yaml forwards to the portal website: /v1/api 404s there, /portal.proxy/v1/portal answers."""
+    C._working_base.clear()
+    calls = []
+
+    def handler(req: httpx.Request):
+        calls.append(req.url.path)
+        if req.url.path.startswith("/v1/api/"):
+            return httpx.Response(404, text="<html><body><h1>Resource not found</h1></body></html>")
+        return httpx.Response(200, json={"USER_NAME": "paper1", "RESULT": True})
+
+    with portal(httpx.MockTransport(handler)) as p:
+        assert p.session()["USER_NAME"] == "paper1"
+    assert calls[:2] == ["/v1/api/sso/validate", "/portal.proxy/v1/portal/sso/validate"]
+    assert calls[2] == "/portal.proxy/v1/portal/tickle"  # the working base is remembered for the group
+    C._working_base.clear()

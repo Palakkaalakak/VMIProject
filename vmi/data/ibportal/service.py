@@ -25,6 +25,7 @@ KEY_FUND = "ibportal:fund:v1:{}"
 KEY_EST = "ibportal:est:v1:{}"
 KEY_CONID = "ibportal:conid:{}"
 CONID_TTL = 180 * 24 * 3600  # conids are permanent identifiers
+KNOWN_CONIDS = {"AAPL": 265598}  # used only by check() when the contract route fails (confirmed on a real run 2026-11-06)
 
 
 def enabled() -> bool:
@@ -105,11 +106,17 @@ def check(tickers: Iterable[str], out_dir: Path, portal: Portal | None = None) -
             report["session"] = {"ok": True, "user": p.session().get("USER_NAME", "")}
         except PortalError as exc:
             report["session"] = {"ok": False, "error": str(exc)}
-            return report
+            if exc.status == 401:
+                return report  # not logged in: nothing else can work. Otherwise keep probing the other routes.
         for sym in [t.upper() for t in tickers]:
-            cid = p.conids([sym]).get(sym)
-            entry: dict = {"conid": cid}
+            entry: dict = {}
             report[sym] = entry
+            try:
+                cid = entry["conid"] = _conids(p, [sym]).get(sym)
+            except PortalError as exc:
+                entry["conid"] = str(exc)
+                cid = KNOWN_CONIDS.get(sym)  # still probe the fundamentals routes for a well-known ticker
+                entry["conid_fallback"] = cid
             if cid is None:
                 continue
             raw: dict = {}

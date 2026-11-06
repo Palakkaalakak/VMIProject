@@ -14,10 +14,10 @@ import time
 from vmi.config import get_settings
 from vmi.data.ibportal import routes
 
-_working_base: dict[str, str] = {}  # gateway root → fundamentals base that answered (see routes.FUNDAMENTALS_BASES)
-
+_working_base: dict[tuple[str, str], str] = {}  # (gateway root, route group) → base that answered
 
 NOT_JSON = 200  # PortalError.status for "answered 200 but the body is not JSON"
+NOT_SERVED = (301, 302, 303, 307, 308, 404, 405, NOT_JSON)  # "this base does not serve the route": try the next
 
 
 class PortalError(RuntimeError):
@@ -88,26 +88,29 @@ class Portal:
             raise PortalError(f"{method} {path} → HTTP 200 but not JSON ({r.headers.get('content-type', '?')}): "
                               f"{r.text[:160]!r}", NOT_JSON) from None
 
-    def _api(self, method: str, route: str, **params):
-        return self._send(method, routes.WEB_API + route, params or None)
-
-    def _fundamentals(self, route: str, **params):
-        """GET a fundamentals route, trying each base in routes.FUNDAMENTALS_BASES until one answers."""
-        known = _working_base.get(self.base)
-        bases = [known] if known else list(routes.FUNDAMENTALS_BASES)
+    def _routed(self, group: str, bases: tuple[str, ...], method: str, route: str, params: dict):
+        """Send to the first base in `bases` that serves `route`; remember it per gateway and group."""
+        memo = (self.base, group)
+        known = _working_base.get(memo)
         tried: list[str] = []
-        for b in bases:
+        for b in [known] if known else bases:
             try:
-                data = self._send("GET", b + route, params or None)
+                data = self._send(method, b + route, params or None)
             except PortalError as exc:
-                if exc.status in (301, 302, 303, 307, 308, 404, 405, NOT_JSON) and not known:  # not served here: try the next
+                if exc.status in NOT_SERVED and not known:  # not served under this base: try the next
                     tried.append(str(exc))
                     continue
                 raise
-            _working_base[self.base] = b
+            _working_base[memo] = b
             return data
-        raise PortalError("no fundamentals route answered with data: " + " | ".join(tried) + " — "
+        raise PortalError(f"no {group} route answered with data: " + " | ".join(tried) + " — "
                           + routes.GATEWAY_CONFIG_HINT, NOT_JSON)
+
+    def _api(self, method: str, route: str, **params):
+        return self._routed("api", routes.API_BASES, method, route, params)
+
+    def _fundamentals(self, route: str, **params):
+        return self._routed("fundamentals", routes.FUNDAMENTALS_BASES, "GET", route, params)
 
     # ------------------------------------------------------------------------------------------- session
     def session(self) -> dict:

@@ -38,6 +38,19 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-06 — Gateway on conf.tws.yaml: Web API routes moved to /portal.proxy
+- Real run with the launcher: login succeeded ("authenticated to cp"), but `/v1/api/sso/validate` returned 404.
+  The tws profile forwards to the portal website, which doesn't serve `/v1/api`. The gateway's own brokerage init
+  also logged "Access Denied / ssodh failed". That's harmless here because we never use brokerage routes.
+- `client._routed(group, bases, …)` is now one fallback mechanism for both route groups. It remembers the
+  working base per (gateway, group). `routes.API_BASES = ("/v1/api", "/portal.proxy/v1/portal")`.
+  `/portal.proxy/v1/portal` is the prefix the portal web app uses for Web API routes. It is unverified on a real
+  run, so check `check` output.
+- `check()` now continues after a non-401 session error. It uses cached conids and falls back to `KNOWN_CONIDS`
+  (AAPL), so the fundamentals routes get probed even when contract lookup fails.
+- Fixed the SyntaxWarning (`\c` in the routes.py docstring): it is now a raw string.
+- Test: `test_web_api_routes_fall_back_to_portal_proxy_on_the_tws_profile`.
+
 ### 2026-11-06 — Gateway launcher script (PowerShell quoting)
 - On the owner's PC, typing the java line in PowerShell failed with "Could not find or load main class
   .disableDnsResolver=true": PowerShell splits unquoted `-Dname=value` arguments at the dot.

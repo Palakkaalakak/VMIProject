@@ -1,4 +1,4 @@
-"""Every IBKR route and field name this package uses. Edit HERE when IBKR changes one.
+r"""Every IBKR route and field name this package uses. Edit HERE when IBKR changes one.
 
 Where they come from (details and dates in Log.md, 2026-11-05):
   * IBKR's own Client Portal web app (ndcdyn.interactivebrokers.com/portal) calls the Fundamentals Explorer
@@ -20,8 +20,12 @@ whoever logs into it, so log it in with a DIFFERENT username than TWS (e.g. the 
 from __future__ import annotations
 
 # --- gateway services (path prefixes on the gateway) ----------------------------------------------------
-WEB_API = "/v1/api"                                  # session + contract routes
-FUNDAMENTALS_BASES = ("/tws.proxy", "/v1/api")  # tried in order; the first that answers is remembered
+# Each group is tried in order; the first base that answers is remembered per gateway (client._working_base).
+# With conf.tws.yaml the gateway forwards to the portal website, which does NOT serve /v1/api (404, confirmed
+# 2026-11-06); the portal web app reaches the same Web API routes as /portal.proxy/v1/portal/<route>.
+WEB_API = "/v1/api"
+API_BASES = ("/v1/api", "/portal.proxy/v1/portal")          # session + contract routes
+FUNDAMENTALS_BASES = ("/tws.proxy", "/v1/api")
 GATEWAY_CONFIG_HINT = ("If every route failed, the gateway is on its default conf.yaml (IB's public Web API, no fundamentals). "
                        "IBKR's bin\\run.bat ignores the file name you give it, so start the gateway with this repo's "
                        "launcher instead: tools\\start_cp_gateway.cmd C:\\path\\to\\clientportal.gw  (then log in again)")
