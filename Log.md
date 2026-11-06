@@ -38,6 +38,20 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-06 — Real run #3: growth source wired (EPSTRENDGR), MSFT gaps are IBKR's
+- MSFT short series (EPS, normalised EPS, shares outstanding, short-term debt, CFO): IBKR's own table has null cells for
+  most years in those rows (e.g. EPS only FY2025, CFO FY2023 and FY2025). Source-side gaps, not a parser bug; the SEC series
+  fills them in the merge.
+- fin_trends (I/B/E/S consensus, FY actual + estimates to +5y): AAPL pretax income FY2025 132.7B → FY2029 194.8B =
+  10.1 %/yr (FY2030 184.5B is thinly covered); MSFT FY2026 159.4B → FY2030 314.7B = 18.5 %/yr. `key_metrics.EPSTRENDGR`
+  = AAPL 9.85 %, MSFT 17.38 %: same ballpark, so it behaves as a forward consensus growth rate. Its meaning is still
+  not documented anywhere I could read, so it is registered as UNVERIFIED-but-cross-checked.
+- Implemented: `routes.KEY_METRIC_FIELDS` + `parse.parse_key_metrics`; `service._fetch_analyst` makes one key_metrics call
+  per stock and stores EPSTRENDGR as `eps_growth_5y` (the IB source in `est.sources`). It enters the growth blend
+  like any source, so with the default "lowest" blend it can lower growth; exclude it per stock with the
+  `exclude_sources` override. Run the calibration (docs/CALIBRATION.md) after the first full sync before trusting it.
+- Not done: CAGR from fin_trends as a second source (pretax income is not EPS; would double count one forecast).
+
 ### 2026-11-06 — Real run #2 (AAPL, MSFT) and what is still open
 - Verified: with the new LABELS AAPL parses 29 concepts x 4 annual years (net income, CFO, EPS, SG&A, R&D, ...). MSFT parses
   the same but with short series: eps_diluted 1, eps_diluted_norm 1, shares_outstanding 1, st_debt 1, cfo 2 (cause

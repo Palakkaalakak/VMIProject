@@ -368,3 +368,10 @@ def test_real_aapl_row_names_map_to_concepts():
             "Diluted EPS Excluding ExtraOrd Items": "eps_diluted", "Cash from Op. Act.": "cfo",
             "Selling/General/Admin. Expenses, Total": "sga", "Shares Outstanding": "shares_outstanding"}
     assert {k: concept_for(k) for k in seen} == seen
+
+
+def test_epstrendgr_key_metric_becomes_the_five_year_growth_source():
+    from vmi.data.ibportal.parse import parse_key_metrics
+
+    rows = [{"field_name": "EPSTRENDGR", "display_value": "9.85%"}, {"field_name": "MKTCAP", "display_value": "5.08T"}]
+    assert parse_key_metrics(rows)["eps_growth_5y"] == pytest.approx(0.0985) and parse_key_metrics(None) == {}

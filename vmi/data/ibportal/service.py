@@ -289,7 +289,17 @@ def _fetch_analyst(p: Portal, ids: dict[str, int]) -> dict[str, dict]:
     if not ids:
         return {}
     by_conid = parse.parse_analyst(p.data_list(list(ids.values()), [n for n, _, _ in routes.ANALYST_FIELDS]))
-    out = {sym: by_conid[cid] for sym, cid in ids.items() if by_conid.get(cid)}
+    out = {}
+    for sym, cid in ids.items():
+        values = dict(by_conid.get(cid) or {})
+        try:  # one extra call per stock: the key metrics carry the consensus growth rate (see routes.KEY_METRIC_FIELDS)
+            for k, v in parse.parse_key_metrics(p.key_metrics(cid)).items():
+                values.setdefault(k, v)
+        except PortalError as exc:
+            if exc.status == 401:
+                raise
+        if values:
+            out[sym] = values
     for sym, values in out.items():
         get_cache().set(KEY_EST.format(sym), values)
     return out

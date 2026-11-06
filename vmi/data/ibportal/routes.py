@@ -68,5 +68,9 @@ ANALYST_FIELDS: tuple[tuple[str, str, str], ...] = (
     ("LONG_TERM_GROWTH", "eps_growth_5y", "pct"),  # analyst consensus long-term EPS growth (the DCF growth input)
     ("BETA", "beta", "x"),
 )
+# key_metrics fields → our estimate keys. EPSTRENDGR ("9.85%"): meaning NOT documented in the portal JS (UNVERIFIED);
+# cross-checked 2026-11-06 against the I/B/E/S consensus pretax-income CAGR in fin_trends: AAPL 9.85 % vs 10.1 % (to FY2029),
+# MSFT 17.38 % vs 18.5 % (to FY2030), i.e. a forward consensus growth rate. Exclude per stock with the `exclude_sources` override.
+KEY_METRIC_FIELDS: tuple[tuple[str, str, str], ...] = (("EPSTRENDGR", "eps_growth_5y", "pct"),)
 # Extra fields only dumped by the `check` command, to confirm names and units before relying on them.
 PROBE_FIELDS = ("FIVE_YR_EPS_GROWTH_FIELD", "EPS_GRWTH_5YR", "CONSENSUS_RANK", "PRICE_2_BOOK", "PRICE_2_SALES")

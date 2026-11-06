@@ -319,6 +319,16 @@ def parse_analyst(rows) -> dict[int, dict[str, float]]:
     return out
 
 
+def parse_key_metrics(rows) -> dict[str, float]:
+    """key_metrics rows [{field_name, display_value}] → {our key: value} (routes.KEY_METRIC_FIELDS; percent → decimal)."""
+    values = field_values(rows)
+    out: dict[str, float] = {}
+    for name, key, unit in routes.KEY_METRIC_FIELDS:
+        if (v := to_number(values.get(name))) is not None:
+            out[key] = v / 100 if unit == "pct" else v
+    return out
+
+
 def field_values(rows) -> dict[str, str]:
     """[{field_name, display_value}] → {field_name: display_value} (used by the check command's report)."""
     return {r["field_name"]: r.get("display_value") for r in rows or [] if isinstance(r, dict) and r.get("field_name")}
