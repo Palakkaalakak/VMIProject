@@ -271,13 +271,7 @@ def _tws_conids(symbols: list[str], wait: float = 15.0) -> dict[str, int]:
         raise PortalError(f"symbol lookup needs IB Gateway/TWS reachable on {info['host']}. Ports tried: "
                           f"{info.get('port_errors') or info['tried_ports']}. In IB Gateway check Configure > Settings > API > "
                           "Settings (socket port, 'Allow connections from localhost only'); force a port with VMI_IB_PORT=<port>")
-    out = {}
-    for s in symbols:
-        try:
-            out[s] = gw.conid(s)
-        except Exception:
-            pass  # unknown to IB: omitted, like the gateway lookup
-    return out
+    return gw.conids(symbols, progress=print)
 
 
 def _fetch_statements(p: Portal, ticker: str, conid: int) -> Fundamentals | None:

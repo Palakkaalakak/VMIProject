@@ -38,6 +38,11 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-06 — Contract-id lookup in batches
+- First `sync --sp500 --browser` took ~10 min before the login window opened: `_tws_conids` qualified one symbol per round
+  trip (~500). Now `IBGateway.conids()` qualifies 50 per call and prints progress. UNVERIFIED on a live Gateway (tests
+  have no TWS); ids are cached 180 days, so only the first run pays.
+
 ### 2026-11-06 — `sync --browser` fails fast without IB Gateway
 - `sync --sp500 --browser` died after the browser login because contract ids need the TWS API (IB Gateway was closed).
   `service.prefetch_conids()` now resolves and caches uncached ids BEFORE the browser opens; if TWS is down the command

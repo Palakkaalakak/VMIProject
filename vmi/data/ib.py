@@ -165,6 +165,21 @@ class IBGateway:
         return t
 
     # ------------------------------------------------------------------ public API (any thread)
+    def conids(self, symbols: list[str], batch: int = 50, progress=lambda msg: None) -> dict[str, int]:
+        """{SYMBOL: conid} for US stocks, qualified in batches (one round trip per `batch` symbols)."""
+        from ib_async import Stock
+
+        async def run(chunk):
+            contracts = {s: Stock(s.replace("-", " ").replace(".", " "), "SMART", "USD") for s in chunk}
+            await self.ib.qualifyContractsAsync(*contracts.values())
+            return {s: int(c.conId) for s, c in contracts.items() if getattr(c, "conId", 0)}
+
+        out: dict[str, int] = {}
+        for i in range(0, len(symbols), batch):
+            out.update(self.call(lambda chunk=symbols[i:i + batch]: run(chunk), timeout=120))
+            progress(f"contract ids: {min(i + batch, len(symbols))}/{len(symbols)}")
+        return out
+
     def conid(self, symbol: str) -> int:
         """IB contract id of a US stock (qualified on SMART)."""
         return int(self.call(lambda: self._stock(symbol)).conId)
