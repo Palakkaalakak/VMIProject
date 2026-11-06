@@ -23,10 +23,8 @@ from __future__ import annotations
 WEB_API = "/v1/api"                                  # session + contract routes
 FUNDAMENTALS_BASES = ("/tws.proxy", "/v1/api")  # tried in order; the first that answers is remembered
 GATEWAY_CONFIG_HINT = ("If every route failed, the gateway is on its default conf.yaml (IB's public Web API, no fundamentals). "
-                       "IBKR's bin\\run.bat ignores the file name you give it, so start Java directly from the clientportal.gw "
-                       "folder: java -server -Djava.net.preferIPv4Stack=true -classpath \"root\\;dist\\"
-                       "ibgroup.web.core.iblink.router.clientportal.gw.jar;build\\lib\\runtime\\*\" "
-                       "ibgroup.web.core.clientportal.gw.GatewayStart --conf conf.tws.yaml  (then log in again)")
+                       "IBKR's bin\\run.bat ignores the file name you give it, so start the gateway with this repo's "
+                       "launcher instead: tools\\start_cp_gateway.cmd C:\\path\\to\\clientportal.gw  (then log in again)")
 
 # --- session (Web API) ------------------------------------------------------------------------------------
 SESSION_VALIDATE = "/sso/validate"   # GET → 200 + JSON while logged in, 401 otherwise

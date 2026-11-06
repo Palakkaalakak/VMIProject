@@ -78,10 +78,12 @@ gateway must use **different usernames**. Your paper login counts as a separate 
 2. **IBKR Client Portal Gateway on your paper login:** download
    https://download2.interactivebrokers.com/portal/clientportal.gw.zip (it needs Java) and unzip it. IBKR's `bin\run.bat`
    ignores the config name you give it and always loads `conf.yaml`, which serves IB's public Web API (no fundamentals).
-   Fundamentals need the `conf.tws.yaml` profile, so start Java directly from the `clientportal.gw` folder (one line):
+   Fundamentals need the `conf.tws.yaml` profile, so start it with the launcher in this repo (cmd or PowerShell):
    ```
-   java -server -Dvertx.disableDnsResolver=true -Djava.net.preferIPv4Stack=true -classpath "root\;dist\ibgroup.web.core.iblink.router.clientportal.gw.jar;build\lib\runtime\*" ibgroup.web.core.clientportal.gw.GatewayStart --conf conf.tws.yaml
+   tools\start_cp_gateway.cmd C:\path\to\clientportal.gw
    ```
+   (It runs Java directly with `--conf conf.tws.yaml`. Typing the java line yourself in PowerShell needs every `-D...`
+   argument in quotes, otherwise you get "Could not find or load main class .disableDnsResolver=true".)
    Then log in at https://localhost:5000 with the paper username. The app finds the gateway by itself (rechecking every
    minute) and skips it quietly when it isn't running or logged in. Set `VMI_IB_CP_URL=` (empty) to never try.
 3. Check what works, then fill the cache:

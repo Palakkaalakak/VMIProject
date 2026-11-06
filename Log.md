@@ -38,6 +38,13 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-06 — Gateway launcher script (PowerShell quoting)
+- On the owner's PC, typing the java line in PowerShell failed with "Could not find or load main class
+  .disableDnsResolver=true": PowerShell splits unquoted `-Dname=value` arguments at the dot.
+- Added `tools/start_cp_gateway.cmd [clientportal.gw folder]`. It quotes the `-D` args and runs `--conf conf.tws.yaml`,
+  and it works from cmd and PowerShell. README and `routes.GATEWAY_CONFIG_HINT` now point to it.
+- Open: confirm on a real run that `/tws.proxy/fundamentals/...` returns data with this profile.
+
 ### 2026-11-06 — Why conf.tws.yaml had no effect (and how to start the gateway)
 Real run: a 302 redirect to `api.ibkr.com` showed the gateway was still on `conf.yaml` even after
 `bin\run.bat root\conf.tws.yaml`. Cause (read from IBKR's scripts): `run.bat` only uses its argument to derive the
