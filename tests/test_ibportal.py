@@ -297,11 +297,11 @@ def test_ib_ab_drops_only_ib_growth_and_restores_the_source(monkeypatch):
     from vmi.analysis import calibrate, ib_ab
     from vmi.data import estimates
 
-    monkeypatch.setattr(estimates, "from_ib", lambda t: {"eps_growth_5y": 0.1, "beta": 1.2})
+    fake = lambda t: {"eps_growth_5y": 0.1, "beta": 1.2}  # noqa: E731
+    monkeypatch.setitem(estimates.SOURCES, "ib", fake)
     seen = []
     monkeypatch.setattr(calibrate, "run", lambda syms, tech, judged: seen.append(estimates.SOURCES["ib"]("X")) or [])
-    original = estimates.SOURCES["ib"]
     ib_ab._run(None, False, keep_ib_growth=False)
     ib_ab._run(None, False, keep_ib_growth=True)
     assert seen == [{"beta": 1.2}, {"eps_growth_5y": 0.1, "beta": 1.2}]
-    assert estimates.SOURCES["ib"] is original
+    assert estimates.SOURCES["ib"] is fake

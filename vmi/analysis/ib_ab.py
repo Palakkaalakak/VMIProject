@@ -16,7 +16,7 @@ from vmi.data import estimates
 
 
 def _run(symbols, judged: bool, keep_ib_growth: bool) -> dict[str, dict]:
-    real = estimates.from_ib
+    real = estimates.SOURCES["ib"]
 
     def patched(ticker: str) -> dict:
         d = dict(real(ticker) or {})
