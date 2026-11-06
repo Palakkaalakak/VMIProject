@@ -166,8 +166,10 @@ class IBGateway:
         return t
 
     # ------------------------------------------------------------------ public API (any thread)
-    def conids(self, symbols: list[str], batch: int = 50, progress=lambda msg: None) -> dict[str, int]:
-        """{SYMBOL: conid} for US stocks, qualified in batches (one round trip per `batch` symbols)."""
+    def conids(self, symbols: list[str], batch: int = 50, progress=lambda msg: None,
+               batch_timeout: float = 20.0, total_timeout: float = 60.0) -> dict[str, int]:
+        """{SYMBOL: conid} for US stocks, qualified in batches. Bounded: stops at `total_timeout` seconds in all and
+        returns what it has (a connected-but-silent Gateway must not hang the caller)."""
         from ib_async import Stock
 
         async def run(chunk):
@@ -176,8 +178,18 @@ class IBGateway:
             return {s: int(c.conId) for s, c in contracts.items() if getattr(c, "conId", 0)}
 
         out: dict[str, int] = {}
+        deadline = time.monotonic() + total_timeout
         for i in range(0, len(symbols), batch):
-            out.update(self.call(lambda chunk=symbols[i:i + batch]: run(chunk), timeout=120))
+            left = deadline - time.monotonic()
+            if left <= 0:
+                progress(f"contract ids: stopped after {total_timeout:.0f}s with {len(out)}/{len(symbols)}")
+                break
+            try:
+                out.update(self.call(lambda chunk=symbols[i:i + batch]: run(chunk), timeout=min(batch_timeout, left)))
+            except Exception as exc:  # timeout or IB error: keep what we have
+                self.last_error = f"conid lookup: {type(exc).__name__}: {exc}"[:200]
+                progress(f"contract ids: IB did not answer ({type(exc).__name__}); stopping with {len(out)}/{len(symbols)}")
+                break
             progress(f"contract ids: {min(i + batch, len(symbols))}/{len(symbols)}")
         return out
 

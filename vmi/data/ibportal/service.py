@@ -180,13 +180,19 @@ def _cached_conids(tickers: list[str]) -> dict[str, int]:
     return out
 
 
-def prefetch_conids(tickers: Iterable[str]) -> int:
-    """Resolve and cache the conids of tickers not cached yet via the TWS API. Call BEFORE the browser login, so a
-    missing IB Gateway fails fast. Returns how many were looked up; raises PortalError when TWS is down.
+def prefetch_conids(tickers: Iterable[str]) -> tuple[int, list[str]]:
+    """Look up and cache the conids of tickers not cached yet via the TWS API (bounded to ~1 minute).
+    Returns (looked up now, tickers that still have no conid). Never raises: the caller decides whether to go on.
     (The portal's own symbol search needs a trading session: /iserver/secdef/search → "no bridge", 2026-11-06.)"""
     syms = sorted({t.upper() for t in tickers})
-    cached = _cached_conids(syms)
-    return len(_tws_conids([s for s in syms if s not in cached]))
+    todo = [s for s in syms if s not in _cached_conids(syms)]
+    found = 0
+    if todo:
+        try:
+            found = len(_tws_conids(todo))
+        except PortalError as exc:
+            print(f"Contract ids: {exc}")
+    return found, [s for s in syms if s not in _cached_conids(syms)]
 
 
 def _tws_conids(symbols: list[str], wait: float = 15.0) -> dict[str, int]:

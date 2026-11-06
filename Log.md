@@ -38,6 +38,13 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-06 — `sync` stalled ~20 min before the browser opened
+- Suspect: contract-id lookup via TWS ran 11 batches with a 120 s timeout each against a connected-but-silent IB Gateway.
+  Now bounded (20 s per batch, 60 s total, `IBGateway.conids`), `prefetch_conids` never raises and `sync` continues with the
+  cached ids (tickers without one are listed and skipped). Every step prints a line first ("Loading the S&P 500 list",
+  "Looking up contract ids", "Opening the browser"), so a stall shows where. UNVERIFIED that this was the cause: with a
+  full conid cache the lookup is skipped entirely, so the next stall report needs the last printed line.
+
 ### 2026-11-06 — First full `sync --sp500` (VERIFIED on a real login)
 - 503 tickers, fast mode (copied browser cookies accepted by the portal), 8 workers: 350 s. Result: 503 conids, 496 analyst
   records, 497 statement sets. That is ≈ 10 requests/s, i.e. bound by `ib_portal_max_rps` (10), not by the workers; raising

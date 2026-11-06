@@ -254,7 +254,6 @@ def main(argv: list[str] | None = None) -> None:
     logging.getLogger("ib_async").setLevel(logging.CRITICAL)  # its per-port "connection failed" spam; we report ports ourselves
 
     from vmi.data.ibportal.browser import login
-    from vmi.data.ibportal.client import PortalError
 
     if a.cmd == "check":
         report: dict = {"tws": tws_probe(a.tickers[0])} if not a.no_tws else {}
@@ -266,14 +265,18 @@ def main(argv: list[str] | None = None) -> None:
     if a.sp500:
         from vmi.data.universe import sp500
 
+        print("Loading the S&P 500 list ...")
         tickers += [r["symbol"] for r in sp500()]
     if not tickers:
         ap.error("give tickers or --sp500")
-    try:  # contract ids come from the TWS API: fail now, not after the browser login
-        print(f"Contract ids looked up via IB Gateway/TWS: {ibportal.prefetch_conids(tickers)} (the rest were cached)")
-    except PortalError as exc:
-        raise SystemExit(f"{exc}\nStart IB Gateway (live login) and run this again; "
-                         "ids are cached for 180 days, so this is only needed for new tickers.")
+    print("Looking up contract ids not cached yet via IB Gateway (max ~1 min) ...")
+    found, missing = ibportal.prefetch_conids(tickers)
+    if len(missing) == len(set(t.upper() for t in tickers)):
+        raise SystemExit("No contract ids available: start IB Gateway (live login, API on) and run this again.")
+    if missing:
+        print(f"{len(missing)} tickers have no contract id yet and will be skipped (run again with IB Gateway answering "
+              f"to add them): {', '.join(missing[:10])}{' ...' if len(missing) > 10 else ''}")
+    print("Opening the browser for the IBKR login ...")
     with login() as p:
         report = ibportal.sync(tickers, p, statements=not a.no_statements, workers=a.workers, progress=print)
     print(json.dumps(report, indent=2))
