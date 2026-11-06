@@ -282,7 +282,7 @@ def test_non_json_answer_falls_back_to_the_next_route_and_is_reported():
 
     with portal(httpx.MockTransport(lambda r: httpx.Response(200, text="<html>nope</html>",
                                                                headers={"content-type": "text/html"}))) as p:
-        with pytest.raises(C.PortalError, match="not JSON.*text/html.*nope.*conf.tws.yaml"):
+        with pytest.raises(C.PortalError, match="not JSON.*text/html.*nope.*start_cp_gateway"):
             p.financials(1, "income")
     C._working_base.clear()
 
