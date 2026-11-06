@@ -267,7 +267,10 @@ def _tws_conids(symbols: list[str], wait: float = 15.0) -> dict[str, int]:
     while not gw.connected and time.monotonic() < deadline:
         time.sleep(0.5)
     if not gw.connected:
-        raise PortalError("symbol lookup needs IB Gateway/TWS running (API enabled): " + str(gw.info().get("last_error")))
+        info = gw.info()
+        raise PortalError(f"symbol lookup needs IB Gateway/TWS reachable on {info['host']}. Ports tried: "
+                          f"{info.get('port_errors') or info['tried_ports']}. In IB Gateway check Configure > Settings > API > "
+                          "Settings (socket port, 'Allow connections from localhost only'); force a port with VMI_IB_PORT=<port>")
     out = {}
     for s in symbols:
         try:

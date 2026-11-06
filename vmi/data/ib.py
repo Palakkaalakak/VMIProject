@@ -107,6 +107,7 @@ class IBGateway:
 
     async def _connect_any(self) -> bool:
         """Try each candidate port until one accepts the (read-only) connection; remember which one worked."""
+        self.port_errors = {}
         for port in candidate_ports(self.settings.ib_port):
             try:
                 await self.ib.connectAsync(self.settings.ib_host, port, clientId=self.settings.ib_client_id,
@@ -115,6 +116,7 @@ class IBGateway:
                 return True
             except Exception as exc:
                 self.last_error = f"connect {port}: {exc!s}"[:200]
+                self.port_errors[port] = f"{type(exc).__name__}: {exc!s}"[:80]
         return False
 
     @property
@@ -130,7 +132,8 @@ class IBGateway:
 
     def info(self) -> dict:
         return {"status": self.status, "connected": self.connected, "host": self.settings.ib_host,
-                "port": self.port, "tried_ports": list(candidate_ports(self.settings.ib_port)), "client_id": self.settings.ib_client_id,
+                "port": self.port, "tried_ports": list(candidate_ports(self.settings.ib_port)),
+                "port_errors": dict(getattr(self, "port_errors", {})), "client_id": self.settings.ib_client_id,
                 "last_error": self.last_error, "streaming_lines": len(self._tickers)}
 
     # ------------------------------------------------------------------ helpers (IB-loop side)
