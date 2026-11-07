@@ -38,6 +38,15 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-07 — Review pass on the IB path
+- One flow: `service.login_and_sync()` (contract ids → browser login → parallel sync) is used by both the CLI and the app's
+  job; the duplicated copy in the CLI is gone. `--no-statements` passes through.
+- Robustness: an unexpected exception on one ticker (parser surprise) is recorded as that ticker's failure instead of
+  ending a 500-ticker run. IB's 404 MISSING_DATA is reported as `NO_IB_DATA` ("other sources cover it"), not as an error.
+- `check` resolves contract ids once for all tickers (was one 15 s TWS wait per ticker when TWS is down).
+- Contract-id progress now reaches the caller's `say` (the app's Settings card), not just the console.
+- Removed a dead `except PortalError: raise` in `Portal._send`. Tests: 94 pass (new: one bad stock never ends the sync).
+
 ### 2026-11-07 — IB sync inside the app; app listens on localhost by default
 - `vmi/data/ibportal/job.py`: one background job (S&P 500 → contract ids via the app's IB Gateway connection → browser login
   window → parallel fetch → `ibportal:last_sync`). Settings page card "IB fundamentals" (last sync, fresh/stale, "Sync now",

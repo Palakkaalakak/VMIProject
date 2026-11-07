@@ -28,6 +28,7 @@ KEY_FUND = "ibportal:fund:v1:{}"
 KEY_EST = "ibportal:est:v1:{}"
 KEY_CONID = "ibportal:conid:{}"
 CONID_TTL = 180 * 24 * 3600  # conids are permanent identifiers
+NO_IB_DATA = "IB has no data for this stock (HTTP 404 MISSING_DATA); other sources cover it"
 KNOWN_CONIDS = {"AAPL": 265598, "MSFT": 272093}  # check() only, when TWS is down (confirmed on real runs 2026-11-06)
 
 
@@ -87,7 +88,10 @@ def sync(tickers: Iterable[str], portal: Portal, *, statements: bool = True, ana
             if exc.status == 401:
                 stop.set()  # the session ended: stop instead of failing every remaining ticker
             with lock:
-                report["failed"][sym] = str(exc)
+                report["failed"][sym] = NO_IB_DATA if "MISSING_DATA" in str(exc) else str(exc)
+        except Exception as exc:  # a parser surprise on one stock must not end a 500-stock run
+            with lock:
+                report["failed"][sym] = f"{type(exc).__name__}: {exc}"[:200]
         with lock:
             done[0] += 1
             if done[0] % 25 == 0 or done[0] == len(ids):
@@ -118,18 +122,35 @@ def _fetch_statements(p: Portal, ticker: str, conid: int) -> Fundamentals | None
     return parse.finalize(f)
 
 
+def login_and_sync(tickers: list[str], say: Callable[[str], None] = print, workers: int | None = None,
+                   statements: bool = True) -> dict:
+    """The whole refresh, shared by the CLI and the app's job: contract ids (TWS) → browser login → parallel sync.
+    Raises PortalError when no ticker has a contract id."""
+    from vmi.data.ibportal.browser import login
+
+    say("Looking up contract ids not cached yet via IB Gateway (max ~1 min) ...")
+    _, missing = prefetch_conids(tickers, say=say)
+    if len(missing) == len({t.upper() for t in tickers}):
+        raise PortalError("no contract ids: start IB Gateway (live login, API on) and try again")
+    if missing:
+        say(f"{len(missing)} tickers have no contract id yet and are skipped (re-run with IB Gateway answering): "
+            f"{', '.join(missing[:10])}{' ...' if len(missing) > 10 else ''}")
+    say("Opening the browser: sign in to IBKR with your PAPER username ...")
+    with login(say=say) as portal:
+        return sync(tickers, portal, statements=statements, workers=workers, progress=say)
+
+
 # ----------------------------------------------------------------------------------------------- check
 def check(tickers: Iterable[str], out_dir: Path, portal: Portal) -> dict:
     """Call every route for each ticker, save raw JSON to out_dir/<TICKER>.json, report what parsed and which
     IB row labels parse.LABELS does not map yet."""
     out_dir.mkdir(parents=True, exist_ok=True)
     report: dict = {"mode": "fast (httpx)" if portal.parallel else "browser"}
-    for sym in [t.upper() for t in tickers]:
-        try:
-            cid = _cached_conids([sym]).get(sym) or _tws_conids([sym]).get(sym)
-        except PortalError as exc:
-            cid = KNOWN_CONIDS.get(sym)
-            report.setdefault("conid_lookup", str(exc))
+    syms = [t.upper() for t in tickers]
+    _, missing = prefetch_conids(syms)
+    ids = {**{s: KNOWN_CONIDS[s] for s in missing if s in KNOWN_CONIDS}, **_cached_conids(syms)}
+    for sym in syms:
+        cid = ids.get(sym)
         entry: dict = {"conid": cid}
         report[sym] = entry
         if cid is None:
@@ -180,7 +201,7 @@ def _cached_conids(tickers: list[str]) -> dict[str, int]:
     return out
 
 
-def prefetch_conids(tickers: Iterable[str]) -> tuple[int, list[str]]:
+def prefetch_conids(tickers: Iterable[str], say: Callable[[str], None] = print) -> tuple[int, list[str]]:
     """Look up and cache the conids of tickers not cached yet via the TWS API (bounded to ~1 minute).
     Returns (looked up now, tickers that still have no conid). Never raises: the caller decides whether to go on.
     (The portal's own symbol search needs a trading session: /iserver/secdef/search → "no bridge", 2026-11-06.)"""
@@ -189,13 +210,13 @@ def prefetch_conids(tickers: Iterable[str]) -> tuple[int, list[str]]:
     found = 0
     if todo:
         try:
-            found = len(_tws_conids(todo))
+            found = len(_tws_conids(todo, say=say))
         except PortalError as exc:
-            print(f"Contract ids: {exc}")
+            say(f"Contract ids: {exc}")
     return found, [s for s in syms if s not in _cached_conids(syms)]
 
 
-def _tws_conids(symbols: list[str], wait: float = 15.0) -> dict[str, int]:
+def _tws_conids(symbols: list[str], wait: float = 15.0, say: Callable[[str], None] = print) -> dict[str, int]:
     """{SYMBOL: conid} from the running IB Gateway/TWS connection (the app's normal one); cached."""
     if not symbols:
         return {}
@@ -212,7 +233,7 @@ def _tws_conids(symbols: list[str], wait: float = 15.0) -> dict[str, int]:
                           f"{info.get('port_errors') or info['tried_ports']}. In IB Gateway check Configure > Settings > "
                           "API > Settings (socket port, 'Allow connections from localhost only'); force a port with "
                           "VMI_IB_PORT=<port>")
-    found = gw.conids(symbols, progress=print)
+    found = gw.conids(symbols, progress=say)
     for t, cid in found.items():
         get_cache().set(KEY_CONID.format(t), cid)
     return found

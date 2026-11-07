@@ -126,7 +126,7 @@ def fake_portal(logged_in=True, throttle_first=0):
         route = path[len("/tws.proxy"):]
         if route == "/fundamentals/data_list":
             return httpx.Response(200, json=[{"conid": int(c), "field_name": "LONG_TERM_GROWTH",
-                                              "display_value": ltg[int(c)]} for c in q["conids"].split(",")])
+                                              "display_value": ltg.get(int(c), "5.0")} for c in q["conids"].split(",")])
         if route.startswith("/fundamentals/data/predefined/nextg_qd/"):
             return httpx.Response(200, json=[{"field_name": "EPSTRENDGR", "display_value": "8.00%"}])
         if route.startswith("/fundamentals/financials/"):
@@ -337,3 +337,25 @@ def test_app_sync_job_reports_errors_instead_of_crashing(monkeypatch):
             break
         time.sleep(0.05)
     assert job.status()["state"] == "error" and "no contract ids" in job.status()["message"]
+
+
+def test_one_bad_stock_never_ends_the_sync(isolated_cache, monkeypatch):
+    from vmi.data.ibportal import service
+
+    t, _ = fake_portal()
+    seed_conids(isolated_cache, AAPL=265598, MSFT=272093, FOX=356858007)
+    real = service._fetch_statements
+
+    def flaky(p, sym, cid):
+        if sym == "MSFT":
+            raise KeyError("unexpected payload")
+        if sym == "FOX":
+            raise C.PortalError('GET … → HTTP 404: {"type":"MISSING_DATA","message":"No estimates data"}', 404)
+        return real(p, sym, cid)
+
+    monkeypatch.setattr(service, "_fetch_statements", flaky)
+    with portal(t) as p:
+        report = ibportal.sync(["AAPL", "MSFT", "FOX"], p, workers=3)
+    assert report["statements"] == 1
+    assert report["failed"]["FOX"] == service.NO_IB_DATA
+    assert report["failed"]["MSFT"].startswith("KeyError")

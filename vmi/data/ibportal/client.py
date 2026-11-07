@@ -75,8 +75,6 @@ class Portal:
             self._limit.wait()
             try:
                 r = self._http.request("GET", path, params=params)
-            except PortalError:
-                raise
             except Exception as exc:  # httpx / playwright network errors
                 raise PortalError(f"portal unreachable: {type(exc).__name__}: {exc}") from exc
             if r.status_code not in RETRY_STATUSES or attempt == RETRIES:

@@ -40,17 +40,9 @@ def _say(msg: str) -> None:
 
 
 def _work(tickers: list[str]) -> dict:
-    from vmi.data import ibportal
-    from vmi.data.ibportal.browser import login
-    from vmi.data.ibportal.client import PortalError
+    from vmi.data.ibportal.service import login_and_sync
 
-    _say("Looking up contract ids via IB Gateway ...")
-    _, missing = ibportal.prefetch_conids(tickers)
-    if len(missing) == len(tickers):
-        raise PortalError("no contract ids: start IB Gateway (live login, API on) and try again")
-    _say("Sign in to IBKR in the browser window that opened (PAPER username) ...")
-    with login(say=_say) as portal:
-        return ibportal.sync(tickers, portal, progress=lambda m: _say(f"Fetching: {m}"))
+    return login_and_sync(tickers, say=_say)
 
 
 def _run(tickers: list[str] | None) -> None:

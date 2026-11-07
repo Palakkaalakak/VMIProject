@@ -14,6 +14,6 @@ Modules (each one has a single job, so a change usually touches one file):
 Use: `python -m vmi.data.ib_fundamentals sync --sp500` (IB Gateway on the live login must run for new contract ids).
 """
 from vmi.data.ibportal.client import Portal, PortalError
-from vmi.data.ibportal.service import cached_estimates, cached_fundamentals, check, prefetch_conids, sync
+from vmi.data.ibportal.service import cached_estimates, cached_fundamentals, check, login_and_sync, prefetch_conids, sync
 
-__all__ = ["Portal", "PortalError", "cached_estimates", "cached_fundamentals", "check", "prefetch_conids", "sync"]
+__all__ = ["Portal", "PortalError", "cached_estimates", "cached_fundamentals", "check", "login_and_sync", "prefetch_conids", "sync"]

@@ -269,16 +269,10 @@ def main(argv: list[str] | None = None) -> None:
         tickers += [r["symbol"] for r in sp500()]
     if not tickers:
         ap.error("give tickers or --sp500")
-    print("Looking up contract ids not cached yet via IB Gateway (max ~1 min) ...")
-    found, missing = ibportal.prefetch_conids(tickers)
-    if len(missing) == len(set(t.upper() for t in tickers)):
-        raise SystemExit("No contract ids available: start IB Gateway (live login, API on) and run this again.")
-    if missing:
-        print(f"{len(missing)} tickers have no contract id yet and will be skipped (run again with IB Gateway answering "
-              f"to add them): {', '.join(missing[:10])}{' ...' if len(missing) > 10 else ''}")
-    print("Opening the browser for the IBKR login ...")
-    with login() as p:
-        report = ibportal.sync(tickers, p, statements=not a.no_statements, workers=a.workers, progress=print)
+    try:
+        report = ibportal.login_and_sync(tickers, say=print, workers=a.workers, statements=not a.no_statements)
+    except ibportal.PortalError as exc:
+        raise SystemExit(str(exc))
     print(json.dumps(report, indent=2))
 
 
