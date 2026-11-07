@@ -41,13 +41,15 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 ### 2026-11-07 — "IV unlikely Adam-like" flag + scanner filter panel
 
 - `vmi/analysis/iv_confidence.py` (our heuristic, not Adam): flags an IV that is probably too HIGH: the selected IV is
-  >= 1.5x the lowest *credible* alternative (DNI only if FCF <= 2x net income; P/S only if growth < 15%; cash-flow DCF if
-  another method was selected). First version (any two methods differ 1.5x) had ~40% false alarms (CRWD, PANW, NOW: NI and P/S
-  undervalue SBC-heavy fast growers), so it was replaced. Measured on the 42 reference stocks with Adam's growth: 8 flagged,
-  5 of the 7 stocks we value >30% above Adam (BKNG, VEEV, DSGX, ACGL, NVO; missed NKE, UNH), 2 flagged were within ~15%
-  (AVGO, LVMUY). Thresholds were read off the same 42 stocks: expect it to be weaker on new ones. Too-low values are not flagged.
-  Warning only, never changes IV or steps; off when the owner typed an `iv_override`. Shown in the analysis Valuation card and
-  as "low confidence" next to IV in the scanner.
+  >= 1.3x the lowest *credible* alternative (DNI only if FCF <= 2x net income and TTM net income <= 1.5x last FY; P/S only if
+  growth < 15%; cash-flow DCF if another method was selected). Version 1 (any two methods differ 1.5x) had ~40% false alarms
+  (CRWD, PANW, NOW), version 2 (credible comparators, ratio 1.5) 5 of 7 / 1 false. Final, on the 42 reference stocks with
+  Adam's growth: 9 flagged, 7 of them >30% off Adam (6 of the 7 we value too high: BKNG, VEEV, DSGX, ACGL, NVO, UNH; missed NKE),
+  2 within ~18% (AZO, LVMUY). Ratio 1.5 would give 6 flagged / 5 caught / 1 false: set `iv_flag_ratio` for a stricter flag.
+  Thresholds were read off the same 42 stocks: expect it to be weaker on new ones. A turnaround trigger caught NKE too but
+  added 3 false alarms (CNSWF, LVMUY, PANW), so it was left out. Too-low values are not flagged.
+  On/off: `rules.valuation.iv_flag_enabled` (Settings page, with the thresholds). Warning only, never changes IV or steps;
+  off when the owner typed an `iv_override`. Live BKNG (own growth 15.2%, no P/S) is 352 vs DNI 272 = 1.29x: just under the line.
 - Scanner results filters (`static/js/views/scanner_filters.js`, client-side, remembered in the browser): each step 1–7
   any/must pass/must fail, min steps, MOS, growth, ROE, ROIC, net margin, PEG, yield, market cap, beta, sector, method, moat,
   style, category, trend, great business, below IV, chart entry, buy signal, moat reviewed, low-confidence IV, has judgement.

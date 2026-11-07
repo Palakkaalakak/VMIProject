@@ -162,7 +162,7 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
         "vmi_pass": great and s6.passed and s7.passed and moat_reviewed,
         "watchlist_candidate": great and not s6.passed,
         "steps": [s.to_dict() for s in (s1, s2, s3, s4, s5, s6, s7)],
-        "valuation": val.to_dict(), "iv_confidence": _iv_confidence(val, g, f, ov),
+        "valuation": val.to_dict(), "iv_confidence": _iv_confidence(val, g, f, ov, rules),
         "intrinsic_value": iv, "technicals": tech_dict, "metrics": metrics,
         "estimates": {k: v for k, v in est.to_dict().items() if k != "extra"},
         "data": {"provenance": f.provenance, "completeness": f.meta.get("completeness"), "warnings": f.warnings,
@@ -172,12 +172,13 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
     }
 
 
-def _iv_confidence(val, growth, f, ov) -> dict:
+def _iv_confidence(val, growth, f, ov, rules) -> dict:
     """The low-confidence flag; meaningless once the owner has typed the IV himself."""
     if ov.get("iv_override"):
         return {"low": False, "ratio": None, "reasons": []}
     return iv_confidence({k: r.to_dict() for k, r in val.methods.items()}, val.selected, growth,
-                         f.ttm.get("fcf") or f.last("fcf"), f.ttm.get("net_income") or f.last("net_income"))
+                         f.ttm.get("fcf") or f.last("fcf"), f.ttm.get("net_income") or f.last("net_income"),
+                         (f.series("net_income") or [None])[-1], rules.valuation)
 
 
 def growth_controls(ov: dict) -> GrowthControls:

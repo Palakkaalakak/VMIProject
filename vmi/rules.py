@@ -114,6 +114,12 @@ class ValuationRules:  # Lesson 5
     base_jump_ratio: float = 1.30          # TTM > 1.3× last FY ⇒ "sudden big jump"
     base_plunge_ratio: float = 0.70        # TTM < 0.7× last FY ⇒ "sudden big plunge"
     base_avg_years: int = 4
+    # "IV may be high" warning (vmi/analysis/iv_confidence.py): our heuristic, not Adam's. Switch it off here.
+    iv_flag_enabled: bool = True
+    iv_flag_ratio: float = 1.3             # selected IV >= this × the lowest credible alternative method
+    iv_flag_ni_jump: float = 1.5           # net income TTM > this × last FY = abnormal, not a credible comparator
+    iv_flag_ps_max_growth: float = 0.15    # P/S only compared below this growth
+    iv_flag_dni_max_fcf_to_ni: float = 2.0 # net income only compared when FCF <= this × net income
     bank_pb_fair_low: float = 1.2
     bank_pb_fair_high: float = 1.4
     distressed_pb_max: float = 0.5
