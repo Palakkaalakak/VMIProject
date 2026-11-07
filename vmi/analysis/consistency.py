@@ -64,3 +64,10 @@ def growth_capex_dip(f: Fundamentals, rules: VMIRules = RULES) -> tuple[bool, st
            f"{'rising' if capex_up else 'flat'} ({min(capex[-RECENT_POINTS:]):.3g}→{capex[-1]:.3g}); "
            f"{neg_years} negative-FCF yr(s) in window")
     return ok, why
+
+
+def is_turnaround(f: Fundamentals, rules: VMIRules = RULES) -> bool:
+    """Adam's Category 7 test (Master doc l.2898): profits dropped more than 25% in one year, or declined two years in a row."""
+    ni = f.series("net_income")
+    return len(ni) >= 3 and ni[-2] > 0 and (ni[-1] < ni[-2] * (1 - rules.turnaround.profit_drop_one_year)
+                                            or ni[-1] < ni[-2] < ni[-3])

@@ -189,3 +189,47 @@ def test_step5_two_of_three_core_ratios_and_financials_exempt(fund_factory):
                      latest={"current_assets": 90.0, "current_liabilities": 400.0})
     assert step5_debt(f, BizType.NORMAL).passed
     assert step5_debt(f, BizType.INSURANCE).passed and step5_debt(f, BizType.INSURANCE).checks == []
+
+
+def _ctx(f):
+    from vmi.analysis.valuation.methods import ValuationContext
+    from vmi.data.models import Estimates
+
+    return ValuationContext(f, Estimates(ticker="X"), 100.0)
+
+
+def test_profitable_speculative_growth_is_valued_by_dcf_not_psg(fund_factory):
+    """Adam: P/S growth only for companies without consistent profits and cash flow (l.2264, l.2858)."""
+    from vmi.analysis.classify import BizType
+    from vmi.analysis.valuation.selector import candidate_methods
+
+    profitable = fund_factory(revenue=[1, 1.5, 2.2, 3.3, 5], net_income=[-1, -.5, .2, .5, 1], cfo=[-.2, .3, .6, 1, 1.5],
+                              fcf=[-.3, .2, .5, .9, 1.4])
+    loss_making = fund_factory(revenue=[1, 1.5, 2.2, 3.3, 5], net_income=[-1, -.8, -.6, -.5, -.4],
+                               cfo=[-.5, -.4, -.2, -.1, -.05], fcf=[-.6, -.5, -.3, -.2, -.1])
+    assert candidate_methods(_ctx(profitable), BizType.SPECULATIVE)[0][0] == "dcf_fcf"
+    assert candidate_methods(_ctx(loss_making), BizType.SPECULATIVE)[0][0] == "psg"
+
+
+def test_inconsistent_cfo_and_profit_fall_back_to_price_to_sales(fund_factory):
+    """Fails Step 1; reference value by P/S, the one method Adam names for inconsistent profits (l.1510)."""
+    from vmi.analysis.classify import BizType
+    from vmi.analysis.valuation.selector import REFERENCE_ONLY, candidate_methods
+
+    choppy = fund_factory(revenue=[10, 8, 11, 7, 12], net_income=[1, -1, 2, -.5, 1], cfo=[2, -1, 3, -.5, 2],
+                          fcf=[1, -2, 2, -1, 1])
+    order, reason = candidate_methods(_ctx(choppy), BizType.NORMAL)
+    assert order[0] == "ps_mean" and reason == REFERENCE_ONLY
+
+
+def test_turnaround_is_valued_on_the_multi_year_average_base(fund_factory):
+    """Adam l.2898 (turnaround) + l.2502 (abnormal latest year → average of the last 3-4 years)."""
+    from vmi.analysis.classify import BizType
+    from vmi.analysis.valuation.selector import TURNAROUND, candidate_methods, value_company
+
+    f = fund_factory(revenue=[50, 55, 60, 66, 70, 64], net_income=[5, 5.6, 6.2, 7, 7.5, 3.5],
+                     cfo=[6, 7, 5, 8, 9, 4], fcf=[5, 6, 4, 7, 8, 3])
+    order, reason = candidate_methods(_ctx(f), BizType.NORMAL)
+    assert reason == TURNAROUND and order[0] == "dcf_fcf"
+    rep = value_company(_ctx(f), BizType.NORMAL)
+    assert "average" in rep.methods["dcf_fcf"].inputs["base_desc"]

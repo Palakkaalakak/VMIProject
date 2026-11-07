@@ -106,6 +106,8 @@ def from_zacks(ticker: str) -> dict:
         html = http.get(f"https://www.zacks.com/stock/quote/{ticker.upper()}", expect_json=False)
         m = _ZACKS_RE.search(html)
         n = _ZACKS_NEXT_RE.search(html)
+        if m is None and n is None:  # blocked / changed page: raise so get_or_set does not cache an empty result
+            raise ValueError("Zacks page has no EPS growth fields")
         return {"eps_growth_5y": _pct(m.group(1)) if m else None,
                 "eps_growth_next_year": _pct(n.group(1)) if n else None}
 

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from vmi.analysis.consistency import consistent, is_turnaround
 from vmi.analysis import steps as S
 from vmi.analysis import technicals as T
 from vmi.analysis.classify import BizType, classify, sector_bucket
@@ -36,11 +37,11 @@ def category(biz: BizType, growth: float | None, f, rules: VMIRules = RULES) -> 
         return "speculative_growth"
     if biz == BizType.REIT:
         return "dividend"
-    if biz == BizType.CYCLICAL:
+    if biz == BizType.CYCLICAL and not (consistent(f, "net_income", rules) and consistent(f, "cfo", rules)):
+        # Adam's deep cyclicals are defined by profits that swing ("make money, lose money", l.2871); an industry
+        # code alone is not enough (Linde is basic materials yet "pretty predictable", l.2740).
         return "deep_cyclical"
-    ni = f.series("net_income")
-    if len(ni) >= 3 and ni[-2] > 0 and (ni[-1] < ni[-2] * (1 - rules.turnaround.profit_drop_one_year)
-                                        or ni[-1] < ni[-2] < ni[-3]):
+    if is_turnaround(f, rules):
         return "turnaround"
     if growth is not None and growth >= rules.growth.large_growth_threshold:
         return "large_growth"

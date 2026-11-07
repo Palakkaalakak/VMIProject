@@ -38,6 +38,26 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-07 — Valuation rules re-checked against Adam's full Master document
+- Read the whole VMI_VERBATIM_MASTER_DOCUMENT.md (3,495 lines); every rule with its line number is summarised in the
+  session notes (kept out of the repo). Engine check: Adam's own inputs reproduce his worked examples (MA 655.97, AMZN 206,
+  AAPL 256, SGX 17.67, BLK 795) within 0.2% and his beta table rows exactly → `tests/test_adam_worked_examples.py`.
+  The gaps vs his IVs therefore come from inputs (growth, base cash flow, method choice), not the maths.
+- Changes, each tied to a line of the document:
+  - Speculative growth that is already profitable with positive CFO/FCF → DCF, not PSG (P/S growth only "for companies
+    without consistent profits and cash flow", l.2264/l.2858). PLTR 0.28 → 0.72 of Adam.
+  - Turnarounds (Adam's test l.2898, now `consistency.is_turnaround`, shared with the category) → DCF/DNI on the 3–4 year
+    average base (abnormal latest year → "average of the last three or four years", l.2502). Replaces my
+    "middle of P/S, DCF, DNI" fallback.
+  - Neither CFO nor NI consistent and not a turnaround → fails Step 1; P/S shown for reference ("the only method", l.1510).
+  - Working-capital/float rule kept (MELI) but now cited to l.1568 (finance-type cash flow → discounted net income);
+    removing it put MELI at 5.9× Adam.
+  - BKNG and IDXX moat grade wide → narrow (Adam names both as narrow-moat large growth, l.2852).
+  - `deep_cyclical` category only when profits/CFO are actually inconsistent (LIN is "pretty predictable", l.2740).
+  - Zacks: a page without the EPS fields raises instead of being cached as "no data" for 3 days.
+- Not Adam (owner's call): uncertainty haircut 7.5%, 40% cap on years 1–5 growth. Unexplained by his rules: BKNG (his 188
+  implies ~4% growth vs 15% consensus), ASML/AVGO/NVDA (cap). Calibration numbers for this change: see the next entry.
+
 ### 2026-11-07 — Moat evaluation page
 - New view `static/js/views/moat.js` (route `#/moat/SYMBOL`), opened in its own tab from the "Open Moat evaluation" button in
   Step 3. One place for: Adam's pass/fail tests, the evidence rows (N/A = no numbers from Adam, reviewer judges), the peer

@@ -269,7 +269,7 @@
     "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): marketplace network effect eroded by PDD/JD; regulatory risk"
   },
   "BKNG": {
-    "moat_grade": "wide",
+    "moat_grade": "narrow",
     "moat_sources": [
       "network_effect",
       "brand",
@@ -277,7 +277,7 @@
     ],
     "moat_score": 8,
     "moat_reviewed_on": "2026-11-05",
-    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): two-sided hotel network, brand, marketing scale"
+    "note": "Moat grade from Adam, Master doc l.2852: Booking.com and IDEXX are his examples of NARROW-moat large growth companies (smaller position initially). Sources/score kept from the 2026-11-05 AI review — please verify."
   },
   "CNSWF": {
     "moat_grade": "wide",
@@ -353,7 +353,7 @@
     "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): local market density with payers; hospital economics are competitive"
   },
   "IDXX": {
-    "moat_grade": "wide",
+    "moat_grade": "narrow",
     "moat_sources": [
       "switching_costs",
       "brand",
@@ -361,7 +361,7 @@
     ],
     "moat_score": 9,
     "moat_reviewed_on": "2026-11-05",
-    "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): instrument installed base locks in consumables; vet brand"
+    "note": "Moat grade from Adam, Master doc l.2852: Booking.com and IDEXX are his examples of NARROW-moat large growth companies (smaller position initially). Sources/score kept from the 2026-11-05 AI review — please verify."
   },
   "LVMUY": {
     "moat_grade": "wide",
