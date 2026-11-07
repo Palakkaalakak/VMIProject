@@ -13,3 +13,8 @@ data/cache/
 *.egg-info/
 data/ib_portal_samples/
 data/ui_preview/
+
+# regenerable research outputs
+data/research/results.json
+data/research/reserve_sweep.json
+data/research/scan_sp500.json
