@@ -38,6 +38,20 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-07 — Is something systematically wrong? Diagnostics (42 stocks, Adam's growth fed in, dcf_fcf)
+- Engine: reproduces Adam's 7 worked examples within 0.2 % (tests/test_adam_worked_examples.py). Not the maths.
+- No global bias: median ours/Adam 1.06 on the TTM FCF base; implied discount rate median 6.5 % vs ours 6.4 %; implied base / our
+  base median 0.97. Our beta equals Finviz's for almost every stock (NVO .37/.71, DSGX .22/.65 differ, too little to matter).
+  Rate needed to explain the big misses (BKNG 14 %, VEEV 13 %, MELI 30 %) is absurd, so it is not the discount rate.
+- Dispersion is stock-specific: ~10 stocks have Adam's IV 1.5-6x BELOW an FCF DCF at his own growth (MELI 5.8, NVO 2.3, ACGL 2.3,
+  BKNG 2.0, EVVTY 1.8, VEEV 1.7, DSGX/CNSWF 1.5). No single alternative base explains Adam's IVs: best candidate (CFO TTM) still
+  has sd(ln) 0.42, FCF TTM 0.45, NI avg4 0.65, so ±40 % of unexplained scatter against any mechanical base.
+- Years 6-10 growth (Stock Oracle's lower long-term rate, e.g. MSFT 19.6→8.9 %) explains some (IDXX/NFLX/NKE/UNH need 0.4-0.8× the
+  year 1-5 rate) but not BKNG/VEEV/EVVTY (would need negative growth). We do not have Stock Oracle's long-term growth.
+- Conclusion: no bug found; the remaining variation comes from inputs/method choices in Adam's Stock Oracle valuations that are
+  not in our files. Needed to close it: Adam's calculator inputs (base cash flow, debt, cash, shares, growth 1-5 and 6-10, rate)
+  for the ~10 outliers.
+
 ### 2026-11-07 — Fed Adam's own growth (tests/fixtures/adam_growth_reference.tsv): residual gap is base/method, not growth
 - Adam's growth into our full model (42 stocks): median ours/Adam 1.04, within ±15 % 21 (17 with our growth). Growth is
   part of it (ASML 1.6 → 1.0, AVGO: single-source Finviz 65 % / 42 % vs Adam 26 / 21 %), not most.
