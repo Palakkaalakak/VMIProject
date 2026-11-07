@@ -38,6 +38,17 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-07 - Two-sleeve withdrawal system research (growth sleeve + reserve)
+
+- New `vmi/research/` (long-history data, strategy series, vectorised two-sleeve simulator), study scripts in `tools/`,
+  report `docs/TWO_SLEEVE_RESEARCH.md`. Data: Ken French factors, Shiller CPI/10y Treasury (1926-2023), real terms.
+- Findings: required real return 7.0-7.8% vs market 6.2-6.8%; a cash/bond reserve never improved P(target) and rarely
+  reduced depletion (small 1-2 year reserve only); quality+momentum(+trend) sleeves are the only designs near the targets
+  (decayed assumption); Withdrawal Max (7.5%/+1%) is not dependable (30% depletion). VMI stock selection itself is NOT
+  back-tested (no point-in-time fundamentals); S&P 500 scanner run used for basket risk only.
+- UNVERIFIED: the 50% factor-premium decay and the mapping of VMI steps to factors are judgements. IB data not used.
+- Open: guardrail (variable withdrawal) rule; scanner on IB fundamentals (needs local or shared-folder session); moat reviews.
+
 ### 2026-11-07 — "IV unlikely Adam-like" flag + scanner filter panel
 
 - `vmi/analysis/iv_confidence.py` (our heuristic, not Adam): flags an IV that is probably too HIGH: the selected IV is
