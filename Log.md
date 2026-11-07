@@ -40,10 +40,14 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ### 2026-11-07 — "IV unlikely Adam-like" flag + scanner filter panel
 
-- `vmi/analysis/iv_confidence.py` (our heuristic, not Adam): flags an IV as low confidence when the applicable DCF / DNI /
-  P/S values differ by 1.5× or more. On the 42 reference stocks it caught 89% of the >30% misses vs Adam (16 of 18), 2 of 15
-  unflagged were misses; ~40% of flagged ones were fine (PANW, CRWD). Warning only, never changes IV or steps.
-  Shown in the analysis Valuation card and as "⚠ low confidence" next to IV in the scanner.
+- `vmi/analysis/iv_confidence.py` (our heuristic, not Adam): flags an IV that is probably too HIGH: the selected IV is
+  >= 1.5x the lowest *credible* alternative (DNI only if FCF <= 2x net income; P/S only if growth < 15%; cash-flow DCF if
+  another method was selected). First version (any two methods differ 1.5x) had ~40% false alarms (CRWD, PANW, NOW: NI and P/S
+  undervalue SBC-heavy fast growers), so it was replaced. Measured on the 42 reference stocks with Adam's growth: 8 flagged,
+  5 of the 7 stocks we value >30% above Adam (BKNG, VEEV, DSGX, ACGL, NVO; missed NKE, UNH), 2 flagged were within ~15%
+  (AVGO, LVMUY). Thresholds were read off the same 42 stocks: expect it to be weaker on new ones. Too-low values are not flagged.
+  Warning only, never changes IV or steps; off when the owner typed an `iv_override`. Shown in the analysis Valuation card and
+  as "low confidence" next to IV in the scanner.
 - Scanner results filters (`static/js/views/scanner_filters.js`, client-side, remembered in the browser): each step 1–7
   any/must pass/must fail, min steps, MOS, growth, ROE, ROIC, net margin, PEG, yield, market cap, beta, sector, method, moat,
   style, category, trend, great business, below IV, chart entry, buy signal, moat reviewed, low-confidence IV, has judgement.

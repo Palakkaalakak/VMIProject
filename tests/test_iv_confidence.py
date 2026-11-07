@@ -5,18 +5,25 @@ def _m(**kw):
     return {k: {"applicable": True, "intrinsic_value": v} for k, v in kw.items()}
 
 
+def _flag(methods, selected="dcf_fcf", growth=0.10, fcf=100, ni=80):
+    return iv_confidence(methods, selected, growth, fcf, ni)
+
+
+def test_selected_far_above_a_credible_alternative_is_flagged():
+    r = _flag(_m(dcf_fcf=300, dni=150, ps_mean=190))
+    assert r["low"] and r["ratio"] == 2.0 and "dni" in r["reasons"][0]
+
+
 def test_agreeing_methods_are_not_flagged():
-    r = iv_confidence(_m(dcf_fcf=100, dni=110, ps_mean=120), "dcf_fcf")
-    assert not r["low"] and r["spread"] == 1.2
+    assert not _flag(_m(dcf_fcf=100, dni=110, ps_mean=120))["low"]
 
 
-def test_disagreeing_methods_are_flagged_with_reason():
-    r = iv_confidence(_m(dcf_fcf=300, dni=150, ps_mean=190), "dcf_fcf")
-    assert r["low"] and "2.0×" in r["reasons"][0]
+def test_ps_is_ignored_for_fast_growers_and_dni_when_fcf_far_above_ni():
+    m = _m(dcf_fcf=300, dni=100, ps_mean=100)
+    assert not _flag(m, growth=0.30, fcf=500, ni=80)["low"]
+    assert _flag(m, growth=0.30, fcf=100, ni=80)["low"]      # NI credible again
 
 
-def test_single_method_or_inapplicable_values_give_no_flag():
-    assert not iv_confidence(_m(dcf_fcf=300), "dcf_fcf")["low"]
-    m = _m(dcf_fcf=300, dni=100)
-    m["dni"]["applicable"] = False
-    assert not iv_confidence(m, "dcf_fcf")["low"]
+def test_too_low_values_and_unsupported_methods_are_not_flagged():
+    assert not _flag(_m(dcf_fcf=100, dni=300, ps_mean=300))["low"]
+    assert not _flag(_m(pb_bank=900, dcf_fcf=100), selected="pb_bank")["low"]

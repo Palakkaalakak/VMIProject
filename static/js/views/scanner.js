@@ -103,7 +103,7 @@ const COLUMNS = [
   { key: "symbol", label: "Ticker", render: (r) => `<b>${esc(r.symbol)}</b>${r.pinned ? ` <span class="badge na" title="${esc(r.pinned)}">judged</span>` : ""}<div class="small muted">${esc(r.name || "")}</div>` },
   { key: "sector", label: "Sector" },
   { key: "price", label: "Price", cls: "num", render: (r) => fmt.money(r.price) },
-  { key: "intrinsic_value", label: "IV", cls: "num", render: (r) => `${fmt.money(r.intrinsic_value)}${r.iv_low_confidence ? ` <span class="badge na" title="${esc(r.iv_note)}">⚠ low confidence</span>` : ""}` },
+  { key: "intrinsic_value", label: "IV", cls: "num", render: (r) => `${fmt.money(r.intrinsic_value)}${r.iv_low_confidence ? ` <span class="badge na" title="${esc(r.iv_note)}">IV may be high</span>` : ""}` },
   { key: "margin_of_safety", label: "MOS", cls: "num", render: (r) => `<span class="${signClass(r.margin_of_safety)}">${fmt.pct(r.margin_of_safety)}</span>` },
   { key: "growth", label: "Growth", cls: "num", render: (r) => fmt.pct(r.growth) },
   { key: "roe", label: "ROE", cls: "num", render: (r) => fmt.pct(r.roe) },

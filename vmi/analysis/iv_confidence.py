@@ -1,31 +1,46 @@
-"""Flag intrinsic values that are unlikely to match Adam's (our own heuristic, NOT an Adam rule).
+"""Flag intrinsic values that are probably too HIGH compared with Adam's (our heuristic, NOT an Adam rule).
 
-Why: on 42 reference stocks (docs/CALIBRATION.md, Log.md 2026-11-07) the DCF/DNI/P-S values of one company often
-disagree widely, and those are the companies where our IV later turned out far from Adam's (BKNG, MELI, NVO ...).
-When the applicable methods differ by `SPREAD` or more, the choice of method/base decides the answer, so the IV is
-shown as "low confidence". Measured on that set: 89% of the large misses (>30%) were flagged; 2 of 15 unflagged
-stocks were large misses. It is a warning only: it never changes the IV or any step.
+Rule: the selected IV is `SPREAD`× or more above the lowest credible alternative method. A comparator counts only when it
+is meaningful for the company:
+  - net-income DCF (DNI): net income is credible only if FCF <= 2× net income (SBC / tax effects make NI useless beyond that);
+  - mean P/S: only below 15% growth (price-based, it always undervalues fast growers);
+  - cash-flow DCF: when the selected method is a different one.
+Measured on the 42 reference stocks with Adam's own growth (Log.md 2026-11-07): 5 of the 7 stocks we value >30% above
+Adam were flagged (BKNG, VEEV, DSGX, ACGL, NVO), 8 stocks flagged in all, 2 of them within ~15% of Adam. Three thresholds were
+read off the same 42 stocks, so expect it to be weaker on new ones. Too-LOW values (conservative) are not flagged.
+Warning only: never changes the IV or any step.
 """
 from __future__ import annotations
 
-SPREAD = 1.5                      # max/min of the comparable method values
-COMPARED = ("dcf_fcf", "dni", "ps_mean")
+SPREAD = 1.5
+PS_MAX_GROWTH = 0.15
+DNI_MAX_FCF_TO_NI = 2.0
+CASH_FLOW_METHODS = ("dcf_fcf", "dcf_normalized")
 
 
-def iv_confidence(methods: dict, selected: str | None) -> dict:
-    """methods = ValuationReport.to_dict()["methods"]. Returns {"low": bool, "spread": float|None, "reasons": [...]}."""
-    use = ["dcf_normalized" if selected == "dcf_normalized" and m == "dcf_fcf" else m for m in COMPARED]
-    vals = {}
-    for m in use:
+def iv_confidence(methods: dict, selected: str | None, growth: float | None, fcf: float | None,
+                  net_income: float | None) -> dict:
+    """methods = ValuationReport.to_dict()["methods"]. Returns {"low": bool, "ratio": float|None, "reasons": [...]}."""
+    def value(m):
         r = methods.get(m) or {}
-        if r.get("applicable") and (r.get("intrinsic_value") or 0) > 0:
-            vals[m] = r["intrinsic_value"]
-    if len(vals) < 2:
-        return {"low": False, "spread": None, "reasons": []}
-    hi, lo = max(vals, key=vals.get), min(vals, key=vals.get)
-    spread = vals[hi] / vals[lo]
+        return r["intrinsic_value"] if r.get("applicable") and (r.get("intrinsic_value") or 0) > 0 else None
+
+    sel = value(selected) if selected in (*CASH_FLOW_METHODS, "dni", "ps_mean") else None
+    if sel is None:
+        return {"low": False, "ratio": None, "reasons": []}
+    alt = {}
+    if selected not in CASH_FLOW_METHODS and value("dcf_fcf"):
+        alt["dcf_fcf"] = value("dcf_fcf")
+    if selected != "dni" and value("dni") and net_income and net_income > 0 and (fcf or 0) <= DNI_MAX_FCF_TO_NI * net_income:
+        alt["dni"] = value("dni")
+    if selected != "ps_mean" and value("ps_mean") and growth is not None and growth < PS_MAX_GROWTH:
+        alt["ps_mean"] = value("ps_mean")
+    if not alt:
+        return {"low": False, "ratio": None, "reasons": []}
+    low = min(alt, key=alt.get)
+    ratio = sel / alt[low]
     reasons = []
-    if spread >= SPREAD:
-        reasons.append(f"methods disagree {spread:.1f}×: {hi} {vals[hi]:,.0f} vs {lo} {vals[lo]:,.0f}; "
-                       "the result depends on which base/method is judged right, so it may not match Adam's")
-    return {"low": bool(reasons), "spread": round(spread, 2), "reasons": reasons}
+    if ratio >= SPREAD:
+        reasons.append(f"{selected} {sel:,.0f} is {ratio:.1f}× the {low} value {alt[low]:,.0f}; the choice of method/base "
+                       "decides this result, so it may be well above Adam's")
+    return {"low": bool(reasons), "ratio": round(ratio, 2), "reasons": reasons}
