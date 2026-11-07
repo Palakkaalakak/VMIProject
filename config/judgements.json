@@ -277,7 +277,9 @@
     ],
     "moat_score": 8,
     "moat_reviewed_on": "2026-11-05",
-    "note": "Moat grade from Adam, Master doc l.2852: Booking.com and IDEXX are his examples of NARROW-moat large growth companies (smaller position initially). Sources/score kept from the 2026-11-05 AI review — please verify."
+    "note": "Moat grade narrow: Adam, Master doc l.2852. Valuation: discounted net income on the 4-year average base (Adam l.2502: abnormal latest year -> average of the last 3-4 years; l.1568 DNI). This reproduces Adam's reference IV 188.08 within ~1% at his growth 14.9% (4y avg NI 4.66B -> IV ~186); the FCF base (9.2B) gives ~370. INFERRED from the numbers, not read from Adam: please verify against his BKNG inputs.",
+    "method": "dni",
+    "base_period": "average"
   },
   "CNSWF": {
     "moat_grade": "wide",

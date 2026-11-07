@@ -38,6 +38,14 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-07 — BKNG explained: Adam's growth is 14.9 % (owner), so the base differs
+- With his growth (14.9 %, ours 15.2 %), reproducing his 188.08 needs a base of ~4.7B (ours: FCF 9.2B). Shares would have to be
+  ~1.6B or the discount rate 14 %, so neither is the cause. Candidate bases: FCF FY25 9.09B → 368; FCF − SBC → 349; NI TTM
+  7.18B → 289; NI FY25 5.40B → 216; 5y avg FCF → 263; **4y average net income (2022–25) 4.66B → 186**: the only match.
+- `config/judgements.json` BKNG: method dni + base_period average (Adam l.2502, l.1568), flagged INFERRED/please verify. Judged
+  calibration: ours 175 vs Adam 188 (0.93, slightly conservative with the 7.5 % haircut). Pure formula still 0.95-1.9x on the FCF base.
+- Open: why Adam averages NI for BKNG (FY25 NI dipped on one-offs; 2022 was a COVID-recovery year) is not stated anywhere I read.
+
 ### 2026-11-07 — Scanner growth = lowest analyst estimate; BKNG gap analysis
 - Scanner "Growth" (and the category/style that use it) = the LOWEST usable source estimate
   (`pipeline.displayed_growth`, same filters as the valuation: excluded sources and impossible values dropped), or the
