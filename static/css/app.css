@@ -57,6 +57,7 @@ button.primary { background: var(--accent); } button.secondary { background: var
 button.danger { background: transparent; border: 1px solid var(--bad); color: var(--bad); }
 button.small { padding: .2rem .5rem; font-size: .8rem; } button.icon { background: none; color: var(--muted); }
 button:disabled { opacity: .5; cursor: wait; }
+a.button { display: inline-block; text-decoration: none; border-radius: 6px; padding: .45rem .9rem; color: #fff; background: var(--accent); margin-top: .3rem; }
 
 /* tables */
 .table-wrap { overflow-x: auto; }

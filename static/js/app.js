@@ -7,6 +7,7 @@ import { refreshPortfolios } from "./state.js";
 
 const ROUTES = {
   analysis: { load: () => import("./views/analysis.js"), param: "symbol" },
+  moat: { load: () => import("./views/moat.js"), param: "symbol" },
   scanner: { load: () => import("./views/scanner.js") },
   watchlists: { load: () => import("./views/watchlists.js"), param: "id" },
   portfolios: { load: () => import("./views/portfolios.js"), param: "id" },

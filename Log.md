@@ -38,6 +38,14 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-07 — Moat evaluation page
+- New view `static/js/views/moat.js` (route `#/moat/SYMBOL`), opened in its own tab from the "Open Moat evaluation" button in
+  Step 3. One place for: Adam's pass/fail tests, the evidence rows (N/A = no numbers from Adam, reviewer judges), the peer
+  comparison and annual-report excerpts (loaded automatically), Adam's 5 sources as a checklist + his questions, and the
+  verdict form (grade, sources, score /10, note; DB or config/judgements.json). Saves through the existing override keys,
+  so Step 3 and the pipeline need no change. The inline loader/peer/filing code moved out of analysis.js.
+- Verified in Chromium against the running app (AAPL): page renders, peers + 10-K load, no console errors.
+
 ### 2026-11-07 — Review pass on the IB path
 - One flow: `service.login_and_sync()` (contract ids → browser login → parallel sync) is used by both the CLI and the app's
   job; the duplicated copy in the CLI is gone. `--no-statements` passes through.

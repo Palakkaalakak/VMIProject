@@ -70,45 +70,17 @@ function steps(r) {
         <td>${esc(typeof c.value === "number" ? fmt.num(c.value, 4) : Array.isArray(c.value) ? c.value.map((x) => fmt.num(x, 3)).join(", ") : typeof c.value === "object" && c.value ? JSON.stringify(c.value) : c.value ?? "")}</td>
         <td class="muted">${esc(c.threshold ?? "")}</td><td class="muted small">${esc(c.note || "")}</td></tr>`).join("")}</tbody></table>
       ${(s.notes || []).filter((n) => !n.startsWith("moat_grade=")).map((n) => `<p class="note">${esc(n)}</p>`).join("")}
-      ${s.step === 3 && s.extra?.sources ? moatChecklist(s.extra) : ""}
+      ${s.step === 3 && s.extra?.sources ? moatChecklist(s.extra, r.ticker) : ""}
     </details>`).join("")}</div>`;
 }
 
-/** Reviewer checklist for the discretionary moat verdict (record it in the Judgement overrides → Moat review). */
-function moatChecklist(x) {
+/** Step 3 summary + the button to the dedicated Moat evaluation page (views/moat.js), opened in its own tab. */
+function moatChecklist(x, ticker) {
   const v = x.verdict, due = x.review?.due;
-  return `<div class="moat-review" data-moat-review><p><b>Moat review</b> — ${v ? `verdict <b>${esc(v.grade)}</b>${v.sources?.length ? ` · sources: ${esc(v.sources.join(", "))}` : ""}${v.score != null ? ` · score ${esc(v.score)}/10` : ""}${x.review?.reviewed_on ? ` · reviewed ${esc(x.review.reviewed_on)}` : ""}`
-    : `not reviewed yet · provisional result from Adam's two shortcuts only (industry list, 10-year chart)`}</p>
+  return `<div class="moat-review"><p><b>Moat review</b> — ${v ? `verdict <b>${esc(v.grade)}</b>${v.score != null ? ` · score ${esc(v.score)}/10` : ""}${x.review?.reviewed_on ? ` · reviewed ${esc(x.review.reviewed_on)}` : ""}`
+    : "not reviewed yet (provisional result from Adam's two shortcuts only)"}</p>
     ${due ? `<p class="note"><b>Moat review due:</b> ${esc(x.review.reasons.join("; "))}</p>` : ""}
-    <ul class="small">${Object.entries(x.sources).map(([k, d]) => `<li><b>${esc(k)}</b>: ${esc(d)}</li>`).join("")}</ul>
-    <ul class="small muted">${x.questions.map((q) => `<li>${esc(q)}</li>`).join("")}</ul>
-    <button type="button" class="secondary" data-load-moat>Load peer comparison &amp; annual-report excerpts</button>
-    <div data-moat-extra></div></div>`;
-}
-
-const pctOrDash = (v) => (v == null ? "—" : fmt.pct(v, 1));
-
-function peersTable(p) {
-  if (!p?.rows?.length) return `<p class="small muted">Peers: ${esc(p?.basis || "no data")}</p>`;
-  const s = p.summary || {};
-  return `<p class="small"><b>Peer comparison</b> (${esc(p.basis)}, calendar ${p.year})${s.ranks ? ` — sales rank ${s.ranks.revenue}/${s.peers + 1}, operating-margin rank ${s.ranks.operating_margin}, growth rank ${s.ranks.growth_3y}${s.top_dog_hint ? " · looks like the industry leader" : ""}` : ""}</p>
-    <table class="compact"><thead><tr><th>Ticker</th><th>Sales</th><th>Share</th><th>Gross</th><th>Operating</th><th>Net</th><th>3y sales growth</th></tr></thead><tbody>
-    ${p.rows.map((r) => `<tr><td><a href="#/analysis/${esc(r.symbol)}"><b>${esc(r.symbol)}</b></a> <span class="muted small">${esc(r.name)}</span></td><td>${fmt.money(r.revenue / 1e9, 1)}B</td><td>${pctOrDash(r.share)}</td>
-      <td>${pctOrDash(r.gross_margin)}</td><td>${pctOrDash(r.operating_margin)}</td><td>${pctOrDash(r.net_margin)}</td><td>${pctOrDash(r.growth_3y)}</td></tr>`).join("")}</tbody></table>`;
-}
-
-function filingBlock(f) {
-  if (!f?.url) return `<p class="small muted">Annual report: not available.</p>`;
-  return `<p class="small"><b>From the latest ${esc(f.form)}</b> (filed ${esc(f.filed)}, <a href="${esc(f.url)}" target="_blank" rel="noopener">open</a>)</p>
-    ${f.competition ? `<p class="small"><b>Competition:</b> ${esc(f.competition)}</p>` : `<p class="small muted">No competition passage found.</p>`}
-    ${(f.customer_concentration || []).length ? `<ul class="small">${f.customer_concentration.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>` : `<p class="small muted">No customer-concentration sentences found.</p>`}`;
-}
-
-async function loadMoatExtra(button, ticker) {
-  const box = button.parentElement.querySelector("[data-moat-extra]");
-  box.innerHTML = loading("Loading peers and annual report…");
-  const e = await api.moatEvidence(ticker);
-  box.innerHTML = peersTable(e.peers) + filingBlock(e.filing);
+    <a class="button" href="#/moat/${esc(ticker)}" target="_blank" rel="noopener">Open Moat evaluation ↗</a></div>`;
 }
 
 function valuation(r) {
@@ -250,6 +222,4 @@ function bind(out, r) {
     });
   });
   bindOverrides(out, r);
-  out.querySelectorAll("[data-load-moat]").forEach((b) => b.addEventListener("click", () =>
-    run(b, () => loadMoatExtra(b, r.ticker))));
 }
