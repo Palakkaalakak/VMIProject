@@ -305,3 +305,35 @@ def test_ib_ab_drops_only_ib_growth_and_restores_the_source(monkeypatch):
     ib_ab._run(None, False, keep_ib_growth=True)
     assert seen == [{"beta": 1.2}, {"eps_growth_5y": 0.1, "beta": 1.2}]
     assert estimates.SOURCES["ib"] is fake
+
+
+def test_app_sync_job_runs_once_and_marks_the_cache_fresh(isolated_cache, monkeypatch):
+    import time
+    from vmi.data.ibportal import job
+
+    job._state.update(state="idle", message="", report=None)
+    assert job.stale() and not job.autosync()  # autosync is off in tests: no login window
+    gate = []
+    monkeypatch.setattr(job, "_work", lambda tickers: (gate.append(tickers) or time.sleep(0.2)) or
+                        {"tickers": 2, "statements": 2, "seconds": 0.2})
+    assert job.start(["AAPL", "MSFT"]) and not job.start(["AAPL"])  # a second start while running is refused
+    for _ in range(50):
+        if job.status()["state"] != "running":
+            break
+        time.sleep(0.05)
+    s = job.status()
+    assert s["state"] == "done" and not s["stale"] and gate == [["AAPL", "MSFT"]] and "2/2" in s["message"]
+
+
+def test_app_sync_job_reports_errors_instead_of_crashing(monkeypatch):
+    import time
+    from vmi.data.ibportal import job
+
+    job._state.update(state="idle")
+    monkeypatch.setattr(job, "_work", lambda t: (_ for _ in ()).throw(C.PortalError("no contract ids")))
+    job.start(["AAPL"])
+    for _ in range(50):
+        if job.status()["state"] != "running":
+            break
+        time.sleep(0.05)
+    assert job.status()["state"] == "error" and "no contract ids" in job.status()["message"]

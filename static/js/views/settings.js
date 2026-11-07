@@ -50,10 +50,40 @@ function overridesCard(all) {
     </tbody></table>` : `<p class="muted">No overrides yet.</p>`}</section>`;
 }
 
+function ibCard(s) {
+  const when = s.last_sync ? new Date(s.last_sync * 1000).toLocaleString() : "never";
+  const busy = s.state === "running";
+  return `<section class="card" id="ib-card"><h3>IB fundamentals (statements + analyst growth)</h3>
+    <p class="small muted">Last synced: <b>${esc(when)}</b>${s.stale ? ' <span class="badge bad">stale</span>' : ' <span class="badge ok">fresh</span>'}.
+      Needs IB Gateway running (live login) for new tickers. A browser window opens: sign in with your PAPER username.</p>
+    <p class="small" id="ib-msg">${esc(s.message || "")}</p>
+    <button id="ib-sync" ${busy ? "disabled" : ""}>${busy ? "Syncing ..." : "Sync IB fundamentals now"}</button></section>`;
+}
+
+async function pollIb(root) {
+  const poll = async () => {
+    if (!document.body.contains(root) || !$("#ib-card", root)) return;
+    const s = await api.ibSync();
+    $("#ib-card", root).outerHTML = ibCard(s);
+    $("#ib-sync", root)?.addEventListener("click", () => startIb(root));
+    if (s.state === "running") setTimeout(poll, 2000);
+  };
+  setTimeout(poll, 2000);
+}
+
+async function startIb(root) {
+  const s = await api.startIbSync();
+  $("#ib-card", root).outerHTML = ibCard(s);
+  $("#ib-sync", root)?.addEventListener("click", () => startIb(root));
+  pollIb(root);
+}
+
 export async function render(root) {
   root.innerHTML = loading();
-  const [schema, all] = await Promise.all([api.settings(), api.overridesAll()]);
-  root.innerHTML = rulesCard(schema) + overridesCard(all);
+  const [schema, all, ib] = await Promise.all([api.settings(), api.overridesAll(), api.ibSync()]);
+  root.innerHTML = ibCard(ib) + rulesCard(schema) + overridesCard(all);
+  $("#ib-sync", root)?.addEventListener("click", () => startIb(root));
+  if (ib.state === "running") pollIb(root);
   const byName = Object.fromEntries(schema.map((s) => [`${s.section}.${s.key}`, s]));
 
   $("#st-form", root).addEventListener("submit", (e) => {

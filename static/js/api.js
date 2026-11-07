@@ -22,6 +22,8 @@ const qs = (params = {}) => {
 
 export const api = {
   health: () => request("GET", "/api/health"),
+  ibSync: () => request("GET", "/api/ib/sync"),
+  startIbSync: () => request("POST", "/api/ib/sync"),
   quote: (s) => request("GET", `/api/quote/${s}`),
   // analysis
   analyse: (s, technicals = true) => request("GET", `/api/analysis/${s}${qs({ technicals })}`),

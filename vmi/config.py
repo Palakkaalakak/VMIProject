@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     # Rate limit: IBKR documents ~10 requests/s per session for its Web API; the portal site's own limit is not
     # published, so stay at that and back off on HTTP 429 (client.RETRY_STATUSES).
     ib_portal_max_rps: float = 10.0
+    ib_portal_autosync: bool = True  # app start: open the IBKR login window when the IB data is older than ttl_ib_portal
     ib_portal_workers: int = 8  # parallel tickers in `sync` (only in fast mode; the browser fallback is serial)
 
     # Cache TTLs (seconds)
@@ -42,7 +43,7 @@ class Settings(BaseSettings):
     ttl_option_chain: int = 60
 
     scanner_workers: int = 4
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"  # this machine only; set VMI_HOST=0.0.0.0 to reach the app from other devices
     port: int = 8000
 
     @property

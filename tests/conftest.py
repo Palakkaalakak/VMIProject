@@ -24,6 +24,14 @@ def fund_factory():
 
 
 @pytest.fixture(autouse=True)
+def no_autosync(monkeypatch):
+    """Tests must never open the IBKR login window."""
+    from vmi.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "ib_portal_autosync", False)
+
+
+@pytest.fixture(autouse=True)
 def isolated_cache(tmp_path, monkeypatch):
     """Every test gets its own empty cache; tests never read or write the real data/cache."""
     from vmi.data import cache

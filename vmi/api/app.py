@@ -44,6 +44,8 @@ async def lifespan(app: FastAPI):
     from vmi.paper.engine import ensure_default_portfolios
     ensure_default_portfolios()
     gateway().start()
+    from vmi.data.ibportal import job
+    job.autosync()
     task = asyncio.create_task(_watch_loop())
     yield
     task.cancel()
@@ -69,6 +71,21 @@ sysr = APIRouter(prefix="/api", tags=["system"], route_class=SafeRoute)
 @sysr.get("/health")
 def health():
     return {"ok": True, "ib": gateway().info(), "ib_fundamentals": ib_fundamentals.status()}
+
+
+@sysr.get("/ib/sync")
+def ib_sync_status():
+    from vmi.data.ibportal import job
+
+    return job.status()
+
+
+@sysr.post("/ib/sync")
+def ib_sync_start():
+    """Open the IBKR login window on this machine and refresh the IB fundamentals cache."""
+    from vmi.data.ibportal import job
+
+    return {"started": job.start(), **job.status()}
 
 
 @sysr.get("/settings")

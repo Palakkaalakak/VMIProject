@@ -38,6 +38,16 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-07 — IB sync inside the app; app listens on localhost by default
+- `vmi/data/ibportal/job.py`: one background job (S&P 500 → contract ids via the app's IB Gateway connection → browser login
+  window → parallel fetch → `ibportal:last_sync`). Settings page card "IB fundamentals" (last sync, fresh/stale, "Sync now",
+  live progress); `GET/POST /api/ib/sync`. At app start `job.autosync()` opens the login window only when the IB data is
+  older than `ttl_ib_portal` (14 d) or was never synced; turn off with `VMI_IB_PORTAL_AUTOSYNC=0`. Tests never open it
+  (conftest `no_autosync`). The window opens on the machine running the app.
+- Default `host` is now 127.0.0.1 (was 0.0.0.0, i.e. reachable from the LAN, which now matters because a POST can open a
+  window on this PC). `VMI_HOST=0.0.0.0` restores LAN access (ecosystem.config.cjs still sets it for the Linux/PM2 setup).
+  Browsers on Windows cannot open http://0.0.0.0:8000: use http://localhost:8000.
+
 ### 2026-11-06 — `sync` stalled ~20 min before the browser opened
 - Suspect: contract-id lookup via TWS ran 11 batches with a 120 s timeout each against a connected-but-silent IB Gateway.
   Now bounded (20 s per batch, 60 s total, `IBGateway.conids`), `prefetch_conids` never raises and `sync` continues with the
