@@ -31,6 +31,24 @@ def growth_rate(f, est) -> float | None:
     return None
 
 
+def used_growth(val, f, est) -> float | None:
+    """The years 1-5 growth the valuation actually used (robust blend, e.g. lowest source), so the displayed growth,
+    the category and the style cannot be skewed by one outlier source. Falls back to the plain consensus."""
+    sel = (val.methods or {}).get(val.selected) if val else None
+    g = ((sel.inputs if sel else {}) or {}).get("growth_1_5")
+    return g if g is not None else growth_rate(f, est)
+
+
+def displayed_roe(f) -> tuple[float | None, str]:
+    """Latest ROE for display. Negative equity from buybacks (MCD, YUM, BKNG): ROE is not meaningful ("effectively
+    infinite, very good", Master doc l.1230), so show nothing instead of a stale or absurd number."""
+    equity = f.latest.get("equity")
+    if equity is not None and equity <= 0:
+        return None, "negative equity from buybacks: ROE not meaningful (Adam: effectively infinite)"
+    roe = f.ratios.get("roe", [])
+    return (roe[-1].value if roe else None), ""
+
+
 def category(biz: BizType, growth: float | None, f, rules: VMIRules = RULES) -> str:
     """Lesson 8 portfolio categories."""
     if biz == BizType.SPECULATIVE:
@@ -98,7 +116,7 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
             tech_dict["buy_levels"] = [{"tranche": i, "price": p, "source": "judgement override", "touches": None,
                                         "confirmed": True} for i, p in enumerate(ov["buy_levels"], 1)]
     s7 = S.step7_entry(tech_dict or {})
-    g = growth_rate(f, est)
+    g = used_growth(val, f, est)
     cat = ov.get("category") or category(biz, g, f, rules)
     s1.notes += [w for w in f.warnings if w.startswith("revenue restated")]  # evidence for the reviewer
     _turnaround_exception(s1, s3, cat)
@@ -115,10 +133,11 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
         alloc = rules.portfolio.narrow_moat_multiplier
     if ov.get("allocation_multiplier") is not None:
         alloc = ov["allocation_multiplier"]
-    roe, roic = f.ratios.get("roe", []), f.ratios.get("roic", [])
+    roe, roe_note = displayed_roe(f)
+    roic = f.ratios.get("roic", [])
     metrics = {
         "growth": g, "eps_growth_5y": est.eps_growth_5y, "revenue_cagr": s1.checks[0].value,
-        "roe": roe[-1].value if roe else None, "roic": roic[-1].value if roic else None,
+        "roe": roe, "roe_note": roe_note, "roic": roic[-1].value if roic else None,
         "pe": est.pe, "peg": est.peg, "dividend_yield": est.dividend_yield, "beta": est.beta,
         "margin_of_safety": (iv - price) / iv if iv and price else None,
         "net_margin": (f.last("net_income") / f.last("revenue")) if f.last("revenue") else None,

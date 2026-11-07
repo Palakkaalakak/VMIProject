@@ -236,3 +236,22 @@ def test_turnaround_is_valued_on_the_multi_year_average_base(fund_factory):
     assert reason == TURNAROUND and order[0] == "dcf_fcf"
     rep = value_company(_ctx(f, growth=0.08), BizType.NORMAL)
     assert rep.selected == "dcf_fcf" and "average" in rep.methods["dcf_fcf"].inputs["base_desc"]
+
+
+def test_roe_is_not_shown_for_negative_buyback_equity_and_growth_follows_the_valuation(fund_factory):
+    from types import SimpleNamespace
+
+    from vmi.analysis.pipeline import displayed_roe, used_growth
+    from vmi.data.models import Point
+
+    f = fund_factory(revenue=[1, 2, 3], latest={"equity": -10.4e9})
+    f.ratios["roe"] = [Point(end="2023-12-31", value=225.7, fy=2023)]   # BKNG: stale, absurd (equity ~0 that year)
+    value, note = displayed_roe(f)
+    assert value is None and "negative equity" in note
+    f.latest["equity"] = 5e9
+    assert displayed_roe(f) == (225.7, "")                                # positive equity: the number is shown as is
+
+    est = SimpleNamespace(eps_growth_5y=0.658)                            # average skewed by one outlier source
+    val = SimpleNamespace(selected="dcf_fcf", methods={"dcf_fcf": SimpleNamespace(inputs={"growth_1_5": 0.152})})
+    assert used_growth(val, f, est) == 0.152                              # what the DCF used, not the skewed average
+    assert used_growth(SimpleNamespace(selected="", methods={}), f, est) == 0.658  # no valuation: plain consensus

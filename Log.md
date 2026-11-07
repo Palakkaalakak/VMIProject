@@ -38,6 +38,15 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-07 — BKNG scanner oddities: growth 65.8 % and ROE 22,573 %
+- Growth: the displayed growth, the category and the style used `est.eps_growth_5y`, the plain AVERAGE of all sources, so one
+  outlier source (BKNG: very likely IB's EPSTRENDGR on a small base; UNVERIFIED, no IB data in the sandbox) inflated them
+  while the DCF itself used the lowest source (15.2 %). Now `pipeline.used_growth()` = the growth the valuation used.
+  Adam's rule for an outlier site: ignore it and use the ones that agree (Master doc l.2437).
+- ROE: the data source's ROE series ends at FY2023 with 225.7 (equity ≈ 0 that year); BKNG's equity is now −$10.4B from
+  buybacks. `pipeline.displayed_roe()` shows nothing when equity ≤ 0 (Adam: ROE from buyback-driven negative equity is
+  "effectively infinite, very good", l.1230); Step 4 already passes such companies via `negative_equity.assess`.
+
 ### 2026-11-07 — Calibration after the Adam-rule fixes (sandbox, no IB data, pure formula)
 - Before → after: median ours/Adam 0.861 → 0.898; within ±15% 13 → 17 of 43; 0.85–1.02 band 8 → 9; below 0.75 8 → 6;
   above 1.05 14 → 14.
