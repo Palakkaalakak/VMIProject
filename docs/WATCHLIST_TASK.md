@@ -44,7 +44,7 @@ share and pricing-power evidence, news), following Adam's method in the master d
 - Where available, the Moat evaluation page (peers, annual-report competition passage, customer concentration) is the
   starting point, not the end.
 Record the verdict on the Moat evaluation page (grade, sources, score, why) so it is saved as an override, with the evidence
-and links in the "why" note. Drop any name that fails (no moat) from the watchlist. Mark as INFERRED anything that rests on
+and links in the "why" note. **Only WIDE-moat companies go on the watchlists** (owner, 2026-11-07; narrower than Adam, who also buys narrow): drop every narrow-moat and no-moat name, including narrow names the scanner or past judgements flagged (e.g. BKNG and IDXX are currently saved as narrow, so they are excluded unless a fresh review upgrades them to wide). Mark as INFERRED anything that rests on
 judgement rather than a source.
 
 ## Size note (owner, 2026-11-07: no action needed)

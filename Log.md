@@ -21,7 +21,7 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
   build one stock watchlist per configuration (Growth 4%/5%, Balanced 5.5%/3%, Withdrawal Max 7.5%/1%). It is NOT asked to
   predict whether the targets are achievable; the two-sleeve simulation below went beyond the brief and is background only.
   Owner: every chosen company's moat must be re-reviewed manually with outside information, following Adam's Step 3 method
-  (`docs/WATCHLIST_TASK.md`, moat section); saved through the Moat evaluation page.
+  (`docs/WATCHLIST_TASK.md`, moat section); saved through the Moat evaluation page. Owner: watchlists hold WIDE-moat companies only (narrow and none are dropped).
   Owner: the scanner does not account for moat, so a large steps 1-5 count is expected; no rule changes (see the size note in
   `docs/WATCHLIST_TASK.md`).
 - **Separate research track (not part of the app):** two-sleeve withdrawal study in `vmi/research/` + `tools/two_sleeve_*.py`,
