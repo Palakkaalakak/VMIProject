@@ -38,6 +38,14 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-07 — Calibration after the Adam-rule fixes (sandbox, no IB data, pure formula)
+- Before → after: median ours/Adam 0.861 → 0.898; within ±15% 13 → 17 of 43; 0.85–1.02 band 8 → 9; below 0.75 8 → 6;
+  above 1.05 14 → 14.
+- Per stock: PLTR 0.28 → 0.72 (DCF, profitable), NKE 0.67 → 0.90 and LVMUY 0.57 → 0.68 (turnaround, 4y average base),
+  CNSWF 0.79 → 1.03, EVVTY 1.72 → 1.04 and TMO 0.67 → 1.07 (P/S reference / DCF), UNH 1.22 → 1.67 (turnaround average
+  base above the trough with 13% consensus growth; the committed UNH judgement pins DCF on TTM FCF, so the judged run is
+  unaffected). Turnaround selection takes the first method with a value (preconditions waived), fix in 2a72b7e.
+
 ### 2026-11-07 — Valuation rules re-checked against Adam's full Master document
 - Read the whole VMI_VERBATIM_MASTER_DOCUMENT.md (3,495 lines); every rule with its line number is summarised in the
   session notes (kept out of the repo). Engine check: Adam's own inputs reproduce his worked examples (MA 655.97, AMZN 206,
