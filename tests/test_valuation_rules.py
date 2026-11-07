@@ -225,8 +225,8 @@ def test_inconsistent_cfo_and_profit_fall_back_to_price_to_sales(fund_factory):
     assert order[0] == "ps_mean" and reason == REFERENCE_ONLY
 
 
-def test_turnaround_is_valued_on_the_multi_year_average_base(fund_factory):
-    """Adam l.2898 (turnaround) + l.2502 (abnormal latest year → average of the last 3-4 years)."""
+def test_turnaround_is_valued_by_dcf_with_consistency_waived(fund_factory):
+    """Adam l.2898 (turnaround): default DCF, consistency checks waived; base stays the normal TTM rule."""
     from vmi.analysis.classify import BizType
     from vmi.analysis.valuation.selector import TURNAROUND, candidate_methods, value_company
 
@@ -235,7 +235,7 @@ def test_turnaround_is_valued_on_the_multi_year_average_base(fund_factory):
     order, reason = candidate_methods(_ctx(f), BizType.NORMAL)
     assert reason == TURNAROUND and order[0] == "dcf_fcf"
     rep = value_company(_ctx(f, growth=0.08), BizType.NORMAL)
-    assert rep.selected == "dcf_fcf" and "average" in rep.methods["dcf_fcf"].inputs["base_desc"]
+    assert rep.selected == "dcf_fcf" and rep.methods["dcf_fcf"].inputs["base_desc"].startswith("TTM")
 
 
 def test_roe_hidden_for_negative_buyback_equity_and_growth_is_the_lowest_source(fund_factory):

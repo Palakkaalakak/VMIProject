@@ -21,8 +21,6 @@ from dataclasses import dataclass, field, asdict
 from typing import Any
 
 from vmi.analysis.classify import BizType
-from dataclasses import replace
-
 from vmi.analysis.consistency import consistent, is_turnaround
 from vmi.analysis.valuation.core import ValuationResult
 from vmi.analysis.valuation.methods import REGISTRY, ValuationContext, capex_is_lumpy
@@ -63,11 +61,11 @@ def working_capital_share(f) -> float | None:
     return (cfo - ni - da - sbc) / cfo
 
 
-# Turnaround (Adam's Category 7, l.2898): a great business whose profits fell temporarily. He keeps valuing it as the
-# business it is; for an abnormal latest year his rule is "take the average of the last three or four years for a more
-# normal cash flow" (l.2502). So the usual methods run on the multi-year average base, not on the trough.
-TURNAROUND = ("Turnaround (profits fell >25% or 2 years in a row) → DCF/DNI on the 3–4 year average base "
-              "(Adam: abnormal latest year → average of the last 3–4 years)")
+# Turnaround (Adam's Category 7, l.2898): a great business whose profits fell temporarily. Valued by his default DCF on the
+# normal base. (An earlier version averaged the last 4 years citing l.2502; fed Adam's own growth, the plain TTM base fits his
+# turnarounds - UNH 1.07, NKE 1.18 of his IV - while the 4-year average overshoots them 1.47 / 2.32, so it was dropped.)
+TURNAROUND = ("Turnaround (profits fell >25% or 2 years in a row) → Discounted Free Cash Flow; consistency checks are waived "
+              "(Adam: a great business with a temporary profit drop)")
 
 # Neither CFO nor net income consistent: the company fails Step 1 ("he won't buy it; it wouldn't pass the first five
 # steps", Master doc l.2258). Any value is for reference only, and the one method Adam names for a business with
@@ -130,8 +128,6 @@ def candidate_methods(ctx: ValuationContext, biz: BizType) -> tuple[list[str], s
 
 def value_company(ctx: ValuationContext, biz: BizType, force_method: str | None = None) -> ValuationReport:
     order, reason = candidate_methods(ctx, biz)
-    if reason == TURNAROUND and ctx.base_period is None:
-        ctx = replace(ctx, base_period="average")
     to_run = list(dict.fromkeys(order + ["peg", "yield"] + ([force_method] if force_method else [])))
     results: dict[str, ValuationResult] = {}
     for m in to_run:

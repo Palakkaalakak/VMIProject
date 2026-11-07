@@ -38,6 +38,16 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-07 — Fed Adam's own growth (tests/fixtures/adam_growth_reference.tsv): residual gap is base/method, not growth
+- Adam's growth into our full model (42 stocks): median ours/Adam 1.04, within ±15 % 21 (17 with our growth). Growth is
+  part of it (ASML 1.6 → 1.0, AVGO: single-source Finviz 65 % / 42 % vs Adam 26 / 21 %), not most.
+- Growth trend, lowest source vs Adam (40 stocks): mean diff −1.2 pt, median |err| 2.8 pt (same for median/average), corr 0.60,
+  slope 0.92; single-source tickers overshoot (+4.3 pt mean), two-source undershoot (−3.5 pt). Sandbox has no IB source.
+- Base fit per stock (best of FCF/CFO/NI × TTM/FY/4y-avg): 9 different bases each fit a few stocks within 10 %, no single rule;
+  with ~10 candidates a ±10 % hit is partly chance, so the BKNG net-income-average judgement is weaker evidence than it looked.
+- Turnaround "4-year average base" REMOVED: with Adam's growth the plain TTM FCF base fits UNH (1.07) and NKE (1.18) while the
+  average overshoots (1.47 / 2.32). Turnaround keeps DCF-first with consistency waived.
+
 ### 2026-11-07 — BKNG explained: Adam's growth is 14.9 % (owner), so the base differs
 - With his growth (14.9 %, ours 15.2 %), reproducing his 188.08 needs a base of ~4.7B (ours: FCF 9.2B). Shares would have to be
   ~1.6B or the discount rate 14 %, so neither is the cause. Candidate bases: FCF FY25 9.09B → 368; FCF − SBC → 349; NI TTM
