@@ -38,6 +38,12 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-07 — Cash flow vs earnings: a pattern, but no rule
+- Our FCF DCF at Adam's growth overshoots more as FCF/NI rises: median ratio to Adam 0.95 (FCF/NI<0.9), 1.04 (0.9-1.15), 1.17
+  (1.15-1.5), 1.51 (>1.5: CNSWF DSGX MELI NOW VEEV). Capping the base at k×NI (k 1.0-2.0), averaging FCF and NI, or NI only does NOT
+  improve the fit (sd(ln) 0.65-0.82 vs 0.45; CRWD/PANW/NOW with FCF/NI 3-27 match Adam on plain FCF). So no mechanical rule from
+  the financials; Adam's treatment is stock-specific. Open: his calculator inputs for BKNG VEEV MELI NVO DSGX EVVTY CNSWF.
+
 ### 2026-11-07 — Is something systematically wrong? Diagnostics (42 stocks, Adam's growth fed in, dcf_fcf)
 - Engine: reproduces Adam's 7 worked examples within 0.2 % (tests/test_adam_worked_examples.py). Not the maths.
 - No global bias: median ours/Adam 1.06 on the TTM FCF base; implied discount rate median 6.5 % vs ours 6.4 %; implied base / our
