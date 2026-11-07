@@ -191,11 +191,14 @@ def test_step5_two_of_three_core_ratios_and_financials_exempt(fund_factory):
     assert step5_debt(f, BizType.INSURANCE).passed and step5_debt(f, BizType.INSURANCE).checks == []
 
 
-def _ctx(f):
+def _ctx(f, growth=None):
     from vmi.analysis.valuation.methods import ValuationContext
     from vmi.data.models import Estimates
 
-    return ValuationContext(f, Estimates(ticker="X"), 100.0)
+    est = Estimates(ticker="X")
+    if growth is not None:
+        est.sources = {"finviz": {"eps_growth_5y": growth}, "zacks": {"eps_growth_5y": growth}}
+    return ValuationContext(f, est, 100.0)
 
 
 def test_profitable_speculative_growth_is_valued_by_dcf_not_psg(fund_factory):
@@ -228,8 +231,8 @@ def test_turnaround_is_valued_on_the_multi_year_average_base(fund_factory):
     from vmi.analysis.valuation.selector import TURNAROUND, candidate_methods, value_company
 
     f = fund_factory(revenue=[50, 55, 60, 66, 70, 64], net_income=[5, 5.6, 6.2, 7, 7.5, 3.5],
-                     cfo=[6, 7, 5, 8, 9, 4], fcf=[5, 6, 4, 7, 8, 3])
+                     cfo=[6, 7, 5, 8, 9, 4], fcf=[5, 6, 4, 7, 8, 3], shares_diluted=[1] * 6)
     order, reason = candidate_methods(_ctx(f), BizType.NORMAL)
     assert reason == TURNAROUND and order[0] == "dcf_fcf"
-    rep = value_company(_ctx(f), BizType.NORMAL)
-    assert "average" in rep.methods["dcf_fcf"].inputs["base_desc"]
+    rep = value_company(_ctx(f, growth=0.08), BizType.NORMAL)
+    assert rep.selected == "dcf_fcf" and "average" in rep.methods["dcf_fcf"].inputs["base_desc"]

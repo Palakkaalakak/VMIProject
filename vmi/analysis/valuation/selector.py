@@ -146,6 +146,8 @@ def value_company(ctx: ValuationContext, biz: BizType, force_method: str | None 
     selected = None
     if force_method and force_method in results and results[force_method].intrinsic_value:
         selected, reason = force_method, f"User override → {results[force_method].label}"
+    elif reason == TURNAROUND:  # consistency preconditions are waived by definition: first method with a value
+        selected = next((m for m in order if results.get(m) and (results[m].intrinsic_value or 0) > 0), None)
     else:
         for m in order:
             r = results.get(m)
