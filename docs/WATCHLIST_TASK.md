@@ -31,20 +31,11 @@ Each step down prioritises income consistency and resilience over growth, withou
 4. For each list record: criteria used, number of names, sector mix, basket volatility/beta/drawdown vs SPY
    (`tools/scanner_baskets.py` shows how), and the stocks' IV, MOS and support levels. Log everything in Log.md.
 
-## Size discipline (owner, 2026-11-07, from Adam)
-Adam: fewer than 1% of businesses pass steps 1-5 ("eliminates 99%", master doc l.2075, l.858); step 1 alone passes < 5% (l.2065);
-no more than ~60 stocks in total (1% of ~6,000 US stocks, l.2666), 8-30 for most investors (l.2666). So the three watchlists
-together should hold on the order of tens of names, not hundreds.
-
-Cloud scan (S&P 500 only, 2026-11-07) showed why the scanner passes too many: 110 of 231 deep-analysed names pass steps 1-5
-(22% of the S&P 500), because step 3 is a PROVISIONAL pass for 94 of them (Adam's two shortcuts: industry list and 10-year
-chart; per-step pass counts of 231: step 1 159, step 2 227, step 3 198, step 4 177, step 5 209, step 6 108, step 7 43).
-Only 16 have a reviewed moat. Treat a name as a real "great business" only after its moat is reviewed (Moat evaluation page);
-the reviewed set, not the 110, is the pool for the watchlists. If the reviewed pool is still well above ~60 across the whole
-market, the likely loose spots to inspect (do not change a rule without the owner's OK, and log it): step 1 uses a 5-year
-window with up to 2 down years (Adam asks for 5-10 years, margins consistent), step 2 is a bare positive-growth test (as Adam
-says), step 4 ROE/ROIC >= 12%. Then rank within the pool (quality, consistency, low beta/drawdown for the lower configs) and
-keep roughly 8-30 names per list.
+## Size note (owner, 2026-11-07: no action needed)
+Adam's "< 1% pass steps 1-5" is reached only after the discretionary moat review. The scanner does not decide the moat
+(step 3 is a provisional shortcut), so a large steps 1-5 count before moat review (110 of 231 on the cloud S&P 500 scan) is
+expected and is not a bug. Do not tighten rules for this. Adam's portfolio size guidance (about 8-30 stocks, at most ~60) is
+useful context when choosing how long each watchlist should be.
 
 Background (not required reading, not part of the app): `docs/TWO_SLEEVE_RESEARCH.md` is a modelling side-study from the cloud
 session that went beyond this brief; treat its conclusions as unverified context only.
