@@ -17,6 +17,9 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
   TWS XML (works only if IB still permits it for your login), then the Client Portal Gateway
   (`vmi/data/ibportal/`). **The gateway path is implemented and offline-tested, but it has not been run
   against a real logged-in gateway yet.** The first live run is the `check` command below.
+- **NEXT TASK (owner, 2026-11-07): see `docs/WATCHLIST_TASK.md`.** The local session must use the scanner (with IB data) to
+  build one stock watchlist per configuration (Growth 4%/5%, Balanced 5.5%/3%, Withdrawal Max 7.5%/1%). It is NOT asked to
+  predict whether the targets are achievable; the two-sleeve simulation below went beyond the brief and is background only.
 - **Separate research track (not part of the app):** two-sleeve withdrawal study in `vmi/research/` + `tools/two_sleeve_*.py`,
   `tools/scanner_baskets.py`, report `docs/TWO_SLEEVE_RESEARCH.md`. Nothing in `vmi/` (scanner, pipeline, API, UI) imports it
   or was changed for it. To continue locally: `PYTHONPATH=. python tools/two_sleeve_study.py`, then
