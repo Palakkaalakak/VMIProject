@@ -38,6 +38,19 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-07 — Scanner growth = lowest analyst estimate; BKNG gap analysis
+- Scanner "Growth" (and the category/style that use it) = the LOWEST usable source estimate
+  (`pipeline.displayed_growth`, same filters as the valuation: excluded sources and impossible values dropped), or the
+  human's growth override when set. Supersedes `used_growth` from the entry below.
+- BKNG vs Adam (ours 352-370 vs his 188.08), engine verified: it reproduces Adam's other worked examples. On our FCF base
+  (TTM 9.24B, FY 9.09B, 816M diluted shares, debt 20.1B, cash 15.8B, rate 6.74 % for beta 1.153) Adam's 188 needs a flat
+  ~5.5 % growth for 20 years, or net income TTM (7.18B) at ~9.4 %, or a base FCF of ~4.6B at consensus growth. Our doomsday
+  case (growth halves after year 5, 2 % tail) is still 266, so his figure is NOT a pessimistic variant of the same inputs.
+  No Adam rule explains the gap: FCF is the right base (CFO 9.4B > 1.5x NI so the AMZN rule applies, float share 12-29 % <
+  the 50 % test), capex is tiny and steady, shares are post-split consistent (25:1, SEC data split-adjusted). Consensus
+  EPS growth is 15-16 % (Finviz 15.9, Zacks 15.2; Yahoo/stockanalysis next-year 18/59 %, the 59 % is a one-off EPS rebound
+  after the FY2025 charge and not used). UNVERIFIED which inputs Adam used (his reference file has only IV and levels).
+
 ### 2026-11-07 — BKNG scanner oddities: growth 65.8 % and ROE 22,573 %
 - Growth: the displayed growth, the category and the style used `est.eps_growth_5y`, the plain AVERAGE of all sources, so one
   outlier source (BKNG: very likely IB's EPSTRENDGR on a small base; UNVERIFIED, no IB data in the sandbox) inflated them

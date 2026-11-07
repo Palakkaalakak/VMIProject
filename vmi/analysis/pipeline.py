@@ -11,7 +11,7 @@ from vmi.analysis.consistency import consistent, is_turnaround
 from vmi.analysis import steps as S
 from vmi.analysis import technicals as T
 from vmi.analysis.classify import BizType, classify, sector_bucket
-from vmi.analysis.valuation.growth import GrowthControls
+from vmi.analysis.valuation.growth import GrowthControls, collect_sources
 from vmi.analysis.valuation.methods import ValuationContext
 from vmi.analysis.valuation.selector import value_company
 from vmi.data import market
@@ -31,9 +31,15 @@ def growth_rate(f, est) -> float | None:
     return None
 
 
-def used_growth(val, f, est) -> float | None:
-    """The years 1-5 growth the valuation actually used (robust blend, e.g. lowest source), so the displayed growth,
-    the category and the style cannot be skewed by one outlier source. Falls back to the plain consensus."""
+def displayed_growth(est, controls, ov_growth, val, f) -> float | None:
+    """Growth shown in the scanner and used for the category/style: the LOWEST usable analyst estimate (the owner's
+    default, one outlier source cannot inflate it), or the human's own growth input when one is set. Falls back to the
+    growth the valuation used, then to the plain consensus / revenue CAGR."""
+    if ov_growth is not None:
+        return ov_growth
+    srcs = collect_sources(est, controls)
+    if srcs:
+        return min(srcs.values())
     sel = (val.methods or {}).get(val.selected) if val else None
     g = ((sel.inputs if sel else {}) or {}).get("growth_1_5")
     return g if g is not None else growth_rate(f, est)
@@ -116,7 +122,7 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
             tech_dict["buy_levels"] = [{"tranche": i, "price": p, "source": "judgement override", "touches": None,
                                         "confirmed": True} for i, p in enumerate(ov["buy_levels"], 1)]
     s7 = S.step7_entry(tech_dict or {})
-    g = used_growth(val, f, est)
+    g = displayed_growth(est, ctx.growth_controls, ov.get("growth"), val, f)
     cat = ov.get("category") or category(biz, g, f, rules)
     s1.notes += [w for w in f.warnings if w.startswith("revenue restated")]  # evidence for the reviewer
     _turnaround_exception(s1, s3, cat)

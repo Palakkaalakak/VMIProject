@@ -238,10 +238,10 @@ def test_turnaround_is_valued_on_the_multi_year_average_base(fund_factory):
     assert rep.selected == "dcf_fcf" and "average" in rep.methods["dcf_fcf"].inputs["base_desc"]
 
 
-def test_roe_is_not_shown_for_negative_buyback_equity_and_growth_follows_the_valuation(fund_factory):
+def test_roe_hidden_for_negative_buyback_equity_and_growth_is_the_lowest_source(fund_factory):
     from types import SimpleNamespace
 
-    from vmi.analysis.pipeline import displayed_roe, used_growth
+    from vmi.analysis.pipeline import displayed_roe
     from vmi.data.models import Point
 
     f = fund_factory(revenue=[1, 2, 3], latest={"equity": -10.4e9})
@@ -251,7 +251,14 @@ def test_roe_is_not_shown_for_negative_buyback_equity_and_growth_follows_the_val
     f.latest["equity"] = 5e9
     assert displayed_roe(f) == (225.7, "")                                # positive equity: the number is shown as is
 
-    est = SimpleNamespace(eps_growth_5y=0.658)                            # average skewed by one outlier source
-    val = SimpleNamespace(selected="dcf_fcf", methods={"dcf_fcf": SimpleNamespace(inputs={"growth_1_5": 0.152})})
-    assert used_growth(val, f, est) == 0.152                              # what the DCF used, not the skewed average
-    assert used_growth(SimpleNamespace(selected="", methods={}), f, est) == 0.658  # no valuation: plain consensus
+    from vmi.analysis.pipeline import displayed_growth
+    from vmi.analysis.valuation.growth import GrowthControls
+    from vmi.data.models import Estimates
+
+    est = Estimates(ticker="X")
+    est.sources = {"finviz": {"eps_growth_5y": 0.159}, "zacks": {"eps_growth_5y": 0.152}, "ib": {"eps_growth_5y": 0.658}}
+    none_val = SimpleNamespace(selected="", methods={})
+    c = GrowthControls()
+    assert displayed_growth(est, c, None, none_val, f) == 0.152                      # lowest source, outlier ignored
+    assert displayed_growth(est, c, 0.07, none_val, f) == 0.07                       # human input wins
+    assert displayed_growth(est, GrowthControls(exclude=("zacks",)), None, none_val, f) == 0.159  # excluded source skipped
