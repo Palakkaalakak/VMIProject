@@ -38,6 +38,22 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-07 — Why Adam's IVs differ for BKNG/VEEV/MELI/NVO/DSGX/EVVTY/CNSWF: no single rule found
+
+Question: with Adam's own growth (`tests/fixtures/adam_growth_reference.tsv`) our DCF is still 1.5–5.8× his on his core stocks.
+Tests on all 42 stocks (scratch `combo.py`, Adam growth fed in, ratio = ours/Adam):
+- dcf_fcf median 1.03, sd(ln) 0.52, 19 within ±15%; dni 0.97 / 0.71 / 12; dcf_normalized 1.05 / 0.43 / 20.
+- min(fcf, dni): median 0.82, sd 0.68 (worse). min of all four: 0.79 / 0.63.
+- median(fcf, dni, ps_mean): 1.02 / 0.31 / 22 (best spread), but P/S is price-anchored, so it fits Adam's IVs
+  (which sit near price) by construction. Not evidence of his method; NOT adopted.
+- GOOGL 2026 worked numbers (doc l.2365-2373) reproduce exactly with our engine when years 6-10 use Stock Oracle's *LT*
+  rate (14.3/10.13 → 292.41). Using 14.3 flat gives 332. So Adam's tool uses the LT rate for years 6-10, which we lack for
+  most stocks (only Stock Oracle shows it). For BKNG/VEEV/EVVTY even negative years 6-10 growth would not close the gap.
+- Earlier: no global bias (implied discount rate median 6.5% vs ours 6.4%); no base rule fits all (9 bases tried).
+Conclusion: UNVERIFIED which base/shares/LT-rate Adam's Stock Oracle used for these names; the gap is per-company data,
+not a formula bug. Needs his Stock Oracle screen (FCF, shares, LT growth, discount rate) for BKNG, VEEV, MELI to settle.
+No code change. Open: optional pin of Adam's IVs for the 6 core outliers via `iv_override` (awaiting owner approval).
+
 ### 2026-11-07 — Cash flow vs earnings: a pattern, but no rule
 - Our FCF DCF at Adam's growth overshoots more as FCF/NI rises: median ratio to Adam 0.95 (FCF/NI<0.9), 1.04 (0.9-1.15), 1.17
   (1.15-1.5), 1.51 (>1.5: CNSWF DSGX MELI NOW VEEV). Capping the base at k×NI (k 1.0-2.0), averaging FCF and NI, or NI only does NOT
