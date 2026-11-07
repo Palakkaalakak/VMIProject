@@ -1,6 +1,7 @@
 // Superscanner view: start a funnel run (broad/cheap filters first), live funnel progress, sortable results.
 import { api } from "../api.js";
 import { $, esc, fmt, badge, loading, run, table, toast, signClass } from "../ui.js";
+import { applyFilters, filterPanel, loadSaved, readFilters, save, setForm } from "./scanner_filters.js";
 
 let poll = null;
 
@@ -23,13 +24,9 @@ export function render(root) {
     <section class="card">
       <div class="toolbar inline">
         <h3>Results</h3>
-        <select id="scan-filter">
-          <option value="">All</option><option value="great">Great businesses</option>
-          <option value="growth">Growth (≥15%)</option><option value="defensive">Defensive (&lt;15%)</option>
-          <option value="vmi">VMI buy now</option>
-        </select>
         <button id="scan-dropped" class="secondary">Why dropped?</button>
       </div>
+      <div id="scan-filter-box"></div>
       <div id="scan-results">${loading()}</div>
     </section>`;
   $("#scan-form", root).addEventListener("submit", (e) => {
@@ -46,7 +43,6 @@ export function render(root) {
     };
     run(e.submitter, async () => { await api.scanStart(body); toast("Scan started", "ok"); startPolling(root); });
   });
-  $("#scan-filter", root).addEventListener("change", () => loadResults(root));
   $("#scan-dropped", root).addEventListener("click", (e) => run(e.target, () => showDropped(root)));
   startPolling(root);
   loadResults(root);
@@ -72,31 +68,42 @@ const statusHtml = (st) => `
   <div class="progress"><div style="width:${Math.round((st.progress || 0) * 100)}%"></div></div>
   <ol class="funnel">${(st.funnel || []).map((f) => `<li><b>${esc(f.stage)}</b> ${fmt.num(f.count, 0)} <span class="muted small">${esc(f.note || "")}</span></li>`).join("")}</ol>`;
 
-const FILTERS = {
-  "": {}, great: { only_great: true }, growth: { min_growth: 0.15 }, defensive: { max_growth: 0.15 },
-};
+let allRows = [];
 
 async function loadResults(root) {
   const box = $("#scan-results", root);
-  const key = $("#scan-filter", root).value;
   try {
-    const res = await api.scanResults({ ...(FILTERS[key] || {}) });
-    let rows = res.results || [];
-    if (key === "vmi") rows = rows.filter((r) => r.vmi_pass);
-    box.innerHTML = "";
-    box.appendChild(table(COLUMNS, rows, {
-      empty: "No results yet — start a scan.",
-      initialSort: { key: "margin_of_safety", desc: true },
-      onRow: (r) => { location.hash = `#/analysis/${r.symbol}`; },
-    }));
+    allRows = (await api.scanResults({})).results || [];
+    const fb = $("#scan-filter-box", root);
+    const wasOpen = fb.querySelector("details")?.open;
+    fb.innerHTML = filterPanel(allRows);
+    const form = fb.querySelector("form");
+    setForm(form, loadSaved());
+    if (wasOpen) fb.querySelector("details").open = true;
+    const redraw = () => { save(readFilters(form)); drawRows(root); };
+    form.addEventListener("input", redraw);
+    $("#scan-reset", root).addEventListener("click", () => { form.reset(); redraw(); });
+    drawRows(root);
   } catch (e) { box.innerHTML = `<p class="muted">${esc(e.message)}</p>`; }
+}
+
+function drawRows(root) {
+  const box = $("#scan-results", root);
+  const rows = applyFilters(allRows, readFilters($("#scan-filter-box form", root)));
+  $("#scan-count", root).textContent = `${rows.length} of ${allRows.length} shown`;
+  box.innerHTML = "";
+  box.appendChild(table(COLUMNS, rows, {
+    empty: allRows.length ? "No stock matches these filters." : "No results yet — start a scan.",
+    initialSort: { key: "margin_of_safety", desc: true },
+    onRow: (r) => { location.hash = `#/analysis/${r.symbol}`; },
+  }));
 }
 
 const COLUMNS = [
   { key: "symbol", label: "Ticker", render: (r) => `<b>${esc(r.symbol)}</b>${r.pinned ? ` <span class="badge na" title="${esc(r.pinned)}">judged</span>` : ""}<div class="small muted">${esc(r.name || "")}</div>` },
   { key: "sector", label: "Sector" },
   { key: "price", label: "Price", cls: "num", render: (r) => fmt.money(r.price) },
-  { key: "intrinsic_value", label: "IV", cls: "num", render: (r) => fmt.money(r.intrinsic_value) },
+  { key: "intrinsic_value", label: "IV", cls: "num", render: (r) => `${fmt.money(r.intrinsic_value)}${r.iv_low_confidence ? ` <span class="badge na" title="${esc(r.iv_note)}">⚠ low confidence</span>` : ""}` },
   { key: "margin_of_safety", label: "MOS", cls: "num", render: (r) => `<span class="${signClass(r.margin_of_safety)}">${fmt.pct(r.margin_of_safety)}</span>` },
   { key: "growth", label: "Growth", cls: "num", render: (r) => fmt.pct(r.growth) },
   { key: "roe", label: "ROE", cls: "num", render: (r) => fmt.pct(r.roe) },

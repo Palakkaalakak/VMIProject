@@ -278,6 +278,8 @@ def compact(rep: dict, c: Candidate | None = None) -> dict:
         "trend": (tech.get("daily") or {}).get("state"), "buy_levels": [b["price"] for b in tech.get("buy_levels", [])],
         "entry_reason": tech.get("entry_reason"), "allocation_multiplier": rep.get("allocation_multiplier"),
         "pinned": (c.notes.get("pinned") if c else None),
+        "iv_low_confidence": (rep.get("iv_confidence") or {}).get("low"),
+        "iv_note": "; ".join((rep.get("iv_confidence") or {}).get("reasons") or []),
     }
 
 

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from vmi.analysis.iv_confidence import iv_confidence
 from vmi.analysis.consistency import consistent, is_turnaround
 from vmi.analysis import steps as S
 from vmi.analysis import technicals as T
@@ -161,7 +162,8 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
         "vmi_pass": great and s6.passed and s7.passed and moat_reviewed,
         "watchlist_candidate": great and not s6.passed,
         "steps": [s.to_dict() for s in (s1, s2, s3, s4, s5, s6, s7)],
-        "valuation": val.to_dict(), "intrinsic_value": iv, "technicals": tech_dict, "metrics": metrics,
+        "valuation": val.to_dict(), "iv_confidence": iv_confidence(val.to_dict()["methods"], val.selected),
+        "intrinsic_value": iv, "technicals": tech_dict, "metrics": metrics,
         "estimates": {k: v for k, v in est.to_dict().items() if k != "extra"},
         "data": {"provenance": f.provenance, "completeness": f.meta.get("completeness"), "warnings": f.warnings,
                  "latest_date": f.latest_date, "currency": f.currency},

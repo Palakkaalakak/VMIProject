@@ -38,6 +38,17 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-07 — "IV unlikely Adam-like" flag + scanner filter panel
+
+- `vmi/analysis/iv_confidence.py` (our heuristic, not Adam): flags an IV as low confidence when the applicable DCF / DNI /
+  P/S values differ by 1.5× or more. On the 42 reference stocks it caught 89% of the >30% misses vs Adam (16 of 18), 2 of 15
+  unflagged were misses; ~40% of flagged ones were fine (PANW, CRWD). Warning only, never changes IV or steps.
+  Shown in the analysis Valuation card and as "⚠ low confidence" next to IV in the scanner.
+- Scanner results filters (`static/js/views/scanner_filters.js`, client-side, remembered in the browser): each step 1–7
+  any/must pass/must fail, min steps, MOS, growth, ROE, ROIC, net margin, PEG, yield, market cap, beta, sector, method, moat,
+  style, category, trend, great business, below IV, chart entry, buy signal, moat reviewed, low-confidence IV, has judgement.
+- Verified: new tests + valuation tests pass (28); JS syntax-checked. UNVERIFIED in a real browser; full suite was not finished.
+
 ### 2026-11-07 — Why Adam's IVs differ for BKNG/VEEV/MELI/NVO/DSGX/EVVTY/CNSWF: no single rule found
 
 Question: with Adam's own growth (`tests/fixtures/adam_growth_reference.tsv`) our DCF is still 1.5–5.8× his on his core stocks.
