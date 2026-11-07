@@ -17,6 +17,12 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
   TWS XML (works only if IB still permits it for your login), then the Client Portal Gateway
   (`vmi/data/ibportal/`). **The gateway path is implemented and offline-tested, but it has not been run
   against a real logged-in gateway yet.** The first live run is the `check` command below.
+- **Separate research track (not part of the app):** two-sleeve withdrawal study in `vmi/research/` + `tools/two_sleeve_*.py`,
+  `tools/scanner_baskets.py`, report `docs/TWO_SLEEVE_RESEARCH.md`. Nothing in `vmi/` (scanner, pipeline, API, UI) imports it
+  or was changed for it. To continue locally: `PYTHONPATH=. python tools/two_sleeve_study.py`, then
+  `tools/two_sleeve_reserve_sweep.py`, `tools/two_sleeve_report.py`; run the scanner (S&P 500) with IB fundamentals synced and
+  re-run `tools/scanner_baskets.py` (it reads `data/research/scan_sp500.json`, git-ignored, produced by a scanner run).
+  First open item: review moats of the 110 steps-1-5 names, then re-run with IB data. See the 2026-11-07 research entry.
 - Open items: a live gateway check on the owner's PC; full-market scanner benchmark; judgement-only
   calibration cases (BKNG/UNH growth input, NKE/LVMUY on P/S); companies with a short history.
 
