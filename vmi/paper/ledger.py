@@ -71,9 +71,17 @@ def option_key(symbol: str, expiry: str, strike: float, right: str) -> str:
 
 
 def _ts(v: Any) -> str:
-    if isinstance(v, datetime):
-        return (v if v.tzinfo else v.replace(tzinfo=timezone.utc)).isoformat()
-    return str(v or "")
+    """Comparable UTC ISO string for a datetime or ISO string (naive = UTC, as SQLite returns them)."""
+    dt = v
+    if isinstance(v, str):
+        try:
+            dt = datetime.fromisoformat(v.replace("Z", "+00:00"))
+        except ValueError:
+            return v
+    if not isinstance(dt, datetime):
+        return str(v or "")
+    dt = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat()
 
 
 def _order(rows: Iterable[dict]) -> list[dict]:
@@ -215,7 +223,7 @@ def _normalise(d: dict, base: dict | None = None) -> dict:
         except ValueError:
             raise LedgerError("ts must be an ISO date/time, e.g. 2026-03-02T15:31:00-05:00")
     ts = ts or datetime.now(timezone.utc)
-    out["ts"] = ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+    out["ts"] = (ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)).astimezone(timezone.utc)  # stored as UTC
     out["fees"] = float(out.get("fees") or 0.0)
     out["mid"] = float(out.get("mid") if out.get("mid") is not None else out["price"])
     if isinstance(out.get("tags"), list):

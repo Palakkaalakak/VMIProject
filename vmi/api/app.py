@@ -27,14 +27,31 @@ log = logging.getLogger("vmi.api")
 STATIC = ROOT / "static"
 
 
+def _daily_option_snapshots() -> None:
+    """Once a day: a payoff snapshot of every open option position (usable later without quotes)."""
+    from vmi.data.cache import get_cache
+    from vmi.options import book
+
+    key = f"optionbook:daily:{__import__('datetime').date.today()}"
+    if not get_cache().get(key, 2 * 86400):
+        book.snapshot_all("daily")
+        get_cache().set(key, 1)
+
+
 async def _watch_loop():
+    """Every minute: watchlist alerts, tranche-plan automation (incl. offline backfill), then the throttled daily
+    journal marks and option snapshots. Each job fails on its own."""
+    from vmi.paper import autotrade, journal
     from vmi.watchlist import service as wl
 
+    jobs = (("watchlist check", wl.check_all), ("tranche plans", autotrade.run),
+            ("daily marks", journal.record_all_if_due), ("option snapshots", _daily_option_snapshots))
     while True:
-        try:
-            await asyncio.to_thread(wl.check_all)
-        except Exception as exc:
-            log.info("watchlist check failed: %s", exc)
+        for name, fn in jobs:
+            try:
+                await asyncio.to_thread(fn)
+            except Exception as exc:
+                log.info("%s failed: %s", name, exc)
         await asyncio.sleep(60)
 
 

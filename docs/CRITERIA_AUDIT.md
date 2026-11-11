@@ -67,6 +67,11 @@ earlier values I changed without being asked; they are restored and marked for t
 | `valuation.base_jump_ratio` | 1.3 | interpretation of Adam's words | Adam: 'sudden big jump in the last 12 months → don't use it' (no ratio given) |
 | `valuation.base_plunge_ratio` | 0.7 | interpretation of Adam's words | Adam: 'sudden big plunge → don't use it' (no ratio given) |
 | `valuation.base_avg_years` | 4 | Adam states it | use an average of the last 3–4 years (l.8372) |
+| `valuation.iv_flag_enabled` | True | owner's rule/spec | owner asked for an on/off switch for the 'IV may be high' warning (2026-11-07) |
+| `valuation.iv_flag_ratio` | 1.3 | assistant's proposal, approved by owner | our heuristic, not Adam: selected IV >= 1.3x the lowest credible alternative (Log 2026-11-07) |
+| `valuation.iv_flag_ni_jump` | 1.5 | interpretation of Adam's words | net income TTM > 1.5x last FY = abnormal (Adam l.2502 idea), not used as a comparator |
+| `valuation.iv_flag_ps_max_growth` | 0.15 | assistant's proposal, approved by owner | P/S only compared below 15% growth (it undervalues fast growers) |
+| `valuation.iv_flag_dni_max_fcf_to_ni` | 2.0 | assistant's proposal, approved by owner | net income only compared when FCF <= 2x NI (SBC/tax distort NI) |
 | `valuation.bank_pb_fair_low` | 1.2 | Adam states it | banks: P/B 1.2–1.4 fair (l.4846) |
 | `valuation.bank_pb_fair_high` | 1.4 | Adam states it | banks: P/B 1.2–1.4 fair (l.4846) |
 | `valuation.distressed_pb_max` | 0.5 | Adam states it | distressed: buy at P/B ≤0.5 (l.4497) |
