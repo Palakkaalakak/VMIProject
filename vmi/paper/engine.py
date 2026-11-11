@@ -14,7 +14,7 @@ from sqlalchemy import select
 
 from vmi import store
 from vmi.data import market
-from vmi.paper import fills, sizing
+from vmi.paper import fills, ledger, sizing
 from vmi.rules import RULES
 
 STYLES = ("growth", "defensive", "balanced", "dividend", "speculative")
@@ -24,8 +24,7 @@ class TradeError(ValueError):
     pass
 
 
-def option_key(symbol: str, expiry: str, strike: float, right: str) -> str:
-    return f"{symbol.upper()} {expiry} {strike:g} {right.upper()}"
+option_key = ledger.option_key
 
 
 # --------------------------------------------------------------------------------------- portfolios
@@ -100,12 +99,14 @@ def _mark(pos: store.Position, quotes: bool = True) -> float | None:
 
 # --------------------------------------------------------------------------------------- trading
 def _apply(s, p: store.Portfolio, key: str, symbol: str, sec_type: str, side: str, qty: float, fill: fills.Fill,
-           multiplier: int, extra: dict | None = None, note: str = "") -> dict:
+           multiplier: int, extra: dict | None = None, note: str = "", *, fees: float = 0.0, journal: dict | None = None,
+           ts: datetime | None = None) -> dict:
+    """Apply one fill to the stored position + cash (same accounting as ledger.replay) and write the Trade row.
+    journal: optional kind / source / tags / thesis / context for the ledger (vmi/paper/ledger.py)."""
     side = side.upper()
     if qty <= 0:
         raise TradeError("quantity must be positive")
-    signed = qty if side == "BUY" else -qty
-    cash_delta = -signed * fill.price * multiplier
+    cash_delta = ledger.cash_delta(side, qty, fill.price, multiplier, fees)
     pos = s.scalar(select(store.Position).where(store.Position.portfolio_id == p.id, store.Position.key == key))
     if pos is None:
         pos = store.Position(portfolio_id=p.id, key=key, symbol=symbol, sec_type=sec_type, qty=0.0, avg_cost=0.0,
@@ -117,27 +118,20 @@ def _apply(s, p: store.Portfolio, key: str, symbol: str, sec_type: str, side: st
         raise TradeError(f"insufficient cash: need ${-cash_delta:,.2f}, have ${p.cash:,.2f}")
     if sec_type == "OPT" and side == "SELL" and pos.qty - qty < 0:   # opening/adding a short option
         _check_short_option_cover(s, p, pos, symbol, qty - max(pos.qty, 0), extra or {})
-    # position accounting (average cost; realised P&L on reductions)
-    old = pos.qty
-    new = old + signed
-    if old == 0 or (old > 0) == (signed > 0):          # opening / adding
-        pos.avg_cost = (abs(old) * pos.avg_cost + qty * fill.price) / (abs(old) + qty)
-    else:                                              # reducing / closing / flipping
-        closing = min(abs(signed), abs(old))
-        pnl_per = (fill.price - pos.avg_cost) if old > 0 else (pos.avg_cost - fill.price)
-        pos.realized_pnl += pnl_per * closing * multiplier
-        if abs(signed) > abs(old):                     # flipped through zero
-            pos.avg_cost = fill.price
-    pos.qty = round(new, 6)
-    if sec_type == "STK" and side == "BUY":
+    j = journal or {}
+    pos.qty, pos.avg_cost, pos.realized_pnl = ledger.step(pos.qty or 0.0, pos.avg_cost or 0.0, pos.realized_pnl or 0.0,
+                                                          side, qty, fill.price, multiplier)
+    if sec_type == "STK" and side == "BUY" and j.get("kind", "fill") == "fill":
         pos.tranches_filled = (pos.tranches_filled or 0) + 1
     p.cash += cash_delta
     t = store.Trade(portfolio_id=p.id, key=key, symbol=symbol, sec_type=sec_type, side=side, qty=qty,
                     price=fill.price, mid=fill.mid, slippage=fill.slippage_per_share * qty * multiplier,
-                    liquidity=fill.liquidity, multiplier=multiplier, note=note)
+                    liquidity=fill.liquidity, multiplier=multiplier, note=note, fees=fees,
+                    kind=j.get("kind", "fill"), source=j.get("source", "paper"), tags=j.get("tags", ""),
+                    thesis=j.get("thesis", ""), context=j.get("context") or {"fill": fill.to_dict()})
+    if ts is not None:
+        t.ts = ts
     s.add(t)
-    if abs(pos.qty) < 1e-9:
-        pos.qty = 0.0
     s.commit()
     return {"trade": store.to_dict(t), "fill": fill.to_dict(), "cash": p.cash, "position": store.to_dict(pos)}
 
@@ -164,8 +158,27 @@ def reserved_cash(p: store.Portfolio) -> float:
     return sum(-x.qty * (x.strike or 0) * 100 for x in p.positions if x.sec_type == "OPT" and x.right == "P" and x.qty < 0)
 
 
+def _journal(base: dict | None, symbol: str, kind: str, quote, p, pos, extra: dict) -> dict:
+    """kind/source/tags/thesis from the caller + the context snapshot (vmi/paper/context.py)."""
+    from vmi.paper import context
+
+    j = dict(base or {})
+    ctx = context.build(symbol, kind=kind, quote=quote, extra=extra, analyse=j.pop("analyse", None))
+    ctx["portfolio"] = context.portfolio_context(p, pos)
+    ctx.update(j.pop("context", None) or {})          # caller additions win (plan, tranche level, origin …)
+    if isinstance(j.get("tags"), list):
+        j["tags"] = ",".join(t.strip() for t in j["tags"] if str(t).strip())
+    j["context"] = ctx
+    return j
+
+
+def _position(s, pid: int, key: str):
+    return s.scalar(select(store.Position).where(store.Position.portfolio_id == pid, store.Position.key == key))
+
+
 def trade_stock(pid: int, symbol: str, side: str, qty: float | None = None, dollars: float | None = None,
-                note: str = "", quote=None) -> dict:
+                note: str = "", quote=None, *, fees: float = 0.0, journal: dict | None = None) -> dict:
+    """journal: optional {"tags", "thesis", "source", "kind", "context": {...}, "analyse": bool}."""
     symbol = symbol.upper().strip()
     q = quote or _stock_quote(symbol)
     with store.session() as s:
@@ -177,11 +190,13 @@ def trade_stock(pid: int, symbol: str, side: str, qty: float | None = None, doll
             if not dollars:
                 raise TradeError("give qty or dollars")
             qty = round(dollars / f.price, 4)   # fractional shares allowed (Lesson 8 §4.3)
-        return _apply(s, p, symbol, symbol, "STK", side, float(qty), f, 1, note=note)
+        j = _journal(journal, symbol, "stock", q, p, _position(s, pid, symbol),
+                     {"order": {"side": side.upper(), "qty": qty, "dollars": dollars}, "fill": f.to_dict()})
+        return _apply(s, p, symbol, symbol, "STK", side, float(qty), f, 1, note=note, fees=fees, journal=j)
 
 
 def trade_option(pid: int, symbol: str, expiry: str, strike: float, right: str, side: str, contracts: int,
-                 note: str = "") -> dict:
+                 note: str = "", *, fees: float = 0.0, journal: dict | None = None) -> dict:
     from vmi.options.chain import option_quote
 
     oq = option_quote(symbol, expiry, strike, right)
@@ -193,8 +208,25 @@ def trade_option(pid: int, symbol: str, expiry: str, strike: float, right: str, 
         p = s.get(store.Portfolio, pid)
         if not p:
             raise TradeError("portfolio not found")
-        return _apply(s, p, key, symbol.upper(), "OPT", side, float(contracts), f, 100,
-                      extra={"expiry": expiry, "strike": float(strike), "right": right.upper()}, note=note)
+        try:
+            spot = market.last_price(symbol)
+        except Exception:
+            spot = None
+        quote_d = {k: getattr(oq, k, None) for k in ("bid", "ask", "last", "volume", "open_interest", "iv", "delta",
+                                                     "gamma", "theta", "vega")}
+        j = _journal(journal, symbol.upper(), "option", None, p, _position(s, pid, key),
+                     {"order": {"side": side.upper(), "contracts": contracts}, "fill": f.to_dict(),
+                      "option": {"key": key, "expiry": expiry, "strike": float(strike), "right": right.upper(),
+                                 "underlying": spot, "quote": quote_d}})
+        res = _apply(s, p, key, symbol.upper(), "OPT", side, float(contracts), f, 100,
+                     extra={"expiry": expiry, "strike": float(strike), "right": right.upper()}, note=note, fees=fees,
+                     journal=j)
+    try:                                   # payoff snapshot of the whole position on this underlying
+        from vmi.options import book
+        res["snapshot_id"] = book.snapshot_portfolio(pid, symbol, reason="trade", label=f"after {side.upper()} {key}")
+    except Exception as exc:
+        res["snapshot_error"] = str(exc)[:200]
+    return res
 
 
 def settle_expired(pid: int) -> list[dict]:
@@ -232,10 +264,18 @@ def settle_expired(pid: int) -> list[dict]:
                 events.append({"key": pos.key, "event": "assigned/exercised", "shares": shares, "underlying": und})
                 s.add(store.Trade(portfolio_id=p.id, key=pos.symbol, symbol=pos.symbol, sec_type="STK",
                                   side="BUY" if shares > 0 else "SELL", qty=abs(shares), price=pos.strike,
-                                  mid=pos.strike, note=f"assignment {pos.key}"))
+                                  mid=pos.strike, note=f"assignment {pos.key}", kind="assignment",
+                                  context={"option": pos.key, "underlying": und}))
             else:
                 pos.realized_pnl += ((-pos.avg_cost) if n > 0 else pos.avg_cost) * abs(n) * 100
                 events.append({"key": pos.key, "event": "expired worthless", "underlying": und})
+            # the option leaves the book at 0 (its premium is already in cash): an explicit closing row lets
+            # ledger.replay reproduce the expiry exactly
+            s.add(store.Trade(portfolio_id=p.id, key=pos.key, symbol=pos.symbol, sec_type="OPT",
+                              side="SELL" if n > 0 else "BUY", qty=abs(n), price=0.0, mid=0.0, multiplier=100,
+                              kind="expiry", note=f"{'assigned/exercised' if itm else 'expired worthless'} "
+                                                  f"(underlying {und:.2f})",
+                              context={"underlying": und, "itm": itm, "expiry": pos.expiry}))
             pos.qty = 0.0
         s.commit()
     return events

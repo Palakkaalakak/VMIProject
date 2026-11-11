@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     ib_portal_max_rps: float = 10.0
     ib_portal_autosync: bool = True  # app start: open the IBKR login window when the IB data is older than ttl_ib_portal
     ib_portal_workers: int = 8  # parallel tickers in `sync` (only in fast mode; the browser fallback is serial)
+    capture_trade_context: bool = True  # store a trimmed VMI analysis on every paper trade (vmi/paper/context.py)
 
     # Cache TTLs (seconds)
     ttl_quote: int = 15

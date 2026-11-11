@@ -31,6 +31,9 @@ class Portfolio(Base):
     cash: Mapped[float] = mapped_column(Float, default=100_000.0)
     starting_cash: Mapped[float] = mapped_column(Float, default=100_000.0)
     target_positions: Mapped[int] = mapped_column(Integer, default=20)
+    # sizing_mode: "target" (equity ÷ target_positions) | "watchlist" (equity ÷ size of `watchlist_id`) | "manual"
+    # (`manual_allocation` $ per stock); tranches; auto_trade (tranche plans fill without a click); market_hours_only.
+    settings: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     positions: Mapped[list["Position"]] = relationship(back_populates="portfolio", cascade="all, delete-orphan")
     trades: Mapped[list["Trade"]] = relationship(back_populates="portfolio", cascade="all, delete-orphan")
@@ -109,6 +112,47 @@ class OptionSnapshot(Base):
     inputs: Mapped[dict] = mapped_column(JSON, default=dict)
     result: Mapped[dict] = mapped_column(JSON, default=dict)
     notes: Mapped[str] = mapped_column(Text, default="")
+
+
+class TranchePlan(Base):
+    """Buy (and optional sell) levels for one stock in one portfolio. The automation loop (vmi/paper/autotrade.py)
+    fills a level when the price reaches it (or only alerts, when auto is off). Every fill links back here."""
+    __tablename__ = "tranche_plans"
+    __table_args__ = (UniqueConstraint("portfolio_id", "symbol"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolios.id"))
+    symbol: Mapped[str] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(12), default="active")   # active | paused | done | cancelled
+    auto: Mapped[bool | None] = mapped_column(Boolean, nullable=True)    # None = follow the portfolio setting
+    intrinsic_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    require_below_iv: Mapped[bool] = mapped_column(Boolean, default=True)
+    allocation: Mapped[float | None] = mapped_column(Float, nullable=True)  # $ full allocation override (else sizing mode)
+    multiplier: Mapped[float] = mapped_column(Float, default=1.0)          # category multiplier (½ speculative …)
+    # [{"price": 180.0, "fraction": 0.25, "status": "pending|filled|skipped", "trade_id": None, "filled_at": None,
+    #   "note": ""}] buy levels high → low; sell levels: {"price" | "over_iv": 0.5, "fraction": 0.33, …}
+    buy_levels: Mapped[list] = mapped_column(JSON, default=list)
+    sell_levels: Mapped[list] = mapped_column(JSON, default=list)
+    source: Mapped[str] = mapped_column(String(20), default="manual")      # manual | watchlist | analysis
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    history: Mapped[list] = mapped_column(JSON, default=list)              # every change / trigger, for review
+
+
+class DailyMark(Base):
+    """One row per portfolio per day (key="__portfolio__") and per held/planned instrument: the raw material for equity
+    curves and later what-if studies (price, value, IV, MOS, option implied vol, trend …)."""
+    __tablename__ = "daily_marks"
+    __table_args__ = (UniqueConstraint("day", "portfolio_id", "key"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    day: Mapped[str] = mapped_column(String(10), index=True)               # YYYY-MM-DD
+    portfolio_id: Mapped[int] = mapped_column(Integer, index=True)
+    key: Mapped[str] = mapped_column(String(80))
+    symbol: Mapped[str] = mapped_column(String(20), default="")
+    qty: Mapped[float] = mapped_column(Float, default=0.0)
+    price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    data: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
 class Watchlist(Base):
@@ -196,8 +240,15 @@ def _add_missing_columns(eng) -> None:
                 if col.name in have:
                     continue
                 kind = col.type.compile(dialect=eng.dialect)
-                default = {"Boolean": "0", "Float": "0", "Integer": "0", "String": "''", "Text": "''", "JSON": "'{}'"}.get(
-                    type(col.type).__name__, "NULL")
+                arg = getattr(col.default, "arg", None)
+                if isinstance(arg, bool):
+                    default = "1" if arg else "0"
+                elif isinstance(arg, (int, float)):
+                    default = repr(arg)
+                elif isinstance(arg, str):
+                    default = "'" + arg.replace("'", "''") + "'"
+                else:                                  # callables (dict/list factories) and no default
+                    default = {"JSON": "'{}'", "String": "''", "Text": "''"}.get(type(col.type).__name__, "NULL")
                 conn.execute(text(f'ALTER TABLE {table.name} ADD COLUMN {col.name} {kind} DEFAULT {default}'))
 
 

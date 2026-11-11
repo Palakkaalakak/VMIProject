@@ -38,3 +38,17 @@ def isolated_cache(tmp_path, monkeypatch):
 
     monkeypatch.setattr(cache, "_cache", cache.TTLCache(tmp_path / "cache.sqlite"))
     yield cache._cache
+
+
+@pytest.fixture
+def temp_db(tmp_path, monkeypatch):
+    """Fresh SQLite database for one test (store engine/session reset, settings.database_url pointed at tmp)."""
+    from vmi import config, store
+
+    url = f"sqlite:///{tmp_path / 'test.db'}"
+    monkeypatch.setattr(config.Settings, "database_url", property(lambda self: url))
+    monkeypatch.setattr(config.get_settings(), "capture_trade_context", False)
+    monkeypatch.setattr(store, "_engine", None)
+    monkeypatch.setattr(store, "_Session", None)
+    store.engine()
+    yield url
