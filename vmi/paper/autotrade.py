@@ -12,6 +12,11 @@ value, require_below_iv, allocation override ($), category multiplier, auto over
 
 run()  one pass over every active plan: backfill since the plan's last check (completed daily bars), then live prices.
 Each level fires once; every decision is written to the plan's history and raised as an alert.
+
+Gap rule (owner, 2026-11-11): when one price check finds SEVERAL unfilled buy levels already reached (a gap down through
+tranches 1-3), only the highest is filled now; the others are "scheduled" `gap_stagger_days` trading days apart, a buffer
+in case the price keeps falling (a lower level reached meanwhile fills on its own). When a scheduled tranche falls due it
+is released to the normal check: it fills if the price is still at/below its level and below IV, otherwise it waits.
 """
 from __future__ import annotations
 
@@ -31,7 +36,8 @@ ET = ZoneInfo("America/New_York")
 DEFAULTS: dict[str, Any] = {"sizing_mode": None, "watchlist_id": None, "manual_allocation": None,
                             "tranches": RULES.portfolio.tranches, "auto_trade": False, "market_hours_only": True,
                             "backfill": True, "fill_tolerance": 0.0, "alert_tolerance": RULES.technical.near_level_pct,
-                            "max_backfill_days": 120}
+                            "max_backfill_days": 120,
+                            "gap_stagger_days": 3}   # price through several unfilled levels: 1 now, the rest this many trading days apart (0 = all at once)
 SIZING_MODES = ("watchlist", "target", "manual")
 MIN_ORDER = 25.0          # $: smaller remaining amounts are skipped, not bought
 
@@ -325,6 +331,36 @@ def run(pid: int | None = None, *, quote_fn: Callable | None = None, history_fn:
     return events
 
 
+def _stagger_days(day, n: int):
+    import numpy as np
+    return str(np.busday_offset(str(day), n, roll="forward"))
+
+
+def _release_and_stagger(buys: list[dict], day, reached: Callable[[dict], bool], cfg: dict, auto: bool, sym: str,
+                         events: list[dict]) -> None:
+    """Gap rule. 1) scheduled tranches that fell due go back to pending; 2) of the pending levels reached right now keep
+    only the highest, schedule the rest `gap_stagger_days` trading days apart."""
+    n = int(cfg.get("gap_stagger_days") or 0)
+    if not auto or n <= 0:
+        return
+    for l in buys:
+        if l["status"] == "scheduled" and str(l.get("fill_after") or "") <= str(day):
+            l.update(status="pending", note=f"{l.get('note', '')} released {day}".strip())
+    hit = sorted((i for i, l in enumerate(buys) if l["status"] in ("pending", "alerted") and reached(l)),
+                 key=lambda i: -buys[i]["price"])
+    if len(hit) < 2:
+        return
+    sched = []
+    for k, i in enumerate(hit[1:], start=1):
+        when = _stagger_days(day, n * k)
+        buys[i].update(status="scheduled", fill_after=when, note=f"gap through {len(hit)} levels on {day}: scheduled {when}")
+        sched.append((buys[i]["price"], when))
+    msg = (f"{sym} gapped through {len(hit)} unfilled tranches on {day}: tranche at {buys[hit[0]]['price']:g} now, then "
+           + ", ".join(f"{p:g} on {w}" for p, w in sched) + f" ({n} trading days apart, buffer in case it falls further).")
+    _alert(sym, "tranche_stagger", msg, buys[hit[0]]["price"])
+    events.append({"symbol": sym, "event": "gap_stagger", "day": str(day), "scheduled": sched})
+
+
 def _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now) -> list[dict]:
     events: list[dict] = []
     with store.session() as s:
@@ -355,6 +391,7 @@ def _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now) -> list[di
                 bars = bars[(bars.index.date >= start) & (bars.index.date < today)]
                 for d, bar in bars.iterrows():
                     day = d.date()
+                    _release_and_stagger(buys, day, lambda l, b=bar: b["low"] <= l["price"], cfg, auto, sym, events)
                     for i, lvl in enumerate(buys):
                         if lvl["status"] not in ("pending", "alerted") or bar["low"] > lvl["price"]:
                             continue
@@ -411,6 +448,8 @@ def _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now) -> list[di
         except Exception:
             qt, px = None, None
         if px:
+            _release_and_stagger(buys, today, lambda l: px <= l["price"] * (1 + cfg["fill_tolerance"]), cfg, auto and session_ok,
+                                 sym, events)
             for i, lvl in enumerate(buys):
                 if lvl["status"] not in ("pending", "alerted"):
                     continue

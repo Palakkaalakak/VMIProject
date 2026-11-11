@@ -135,3 +135,74 @@ def test_hand_entered_order_at_a_level_fills_it_so_automation_does_not_double_bu
     assert lv[0]["status"] == "filled" and lv[0]["trade_id"] == res["trade_id"] and lv[1]["status"] == "pending"
     autotrade.run(pid, quote_fn=quote(94), history_fn=no_history, in_session=lambda: True)
     assert len(_trades(pid)) == 1                                   # level 95 not bought again
+
+
+def _bars(days_back, rows):
+    days = pd.bdate_range(date.today() - timedelta(days=days_back), date.today() - timedelta(days=1))
+    b = pd.DataFrame({"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0}, index=days)
+    for i, vals in rows.items():
+        b.iloc[i, :] = vals
+    return b
+
+
+def test_gap_through_three_tranches_fills_one_then_staggers_the_rest(pid):
+    from sqlalchemy import select
+    autotrade.update_settings(pid, {"auto_trade": True, "gap_stagger_days": 2})
+    autotrade.upsert_plan(pid, "AAA", buy_levels=[{"price": 95, "fraction": 0.4}, {"price": 90, "fraction": 0.3},
+                                                  {"price": 85, "fraction": 0.3}], intrinsic_value=150)
+    with store.session() as s:
+        p = s.scalar(select(store.TranchePlan))
+        p.last_checked = datetime.now(timezone.utc) - timedelta(days=20)
+        s.commit()
+    bars = _bars(19, {})
+    n = len(bars)
+    bars.iloc[3, :] = [84.0, 85.0, 83.0, 84.0]          # gaps below all three levels
+    for i in range(4, n):                                # and stays there
+        bars.iloc[i, :] = [84.0, 85.0, 83.0, 84.0]
+    ev = autotrade.run(pid, quote_fn=quote(84), history_fn=lambda s: bars, in_session=lambda: True)
+    t = sorted(_trades(pid), key=lambda r: r["ts"])
+    gap_day = bars.index[3].date()
+    assert [e["event"] for e in ev].count("gap_stagger") == 1
+    assert len(t) == 3
+    d = [r["ts"][:10] for r in t]
+    assert d[0] == str(gap_day)                                          # tranche 1 on the gap day
+    import numpy as np
+    assert d[1] == str(np.busday_offset(str(gap_day), 2)) and d[2] == str(np.busday_offset(str(gap_day), 4))
+    assert [r["context"]["plan"]["level"] for r in t] == [0, 1, 2]
+    assert ledger.verify(pid)["ok"]
+
+
+def test_gap_stagger_waits_when_price_rebounds_and_can_be_switched_off(pid):
+    from sqlalchemy import select
+    autotrade.update_settings(pid, {"auto_trade": True, "gap_stagger_days": 2})
+    autotrade.upsert_plan(pid, "AAA", buy_levels=[{"price": 95, "fraction": 0.5}, {"price": 90, "fraction": 0.5}],
+                          intrinsic_value=150)
+    with store.session() as s:
+        s.scalar(select(store.TranchePlan)).last_checked = datetime.now(timezone.utc) - timedelta(days=12)
+        s.commit()
+    bars = _bars(11, {})
+    bars.iloc[1, :] = [88.0, 89.0, 87.0, 88.0]          # gap through both levels, then straight back to 100
+    autotrade.run(pid, quote_fn=quote(100), history_fn=lambda s: bars, in_session=lambda: True)
+    assert len(_trades(pid)) == 1                                       # second tranche released but price is above 90
+    lv = autotrade.get_plans(pid)[0]["buy_levels"]
+    assert lv[1]["status"] == "pending"
+    # switched off: both fill on the gap day
+    engine.reset_portfolio(pid)
+    autotrade.delete_plan(pid, "AAA")
+    autotrade.update_settings(pid, {"gap_stagger_days": 0})
+    autotrade.upsert_plan(pid, "AAA", buy_levels=[{"price": 95, "fraction": 0.5}, {"price": 90, "fraction": 0.5}], intrinsic_value=150)
+    with store.session() as s:
+        s.scalar(select(store.TranchePlan)).last_checked = datetime.now(timezone.utc) - timedelta(days=12)
+        s.commit()
+    autotrade.run(pid, quote_fn=quote(100), history_fn=lambda s: bars, in_session=lambda: True)
+    assert len(_trades(pid)) == 2
+
+
+def test_live_gap_fills_one_now_and_schedules_the_rest(pid):
+    autotrade.update_settings(pid, {"auto_trade": True, "gap_stagger_days": 3})
+    autotrade.upsert_plan(pid, "AAA", buy_levels=[95, 90, 85], intrinsic_value=150)
+    ev = autotrade.run(pid, quote_fn=quote(84), history_fn=no_history, in_session=lambda: True)
+    assert len(_trades(pid)) == 1
+    lv = autotrade.get_plans(pid)[0]["buy_levels"]
+    assert [l["status"] for l in lv] == ["filled", "scheduled", "scheduled"] and lv[2]["fill_after"] > lv[1]["fill_after"]
+    assert any(e["event"] == "gap_stagger" for e in ev)

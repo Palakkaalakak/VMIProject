@@ -30,6 +30,7 @@ async function draw(root, id) {
         <label>Manual $ per stock <input name="manual_allocation" type="number" step="any" value="${c.manual_allocation ?? ""}"></label>
         <label>Tranches per position <input name="tranches" type="number" min="1" max="10" value="${c.tranches}"></label>
         <label>Regular market hours only <select name="market_hours_only"><option value="true" ${c.market_hours_only ? "selected" : ""}>Yes</option><option value="false" ${c.market_hours_only ? "" : "selected"}>No</option></select></label>
+        <label>Gap through several levels: trading days between tranches <input name="gap_stagger_days" type="number" min="0" max="30" value="${c.gap_stagger_days ?? 3}"></label>
         <label>Fill levels hit while offline <select name="backfill"><option value="true" ${c.backfill ? "selected" : ""}>Yes (back-dated)</option><option value="false" ${c.backfill ? "" : "selected"}>No</option></select></label>
         <button class="primary">Save settings</button></form>
       <p class="small muted">Full allocation per stock right now: <b>${fmt.money(d.full_allocation.full, 0)}</b> (${esc(d.full_allocation.basis)}).
@@ -55,7 +56,7 @@ async function draw(root, id) {
     const f = e.target, num = (v) => (v === "" ? null : +v);
     run(e.submitter, async () => {
       await api.savePfSettings(id, { auto_trade: f.auto_trade.value === "true", sizing_mode: f.sizing_mode.value, watchlist_id: num(f.watchlist_id.value),
-        manual_allocation: num(f.manual_allocation.value), tranches: +f.tranches.value, market_hours_only: f.market_hours_only.value === "true", backfill: f.backfill.value === "true" });
+        manual_allocation: num(f.manual_allocation.value), tranches: +f.tranches.value, market_hours_only: f.market_hours_only.value === "true", backfill: f.backfill.value === "true", gap_stagger_days: +f.gap_stagger_days.value });
       toast("Settings saved", "ok"); draw(root, id);
     });
   });
@@ -67,8 +68,8 @@ async function draw(root, id) {
   $("#pl-run", root).addEventListener("click", (e) => run(e.target, async () => { const ev = await api.runPlans(id); toast(ev.length ? `${ev.length} event(s): ${ev.map((x) => x.event).join(", ")}` : "Nothing to do", "ok"); draw(root, id); }));
 }
 
-const COLOR = { filled: "pos", skipped: "muted", alerted: "", pending: "" };
-const levels = (ls, side) => (ls || []).map((l) => `<span class="small ${COLOR[l.status] || ""}" title="${esc(l.note || "")}">${l.price != null ? fmt.money(l.price) : `IV+${(l.over_iv * 100).toFixed(0)}%`} × ${(l.fraction * 100).toFixed(0)}% <i>${esc(l.status)}</i></span>`).join("<br>") || "<span class='muted'>—</span>";
+const COLOR = { filled: "pos", skipped: "muted", alerted: "", pending: "", scheduled: "" };
+const levels = (ls, side) => (ls || []).map((l) => `<span class="small ${COLOR[l.status] || ""}" title="${esc(l.note || "")}">${l.price != null ? fmt.money(l.price) : `IV+${(l.over_iv * 100).toFixed(0)}%`} × ${(l.fraction * 100).toFixed(0)}% <i>${esc(l.status)}${l.fill_after ? " " + esc(l.fill_after) : ""}</i></span>`).join("<br>") || "<span class='muted'>—</span>";
 
 // one level per line: "price fraction" or for sells "+50% fraction" (percent over the plan's IV)
 const toText = (ls) => (ls || []).map((l) => `${l.price != null ? l.price : "+" + l.over_iv * 100 + "%"} ${l.fraction}`).join("\n");

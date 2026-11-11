@@ -75,6 +75,10 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
   screenshots (no JS errors). Owner: an admin-entered order is a genuine order as if executed that day (not a what-if); a
   hand-entered buy at a plan level marks that level filled so automation does not buy it again. Review labels these "entered later".
 - Tests: test_ledger/test_payoff/test_review/test_autotrade/test_api_ledger; full suite 143 passing.
+- Gap rule (owner, 2026-11-11): price through several unfilled tranches at once (e.g. gap to tranche 3 with 1 and 2 unfilled) =>
+  fill the highest now, then the others `gap_stagger_days` (default 3) trading days apart, a buffer in case it falls further; a
+  lower level reached meanwhile fills on its own; a due tranche fills only if the price is still at/below its level and below IV,
+  else it waits as pending. 0 days = all at once. Setting in Plans. Applies to live checks and offline backfill; auto-trade only.
 - UNVERIFIED: backfill uses daily bars (intraday order unknown); what-if covered calls are Black-Scholes estimates.
 
 ### 2026-11-07 - Two-sleeve withdrawal system research (growth sleeve + reserve)
