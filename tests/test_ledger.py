@@ -117,3 +117,19 @@ def test_legacy_database_gets_new_columns(tmp_path, monkeypatch):
     with store.session() as s:
         t = s.get(store.Trade, 1)
         assert t.kind == "fill" and t.source == "paper" and t.fees == 0 and t.context == {}
+
+
+def test_journal_records_daily_marks_and_exports(pid, monkeypatch):
+    from vmi.data import market
+    from vmi.paper import journal
+
+    monkeypatch.setattr(market, "last_price", lambda s: 110.0)
+    engine.trade_stock(pid, "AAA", "BUY", 10, quote=q(100))
+    journal.record(pid, day="2026-11-10", analyse=False)
+    journal.record(pid, day="2026-11-10", analyse=False)          # same day: upsert, not duplicate
+    rows = journal.marks(pid)
+    assert len(rows) == 2
+    port = next(r for r in rows if r["key"] == journal.PORTFOLIO_KEY)
+    assert port["value"] == pytest.approx(10_000 - 1000.5 + 1100)
+    ex = journal.export(pid)
+    assert ex["verify"]["ok"] and len(ex["ledger"]) == 1 and ex["daily_marks"]
