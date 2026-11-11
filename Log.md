@@ -53,6 +53,24 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-11 - Ledger, deep journal, what-ifs, option payoff book, UIP automation (backend)
+
+- Plan and status: `docs/LEDGER_AUTOMATION_PLAN.md` (owner-approved; owner answers recorded there).
+- Ledger (`vmi/paper/ledger.py`): trades are the source of truth; replay/verify/rebuild; admin add/edit/delete of past
+  orders need a reason, are dry-run validated (no overselling at that time, cash) and audited (`TradeAudit`, before/after).
+  Expiries now write a closing row so a replay matches the live engine. Timestamps stored in UTC.
+- Journal: every trade stores a context snapshot (`vmi/paper/context.py`: trimmed VMI analysis, portfolio state, quote,
+  plan/level); `DailyMark` rows per portfolio/position/plan (valuation, trend, ATM option IV); full JSON export.
+- Review (`vmi/paper/review.py`): FIFO lots, MFE/MAE, price after exit, behaviour flags, breakdowns; what-ifs: hold
+  instead, exit at X% over IV, tranche exits, stop/target, hold N days, all-at-once entry, covered calls (BS on realised
+  vol, approximate), benchmark; equity curve.
+- Option book (`vmi/options/payoff.py`, `book.py`): curves today/+N days/expiry, breakevens, greeks, spot x IV grids,
+  snapshots on every option trade + daily, recomputable offline.
+- Automation (`vmi/paper/autotrade.py`): sizing watchlist (default) / target / manual + per-stock override; tranche plans;
+  auto-fill (owner chooses per portfolio, default off) in regular hours; levels hit while offline are back-filled from daily
+  bars, dated that day, at the level or the open on a gap (noted UNVERIFIED intraday timing); each level fires once; alerts.
+- Tests: test_ledger/test_payoff/test_review/test_autotrade; full suite 137 passing. Not done yet: API routes + UI (phases 6-7).
+
 ### 2026-11-07 - Two-sleeve withdrawal system research (growth sleeve + reserve)
 
 - New `vmi/research/` (long-history data, strategy series, vectorised two-sleeve simulator), study scripts in `tools/`,
