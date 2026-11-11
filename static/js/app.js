@@ -12,6 +12,10 @@ const ROUTES = {
   watchlists: { load: () => import("./views/watchlists.js"), param: "id" },
   portfolios: { load: () => import("./views/portfolios.js"), param: "id" },
   options: { load: () => import("./views/options.js"), param: "symbol" },
+  ledger: { load: () => import("./views/ledger.js"), param: "id" },
+  review: { load: () => import("./views/review.js"), param: "id" },
+  optionbook: { load: () => import("./views/optionbook.js"), param: "id" },
+  plans: { load: () => import("./views/plans.js"), param: "id" },
   alerts: { load: () => import("./views/alerts.js") },
   settings: { load: () => import("./views/settings.js") },
 };

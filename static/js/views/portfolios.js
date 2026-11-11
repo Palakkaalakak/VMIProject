@@ -24,7 +24,10 @@ async function createPortfolio() {
   if (!name) return;
   const style = (prompt("Style: growth | defensive | balanced", "balanced") || "balanced").toLowerCase();
   const cash = parseFloat(prompt("Starting cash", "100000") || "100000");
-  const p = await api.createPortfolio({ name, style, cash });
+  const wls = await api.watchlists().catch(() => []);
+  const wl = wls.length ? prompt(`Size positions from which watchlist? Type its number, or leave empty for a target count.\n${wls.map((w) => `${w.id}: ${w.name} (${w.count})`).join("\n")}`, "") : "";
+  const auto = confirm("Fill tranche levels automatically (paper)?\nOK = auto-buy when a level is hit, Cancel = alert only. You can change this later in Plans.");
+  const p = await api.createPortfolio({ name, style, cash, watchlist_id: wl ? +wl : null, auto_trade: auto });
   toast(`Created ${p.name}`, "ok");
   location.hash = `#/portfolios/${p.id}`;
 }
@@ -45,6 +48,8 @@ async function detail(box, id) {
         <div class="kpi"><span>Full allocation</span><b>${fmt.money(p.full_allocation, 0)}</b><small>${p.target_positions} positions · ${esc(p.style)}</small></div>
       </div>
       <div class="inline">
+        <a class="button" href="#/plans/${id}">Plans &amp; sizing</a> <a class="button" href="#/ledger/${id}">Ledger (edit orders)</a>
+        <a class="button" href="#/review/${id}">Review &amp; what-ifs</a> <a class="button" href="#/optionbook/${id}">Option book</a>
         <button id="pf-reset" class="secondary">Reset</button>
         <button id="pf-delete" class="danger">Delete</button>
       </div>

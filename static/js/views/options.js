@@ -15,6 +15,7 @@ export async function render(root, params = {}) {
         <label>Strike window <select id="opt-width"><option value="0.15">±15%</option><option value="0.3" selected>±30%</option><option value="0.5">±50%</option></select></label>
         <button class="primary">Load chain</button>
         <button type="button" id="opt-suggest" class="secondary">VMI suggestions</button>
+        <a class="button" href="#/optionbook">Option book (saved payoff graphs)</a>
       </form>
       <p class="small muted">VMI rules: sell cash-secured puts at strikes on your buy levels / below IV on stocks you want to own; covered calls only above your cost and IV-relevant resistance.</p>
     </section>
@@ -105,6 +106,7 @@ function order(r, side, btn) {
   const [pid, n] = choice.trim().split(/\s+/).map(Number);
   run(btn, async () => {
     const res = await api.optionOrder(pid, { symbol: r.symbol, expiry: r.expiry, strike: r.strike, right: r.right, side, contracts: n || 1 });
-    toast(`Filled ${side} ${n || 1}× ${r.strike}${r.right} @ ${fmt.money(res.trade.price, 2)} (${res.fill.liquidity})`, "ok");
+    toast(`Filled ${side} ${n || 1}× ${r.strike}${r.right} @ ${fmt.money(res.trade.price, 2)} (${res.fill.liquidity})` +
+      (res.snapshot_id ? " · payoff snapshot saved (Option book)" : ""), "ok");
   });
 }

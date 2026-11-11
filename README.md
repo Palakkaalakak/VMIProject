@@ -91,6 +91,20 @@ Two separate things, using two usernames:
    `check` saves raw JSON to `data/ib_portal_samples/`. `/api/health` shows the TWS path state.
 
 
+## Ledger, journal, option book, automation (paper portfolios)
+- **Ledger** (`#/ledger/ID`, `vmi/paper/ledger.py`): the trade list is the source of truth; cash and positions are a replay of it.
+  An order added or edited by hand is a genuine order, exactly as if executed that way at that date and time (not a what-if);
+  every change needs a reason and is kept in the audit trail (before/after rows). Drift check + rebuild, JSON export of everything.
+- **Journal**: each trade stores what was known (trimmed VMI analysis, portfolio state, quote, plan level, tags, thesis); daily
+  marks per portfolio/position/plan (`vmi/paper/journal.py`).
+- **Review** (`#/review/ID`, `vmi/paper/review.py`): FIFO lots with path stats and what happened after the sale, behaviour flags,
+  breakdowns and what-ifs (keep, sell at X over IV, tranche exits, stop/target, hold N days, all-at-once entry, covered calls, benchmark).
+- **Option book** (`#/optionbook/ID`, `vmi/options/payoff.py`, `book.py`): payoff curves, breakevens, greeks and price x IV x date
+  grids, saved after every option trade and daily, recomputable with no IBKR connection.
+- **Plans** (`#/plans/ID`, `vmi/paper/autotrade.py`): tranche levels per stock, sizing by watchlist size (default) / target count /
+  manual $, auto-fill or alert-only per portfolio, regular hours only, offline backfill from daily bars (dated that day).
+- Design and backend entry points: `docs/LEDGER_AUTOMATION_PLAN.md`.
+
 ## Calibration vs Adam
 
 `python3 -m vmi.analysis.calibrate [--judged]` compares our IVs with Adam's (`tests/fixtures/adam_reference.txt`).

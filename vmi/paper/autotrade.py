@@ -192,6 +192,32 @@ def plans_from_watchlist(pid: int, wid: int, overwrite: bool = False) -> dict:
     return {"created": made, "skipped": skipped, "settings": settings(pid)}
 
 
+def match_manual_fill(pid: int, trade_id: int) -> str | None:
+    """An order entered by hand (admin/manual) at a plan's level counts as that level's fill, so automation does not
+    buy it a second time: the nearest pending/alerted buy level at or above the fill price is marked filled."""
+    with store.session() as s:
+        t = s.get(store.Trade, trade_id)
+        if t is None or t.sec_type != "STK" or t.side != "BUY":
+            return None
+        plan = s.scalar(select(store.TranchePlan).where(store.TranchePlan.portfolio_id == pid,
+                                                        store.TranchePlan.symbol == t.symbol,
+                                                        store.TranchePlan.status == "active"))
+        if plan is None:
+            return None
+        levels = [dict(l) for l in plan.buy_levels or []]
+        cands = [(l["price"], i) for i, l in enumerate(levels)
+                 if l["status"] in ("pending", "alerted") and l["price"] >= t.price * (1 - 1e-9)]
+        if not cands:
+            return None
+        price, i = min(cands)
+        levels[i].update(status="filled", trade_id=trade_id, filled_at=str(t.ts), fill_price=t.price,
+                         note=f"matched to {t.source} order #{trade_id}")
+        plan.buy_levels = levels
+        _log(plan, "matched_order", trade_id=trade_id, level=price)
+        s.commit()
+        return f"{t.symbol} level {price:g}"
+
+
 # ------------------------------------------------------------------------------------------------- run
 def _default_quote(symbol: str):
     from vmi.data import market

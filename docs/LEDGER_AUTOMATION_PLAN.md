@@ -87,3 +87,7 @@ Backend entry points for phases 6-7 (API routes + UI), all plain functions retur
   `full_allocation(pid, equity)`. Errors: `PlanError` (400).
 - Order endpoints should accept the new optional `fees`, `tags`, `thesis` (pass as `journal={"tags":…, "thesis":…}`).
 - Portfolio creation UI must ask the owner: auto-trade on/off and the watchlist to size from.
+
+
+## Status update
+Phases 6-7 done (API routes, `ledger.js`, `review.js`, `optionbook.js`, `plans.js`, `charts.js`, portfolio links, options-page hook). 143 tests passing. Browser-checked.

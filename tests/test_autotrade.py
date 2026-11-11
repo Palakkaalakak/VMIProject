@@ -122,3 +122,16 @@ def test_plans_from_watchlist(pid):
     plan = autotrade.get_plans(pid)[0]
     assert [l["price"] for l in plan["buy_levels"]] == [95, 80] and plan["buy_levels"][0]["fraction"] == 0.5
     assert res["settings"]["sizing_mode"] == "watchlist"
+
+
+def test_hand_entered_order_at_a_level_fills_it_so_automation_does_not_double_buy(pid):
+    autotrade.update_settings(pid, {"auto_trade": True})
+    autotrade.upsert_plan(pid, "AAA", buy_levels=[{"price": 95, "fraction": 0.5}, {"price": 85, "fraction": 0.5}],
+                          intrinsic_value=120)
+    res = ledger.add_trade(pid, {"symbol": "AAA", "side": "BUY", "qty": 20, "price": 94.0,
+                                 "ts": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()}, reason="done by hand")
+    assert res["plan_level"] == "AAA level 95"
+    lv = autotrade.get_plans(pid)[0]["buy_levels"]
+    assert lv[0]["status"] == "filled" and lv[0]["trade_id"] == res["trade_id"] and lv[1]["status"] == "pending"
+    autotrade.run(pid, quote_fn=quote(94), history_fn=no_history, in_session=lambda: True)
+    assert len(_trades(pid)) == 1                                   # level 95 not bought again

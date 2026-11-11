@@ -282,6 +282,8 @@ class PortfolioIn(BaseModel):
     style: str = "balanced"
     cash: float | None = None
     target_positions: int | None = None
+    watchlist_id: int | None = None     # size positions from this watchlist (default sizing mode)
+    auto_trade: bool = False            # tranche levels fill automatically (else alert only)
 
 
 class StockOrder(BaseModel):
@@ -292,6 +294,9 @@ class StockOrder(BaseModel):
     tranche: bool = False          # auto-size one VMI tranche
     multiplier: float = 1.0        # category multiplier (½ speculative, ¾ narrow moat)
     note: str = ""
+    fees: float = 0.0
+    tags: list[str] = Field(default_factory=list)
+    thesis: str = ""               # why: kept with the trade for later review
 
 
 class OptionOrder(BaseModel):
@@ -302,6 +307,9 @@ class OptionOrder(BaseModel):
     side: str
     contracts: int
     note: str = ""
+    fees: float = 0.0
+    tags: list[str] = Field(default_factory=list)
+    thesis: str = ""
 
 
 @pr.get("")
@@ -313,7 +321,10 @@ def list_portfolios():
 @pr.post("")
 def create_portfolio(body: PortfolioIn):
     from vmi.paper import engine
-    return engine.create_portfolio(body.name, body.style, body.cash, body.target_positions)
+    from vmi.paper import autotrade
+    p = engine.create_portfolio(body.name, body.style, body.cash, body.target_positions)
+    autotrade.update_settings(p["id"], {"auto_trade": body.auto_trade, "watchlist_id": body.watchlist_id})
+    return p
 
 
 @pr.get("/{pid}")
@@ -350,14 +361,260 @@ def stock_order(pid: int, body: StockOrder):
         if plan["remaining_value"] <= 0:
             raise ValueError(plan["warning"] or "full allocation reached")
         dollars, qty = min(plan["tranche_value"], plan["remaining_value"]), None
-    return engine.trade_stock(pid, body.symbol, body.side, qty, dollars, body.note)
+    return engine.trade_stock(pid, body.symbol, body.side, qty, dollars, body.note, fees=body.fees,
+                              journal={"tags": body.tags, "thesis": body.thesis, "source": "manual"})
 
 
 @pr.post("/{pid}/orders/option")
 def option_order(pid: int, body: OptionOrder):
     from vmi.paper import engine
     return engine.trade_option(pid, body.symbol, body.expiry, body.strike, body.right, body.side, body.contracts,
-                               body.note)
+                               body.note, fees=body.fees,
+                               journal={"tags": body.tags, "thesis": body.thesis, "source": "manual"})
+
+
+# ======================================================================================== ledger / journal / review
+class AdminTrade(BaseModel):
+    """Back-dated or corrected order. ts is ISO with offset, e.g. 2026-03-02T15:31:00-05:00 (naive = UTC)."""
+    symbol: str
+    side: str
+    qty: float
+    price: float
+    ts: str | None = None
+    sec_type: str = "STK"
+    expiry: str | None = None
+    strike: float | None = None
+    right: str | None = None
+    fees: float = 0.0
+    mid: float | None = None
+    note: str = ""
+    tags: list[str] | str = ""
+    thesis: str = ""
+    kind: str = "fill"
+    reason: str
+    allow_negative_cash: bool = False
+
+
+class AdminChange(BaseModel):
+    changes: dict
+    reason: str
+    allow_negative_cash: bool = False
+
+
+class AdminReason(BaseModel):
+    reason: str
+    allow_negative_cash: bool = False
+
+
+@pr.get("/{pid}/ledger")
+def pf_ledger(pid: int):
+    from vmi.paper import ledger
+    return ledger.ledger(pid)
+
+
+@pr.post("/{pid}/ledger")
+def pf_ledger_add(pid: int, body: AdminTrade):
+    from vmi.paper import ledger
+    d = body.model_dump(exclude={"reason", "allow_negative_cash"}, exclude_none=True)
+    return ledger.add_trade(pid, d, body.reason, body.allow_negative_cash)
+
+
+@pr.get("/{pid}/verify")
+def pf_verify(pid: int):
+    from vmi.paper import ledger
+    return ledger.verify(pid)
+
+
+@pr.post("/{pid}/rebuild")
+def pf_rebuild(pid: int, body: AdminReason):
+    from vmi.paper import ledger
+    return ledger.rebuild(pid, body.reason or "manual rebuild")
+
+
+@pr.get("/{pid}/audit")
+def pf_audit(pid: int):
+    from vmi.paper import ledger
+    return ledger.audit(pid)
+
+
+@pr.get("/{pid}/export")
+def pf_export(pid: int):
+    from vmi.paper import journal
+    return journal.export(pid)
+
+
+@pr.get("/{pid}/marks")
+def pf_marks(pid: int, key: str | None = None, since: str | None = None):
+    from vmi.paper import journal
+    return journal.marks(pid, key, since)
+
+
+@pr.post("/{pid}/marks")
+def pf_marks_record(pid: int):
+    from vmi.paper import journal
+    return journal.record(pid)
+
+
+@pr.get("/{pid}/review")
+def pf_review(pid: int):
+    from vmi.paper import review
+    return review.summary(pid)
+
+
+@pr.get("/{pid}/review/what-if/{name}")
+def pf_what_if(pid: int, name: str, pct: float | None = None, levels: str | None = None, stop: float | None = None,
+               target: float | None = None, days: int | None = None, otm: float | None = None, dte: int | None = None,
+               iv: float | None = None, symbol: str | None = None, fallback: str | None = None):
+    """Query parameters map to the what-if's own: pct, levels ("0.5:0.5,1.0:0.5"), stop, target, days, otm, dte, iv, symbol."""
+    from vmi.paper import review
+    p = {k: v for k, v in dict(pct=pct, stop=stop, target=target, days=days, otm=otm, dte=dte, iv=iv, symbol=symbol,
+                               fallback=fallback).items() if v is not None}
+    if levels:
+        p["levels"] = [[float(a) for a in x.split(":")] for x in levels.split(",") if x]
+    return review.what_if(pid, name, **p)
+
+
+@pr.get("/{pid}/equity-curve")
+def pf_equity(pid: int):
+    from vmi.paper import review
+    return review.equity_curve(pid)
+
+
+lg = APIRouter(prefix="/api/ledger", tags=["ledger"], route_class=SafeRoute)
+
+
+@lg.put("/{trade_id}")
+def ledger_update(trade_id: int, body: AdminChange):
+    from vmi.paper import ledger
+    return ledger.update_trade(trade_id, body.changes, body.reason, body.allow_negative_cash)
+
+
+@lg.post("/{trade_id}/delete")
+def ledger_delete(trade_id: int, body: AdminReason):
+    from vmi.paper import ledger
+    return ledger.delete_trade(trade_id, body.reason, body.allow_negative_cash)
+
+
+# ======================================================================================== automation (plans, sizing)
+class PlanIn(BaseModel):
+    symbol: str
+    buy_levels: list | None = None
+    sell_levels: list | None = None
+    intrinsic_value: float | None = None
+    require_below_iv: bool | None = None
+    allocation: float | None = None
+    multiplier: float | None = None
+    auto: bool | None = None
+    status: str | None = None
+    notes: str | None = None
+
+
+@pr.get("/{pid}/settings")
+def pf_settings(pid: int):
+    from vmi.paper import autotrade
+    return autotrade.settings(pid)
+
+
+@pr.put("/{pid}/settings")
+def pf_settings_put(pid: int, body: dict):
+    from vmi.paper import autotrade
+    return autotrade.update_settings(pid, body.get("changes", body))
+
+
+@pr.get("/{pid}/plans")
+def pf_plans(pid: int):
+    from vmi.paper import autotrade, engine
+    summ = engine.summary(pid, quotes=False)
+    cfg = autotrade.settings(pid)
+    alloc = autotrade.full_allocation(pid, summ["equity"], None, cfg)
+    return {"settings": cfg, "full_allocation": alloc, "plans": autotrade.get_plans(pid)}
+
+
+@pr.put("/{pid}/plans")
+def pf_plan_put(pid: int, body: PlanIn):
+    from vmi.paper import autotrade
+    return autotrade.upsert_plan(pid, body.symbol, **body.model_dump(exclude={"symbol"}, exclude_unset=True))
+
+
+@pr.delete("/{pid}/plans/{symbol}")
+def pf_plan_delete(pid: int, symbol: str):
+    from vmi.paper import autotrade
+    autotrade.delete_plan(pid, symbol)
+    return {"ok": True}
+
+
+@pr.post("/{pid}/plans/from-watchlist/{wid}")
+def pf_plans_from_watchlist(pid: int, wid: int, overwrite: bool = False):
+    from vmi.paper import autotrade
+    return autotrade.plans_from_watchlist(pid, wid, overwrite)
+
+
+@pr.post("/{pid}/plans/run")
+def pf_plans_run(pid: int):
+    from vmi.paper import autotrade
+    return autotrade.run(pid)
+
+
+# ======================================================================================== option payoff book
+ob = APIRouter(prefix="/api/optionbook", tags=["option book"], route_class=SafeRoute)
+
+
+class SnapshotIn(BaseModel):
+    symbol: str
+    portfolio_id: int | None = None
+    legs: list[dict] | None = None      # manual position; omit to use the portfolio's open options on `symbol`
+    spot: float | None = None
+    label: str = ""
+    notes: str = ""
+    as_of: str | None = None
+
+
+class RecomputeIn(BaseModel):
+    spot: float | None = None
+    iv_shift: float = 0.0
+    as_of: str | None = None
+    iv_overrides: dict | None = None
+
+
+@ob.get("/snapshots")
+def ob_list(portfolio_id: int | None = None, symbol: str | None = None):
+    from vmi.options import book
+    return book.list_snapshots(portfolio_id, symbol)
+
+
+@ob.post("/snapshots")
+def ob_create(body: SnapshotIn):
+    from vmi.options import book
+    if body.legs:
+        if not body.spot:
+            raise ValueError("manual legs need a spot price")
+        sid = book.snapshot_legs(body.symbol, body.legs, body.spot, body.label, body.notes, body.portfolio_id, body.as_of)
+    else:
+        if body.portfolio_id is None:
+            raise ValueError("give portfolio_id (use its open options) or manual legs + spot")
+        sid = book.snapshot_portfolio(body.portfolio_id, body.symbol, "manual", body.label, body.notes, body.spot)
+        if sid is None:
+            raise ValueError(f"no open option positions on {body.symbol.upper()} in that portfolio")
+    return book.get(sid)
+
+
+@ob.get("/snapshots/{sid}")
+def ob_get(sid: int):
+    from vmi.options import book
+    return book.get(sid)
+
+
+@ob.post("/snapshots/{sid}/recompute")
+def ob_recompute(sid: int, body: RecomputeIn):
+    from vmi.options import book
+    return book.recompute(sid, body.spot, body.iv_shift, body.as_of, body.iv_overrides)
+
+
+@ob.delete("/snapshots/{sid}")
+def ob_delete(sid: int):
+    from vmi.options import book
+    book.delete(sid)
+    return {"ok": True}
 
 
 # ======================================================================================== watchlists
@@ -489,7 +746,7 @@ def opt_suggest(symbol: str, strategy: str = "CSP", expiry: str | None = None):
     return chain.suggest(symbol, strategy, expiry, levels, iv)
 
 
-for r in (sysr, ar, sr, pr, wr, alr, orr):
+for r in (sysr, ar, sr, pr, lg, ob, wr, alr, orr):
     app.include_router(r)
 
 if STATIC.exists():

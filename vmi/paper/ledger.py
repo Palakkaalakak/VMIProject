@@ -266,7 +266,14 @@ def add_trade(pid: int, data: dict, reason: str, allow_negative_cash: bool = Fal
                                after=_row(t)))
         s.commit()
         tid = t.id
-    return {"trade_id": tid, "state": rebuild(pid, f"after add #{tid}: {reason}")}
+    out = {"trade_id": tid, "state": rebuild(pid, f"after add #{tid}: {reason}")}
+    if d["kind"] == "fill":
+        try:                                   # a real order at a plan level fills that level (no double buy)
+            from vmi.paper import autotrade
+            out["plan_level"] = autotrade.match_manual_fill(pid, tid)
+        except Exception:
+            out["plan_level"] = None
+    return out
 
 
 def update_trade(trade_id: int, changes: dict, reason: str, allow_negative_cash: bool = False) -> dict:

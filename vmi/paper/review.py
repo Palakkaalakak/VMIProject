@@ -248,7 +248,7 @@ def summary(pid: int, history_fn: HistoryFn | None = None) -> dict:
                        ("moat", lambda l: [l.entry.get("moat") or "unknown"]),
                        ("mos_at_entry", lambda l: [_mos_bucket(l.entry.get("margin_of_safety"))]),
                        ("method", lambda l: [l.entry.get("method") or "unknown"]),
-                       ("origin", lambda l: [l.entry.get("source") or "paper"]),
+                       ("origin", lambda l: ["entered later" if l.entry.get("source") == "admin" else (l.entry.get("source") or "paper")]),
                        ("trend_at_entry", lambda l: [l.entry.get("trend") or "unknown"])):
         g: dict[str, list[Lot]] = defaultdict(list)
         for l in stock:

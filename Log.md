@@ -69,7 +69,13 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 - Automation (`vmi/paper/autotrade.py`): sizing watchlist (default) / target / manual + per-stock override; tranche plans;
   auto-fill (owner chooses per portfolio, default off) in regular hours; levels hit while offline are back-filled from daily
   bars, dated that day, at the level or the open on a gap (noted UNVERIFIED intraday timing); each level fires once; alerts.
-- Tests: test_ledger/test_payoff/test_review/test_autotrade; full suite 137 passing. Not done yet: API routes + UI (phases 6-7).
+- API + UI (phases 6-7): `/api/portfolios/{id}/ledger|verify|rebuild|audit|export|marks|review|equity-curve|settings|plans`,
+  `/api/ledger/{trade_id}`, `/api/optionbook/snapshots`; views `ledger.js`, `review.js`, `optionbook.js`, `plans.js`, `charts.js`;
+  portfolio creation asks auto-trade and the watchlist to size from. Orders accept fees/tags/thesis. Checked in Chromium with
+  screenshots (no JS errors). Owner: an admin-entered order is a genuine order as if executed that day (not a what-if); a
+  hand-entered buy at a plan level marks that level filled so automation does not buy it again. Review labels these "entered later".
+- Tests: test_ledger/test_payoff/test_review/test_autotrade/test_api_ledger; full suite 143 passing.
+- UNVERIFIED: backfill uses daily bars (intraday order unknown); what-if covered calls are Black-Scholes estimates.
 
 ### 2026-11-07 - Two-sleeve withdrawal system research (growth sleeve + reserve)
 
