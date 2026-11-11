@@ -72,7 +72,43 @@ class Trade(Base):
     liquidity: Mapped[str] = mapped_column(String(10), default="liquid")
     multiplier: Mapped[int] = mapped_column(Integer, default=1)
     note: Mapped[str] = mapped_column(Text, default="")
+    # --- journal / audit (the Trade table is the ledger: positions and cash can be rebuilt from it, vmi/paper/ledger.py)
+    kind: Mapped[str] = mapped_column(String(12), default="fill")      # fill | assignment | expiry | adjustment
+    source: Mapped[str] = mapped_column(String(10), default="paper")   # paper | admin
+    fees: Mapped[float] = mapped_column(Float, default=0.0)            # $ total, reduces cash
+    tags: Mapped[str] = mapped_column(String(200), default="")         # comma separated, free vocabulary
+    thesis: Mapped[str] = mapped_column(Text, default="")              # why the trade was made (reviewed later)
+    context: Mapped[dict] = mapped_column(JSON, default=dict)          # snapshot at the time: IV, MOS, steps, plan, …
+    edited: Mapped[bool] = mapped_column(Boolean, default=False)       # changed by an admin edit after creation
     portfolio: Mapped[Portfolio] = relationship(back_populates="trades")
+
+
+class TradeAudit(Base):
+    """Every admin change to the ledger, with the full before/after row, so nothing is ever silently rewritten."""
+    __tablename__ = "trade_audit"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    portfolio_id: Mapped[int] = mapped_column(Integer, index=True)
+    trade_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    action: Mapped[str] = mapped_column(String(12))                    # add | update | delete | rebuild
+    reason: Mapped[str] = mapped_column(Text, default="")
+    before: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    after: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class OptionSnapshot(Base):
+    """Saved option payoff profile: the inputs (legs, spot, IV, rate, date) plus the computed curves and scenario grid,
+    so the position can be analysed later without IBKR or a live quote."""
+    __tablename__ = "option_snapshots"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    portfolio_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    symbol: Mapped[str] = mapped_column(String(20), index=True)
+    label: Mapped[str] = mapped_column(String(120), default="")
+    reason: Mapped[str] = mapped_column(String(20), default="manual")  # manual | trade | daily
+    inputs: Mapped[dict] = mapped_column(JSON, default=dict)
+    result: Mapped[dict] = mapped_column(JSON, default=dict)
+    notes: Mapped[str] = mapped_column(Text, default="")
 
 
 class Watchlist(Base):
@@ -141,8 +177,28 @@ def engine():
         _engine = create_engine(get_settings().database_url, future=True,
                                 connect_args={"check_same_thread": False, "timeout": 30})
         Base.metadata.create_all(_engine)
+        _add_missing_columns(_engine)
         _Session = sessionmaker(_engine, expire_on_commit=False)
     return _engine
+
+
+def _add_missing_columns(eng) -> None:
+    """create_all never alters existing tables: add columns introduced after a database was first created."""
+    from sqlalchemy import inspect, text
+
+    insp = inspect(eng)
+    with eng.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            if not insp.has_table(table.name):
+                continue
+            have = {c["name"] for c in insp.get_columns(table.name)}
+            for col in table.columns:
+                if col.name in have:
+                    continue
+                kind = col.type.compile(dialect=eng.dialect)
+                default = {"Boolean": "0", "Float": "0", "Integer": "0", "String": "''", "Text": "''", "JSON": "'{}'"}.get(
+                    type(col.type).__name__, "NULL")
+                conn.execute(text(f'ALTER TABLE {table.name} ADD COLUMN {col.name} {kind} DEFAULT {default}'))
 
 
 def session() -> Session:
