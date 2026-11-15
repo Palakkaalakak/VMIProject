@@ -13,8 +13,16 @@ def path(symbol):
     return pd.DataFrame({"open": px, "high": px * 1.01, "low": px * 0.99, "close": px})
 
 
+def _bday(days_ago):
+    """The business day on or before `days_ago` (the synthetic path only has weekdays: keeps the test date-independent)."""
+    d = date.today() - timedelta(days=days_ago)
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d
+
+
 def iso(days_ago):
-    return (date.today() - timedelta(days=days_ago)).isoformat() + "T15:00:00+00:00"
+    return _bday(days_ago).isoformat() + "T15:00:00+00:00"
 
 
 @pytest.fixture
@@ -23,7 +31,7 @@ def pid(temp_db):
     df = path("AAA")
 
     def px(days_ago):
-        return float(df["close"].loc[:pd.Timestamp(date.today() - timedelta(days=days_ago))].iloc[-1])
+        return float(df["close"].loc[pd.Timestamp(_bday(days_ago))])
 
     ctx = {"analysis": {"intrinsic_value": 120.0, "metrics": {"margin_of_safety": 0.1}, "category": "growth",
                         "moat": "wide"}}
