@@ -53,6 +53,16 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-15 - One-click launcher
+
+- `Start VMI.bat` (create `.venv` once, install requirements when `requirements.txt` changes, start the app, open the browser;
+  already running = just open the browser), `Update VMI.bat` (`git pull --ff-only` + dependency check, refuses with local
+  changes), logic in `vmi/launch.py` (`python -m vmi.launch [--no-browser] [--no-install] [--port N]`), log in `data/launcher.log`.
+  `playwright` added to `requirements.txt` (IB sign-in window).
+- Verified on Linux: tests/test_launch.py, real start, second launch detects the running app, SIGTERM stops the child.
+  UNVERIFIED on Windows: the .bat files themselves (plain `cd /d`, `where`, `py -3`/`python`, `if exist`, `pause`); first double-click
+  on the owner's PC is the test, report any message it shows.
+
 ### 2026-11-11 - Ledger, deep journal, what-ifs, option payoff book, UIP automation (backend)
 
 - Plan and status: `docs/LEDGER_AUTOMATION_PLAN.md` (owner-approved; owner answers recorded there).

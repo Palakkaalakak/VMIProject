@@ -18,3 +18,5 @@ data/ui_preview/
 data/research/results.json
 data/research/reserve_sweep.json
 data/research/scan_sp500.json
+.venv/
+data/.deps-hash

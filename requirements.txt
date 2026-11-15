@@ -11,3 +11,4 @@ ib_async>=2.0
 beautifulsoup4>=4.12
 lxml>=5.0
 pytest>=8
+playwright>=1.40   # IB fundamentals sign-in window (vmi.data.ibportal.browser)

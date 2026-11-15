@@ -9,6 +9,10 @@ cash-secured puts), and an options chain.
 
 ## Run it
 
+**Windows (one click):** double-click `Start VMI.bat`. First time it creates its own Python environment and installs the
+packages (a few minutes, needs Python 3.11+ from python.org with "Add to PATH"), then it starts the app and opens
+http://localhost:8000; close the window to stop it. `Update VMI.bat` pulls the latest code from GitHub. (Logic: `vmi/launch.py`.)
+
 ```bash
 bash tools/setup_env.sh        # idempotent: installs deps, starts autocommit watchdog + PM2 server
 open http://localhost:8000     # web UI   ·   http://localhost:8000/docs  → interactive API docs
