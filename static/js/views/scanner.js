@@ -162,7 +162,7 @@ const COLUMNS = [
   { key: "price", label: "Price", cls: "num", render: (r) => fmt.money(r.price) },
   { key: "intrinsic_value", label: "IV", cls: "num", render: (r) => `${fmt.money(r.intrinsic_value)}${r.iv_low_confidence ? ` <span class="badge na" title="${esc(r.iv_note)}">IV may be high</span>` : ""}` },
   { key: "margin_of_safety", label: "MOS", cls: "num", render: (r) => `<span class="${signClass(r.margin_of_safety)}">${fmt.pct(r.margin_of_safety)}</span>` },
-  { key: "growth", label: "Growth", cls: "num", render: (r) => fmt.pct(r.growth) },
+  { key: "growth", label: "Growth (low / avg / high)", cls: "num", render: (r) => `${fmt.pct(r.growth)}<div class="small muted" title="${esc(Object.entries(r.growth_sources || {}).map(([k, v]) => `${k} ${fmt.pct(v)}`).join(", "))}">${r.growth_low != null ? `${fmt.pct(r.growth_low, 0)} / ${fmt.pct(r.growth_avg, 0)} / ${fmt.pct(r.growth_high, 0)}` : ""}</div>` },
   { key: "roe", label: "ROE", cls: "num", render: (r) => fmt.pct(r.roe) },
   { key: "roic", label: "ROIC", cls: "num", render: (r) => fmt.pct(r.roic) },
   { key: "net_margin", label: "Net margin", cls: "num", render: (r) => fmt.pct(r.net_margin) },

@@ -46,6 +46,15 @@ def displayed_growth(est, controls, ov_growth, val, f) -> float | None:
     return g if g is not None else growth_rate(f, est)
 
 
+def _growth_spread(est, controls) -> dict:
+    """Lowest / average / highest usable 5-year growth estimate and each source (scanner growth-profile filters)."""
+    srcs = collect_sources(est, controls)
+    if not srcs:
+        return {"low": None, "avg": None, "high": None, "n": 0, "sources": {}}
+    v = list(srcs.values())
+    return {"low": min(v), "avg": sum(v) / len(v), "high": max(v), "n": len(v), "sources": srcs}
+
+
 def displayed_roe(f) -> tuple[float | None, str]:
     """Latest ROE for display. Negative equity from buybacks (MCD, YUM, BKNG): ROE is not meaningful ("effectively
     infinite, very good", Master doc l.1230), so show nothing instead of a stale or absurd number."""
@@ -143,7 +152,7 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
     roe, roe_note = displayed_roe(f)
     roic = f.ratios.get("roic", [])
     metrics = {
-        "growth": g, "eps_growth_5y": est.eps_growth_5y, "revenue_cagr": s1.checks[0].value,
+        "growth": g, "growth_sources": _growth_spread(est, ctx.growth_controls), "eps_growth_5y": est.eps_growth_5y, "revenue_cagr": s1.checks[0].value,
         "roe": roe, "roe_note": roe_note, "roic": roic[-1].value if roic else None,
         "pe": est.pe, "peg": est.peg, "dividend_yield": est.dividend_yield, "beta": est.beta,
         "margin_of_safety": (iv - price) / iv if iv and price else None,

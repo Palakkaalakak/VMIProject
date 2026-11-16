@@ -53,6 +53,14 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - Growth / defensive profiles in the scanner filters
+
+- Each scan row now stores the lowest / average / highest usable 5-year growth estimate and every source (`growth_low`, `growth_avg`,
+  `growth_high`, `growth_sources`); the Growth column shows them. Filter "Growth profile" (threshold default 15% = Adam's line):
+  Growth conservative (lowest >= t), balanced (average >= t), optimistic (highest >= t); Defensive conservative (highest < t),
+  balanced (average < t), optimistic (lowest < t). Scans saved before this change lack the fields (they fall back to `growth`,
+  the lowest estimate): re-run the scan to get them. Test: tests/test_scan_presets.py.
+
 ### 2026-11-16 - Narrowing scan results by industry; tranche levels are never auto-calculated
 
 - Scanner results stay saved in full; the filter panel now also has search (name/ticker/industry), Industry (niche), "top N by

@@ -61,3 +61,14 @@ def test_presets_endpoint_and_start_merges_preset_params(temp_db, monkeypatch):
                                     "rules": {"profitability": {"min_roic": 0.2}}})
     assert seen["min_market_cap"] == 10e9 and seen["include_speculative"] is False and seen["min_price"] == 8
     assert seen["rules"]["profitability"]["min_roic"] == 0.2 and seen["preset"] == "adam"
+
+
+def test_scan_rows_carry_low_avg_high_growth():
+    from vmi.analysis.pipeline import _growth_spread
+    from vmi.analysis.valuation.growth import GrowthControls
+    from vmi.data.models import Estimates
+
+    est = Estimates("X", sources={"finviz": {"eps_growth_5y": 0.10}, "zacks": {"eps_growth_5y": 0.20}, "yahoo": {"eps_growth_5y": 0.15}})
+    g = _growth_spread(est, GrowthControls())
+    assert g["low"] == 0.10 and g["high"] == 0.20 and g["avg"] == pytest.approx(0.15) and g["n"] == 3
+    assert _growth_spread(Estimates("Y"), GrowthControls())["n"] == 0

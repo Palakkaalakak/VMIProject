@@ -44,6 +44,18 @@ const FIELDS = [
 const uniq = (rows, f) => [...new Set(rows.map((r) => r[f]).filter((x) => x != null && x !== ""))].sort();
 const tri = (id, label) => `<label>${esc(label)} <select name="${id}"><option value="">any</option><option value="yes">yes</option><option value="no">no</option></select></label>`;
 
+// Growth profiles: which 5-year analyst estimate must clear the threshold (default 15%, Adam's growth/defensive line).
+//   conservative = even the LOWEST estimate says growth; balanced = the AVERAGE; optimistic = at least the HIGHEST does.
+//   Defensive mirrors it: conservative = even the HIGHEST estimate is below the line; balanced = average; optimistic = lowest.
+const PROFILES = {
+  growth_conservative: ["Growth (conservative): lowest estimate ≥ threshold", (r, t) => (r.growth_low ?? r.growth) >= t],
+  growth_balanced: ["Growth (balanced): average estimate ≥ threshold", (r, t) => (r.growth_avg ?? r.growth) >= t],
+  growth_optimistic: ["Growth (optimistic): highest estimate ≥ threshold", (r, t) => (r.growth_high ?? r.growth) >= t],
+  defensive_conservative: ["Defensive (conservative): highest estimate < threshold", (r, t) => (r.growth_high ?? r.growth) < t],
+  defensive_balanced: ["Defensive (balanced): average estimate < threshold", (r, t) => (r.growth_avg ?? r.growth) < t],
+  defensive_optimistic: ["Defensive (optimistic): lowest estimate < threshold", (r, t) => (r.growth_low ?? r.growth) < t],
+};
+
 export function filterPanel(rows) {
   const parts = FIELDS.map((f) => {
     if (f.kind === "flag") return tri(f.id, f.label);
@@ -52,8 +64,10 @@ export function filterPanel(rows) {
     return `<label>${esc(f.label)} <input name="${f.id}" type="number" step="any" style="width:6rem"></label>`;
   });
   const steps = STEP_NAMES.map((n, i) => `<label>Step ${i + 1} ${esc(n)} <select name="step${i + 1}"><option value="">any</option><option value="pass">must pass</option><option value="fail">must fail</option></select></label>`);
+  const profile = `<label class="wide">Growth profile <select name="profile"><option value="">any</option>${Object.entries(PROFILES).map(([k, v]) => `<option value="${k}">${esc(v[0])}</option>`).join("")}</select></label>
+    <label>Threshold % p.a. <input name="profile_threshold" type="number" step="any" value="15" style="width:6rem"></label>`;
   return `<details id="scan-filters" class="card"><summary><b>Filters</b> <span class="muted small" id="scan-count"></span></summary>
-    <form class="grid">${steps.join("")}${parts.join("")}<button type="button" class="secondary" id="scan-reset">Reset</button></form></details>`;
+    <form class="grid">${profile}${steps.join("")}${parts.join("")}<button type="button" class="secondary" id="scan-reset">Reset</button></form></details>`;
 }
 
 export function readFilters(form) {
@@ -64,6 +78,10 @@ export function readFilters(form) {
 
 export function applyFilters(rows, f) {
   return rows.filter((r) => {
+    if (f.profile && PROFILES[f.profile]) {
+      const t = (f.profile_threshold === undefined || f.profile_threshold === "" ? 15 : parseFloat(f.profile_threshold)) / 100;
+      if (!PROFILES[f.profile][1](r, t)) return false;
+    }
     for (let i = 1; i <= 7; i++) {
       const want = f[`step${i}`];
       if (want && Boolean((r.steps || {})[i]) !== (want === "pass")) return false;
