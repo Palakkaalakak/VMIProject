@@ -95,3 +95,36 @@ def test_settings_page_save_turns_normalised_mode_on_in_the_live_rules(tmp_path,
     finally:
         settings.update({"normalise": {"enabled": None, "years": None}})
     assert RULES.normalise.enabled is False
+
+
+def test_ultra_excellent_strict_rules():
+    from vmi.scanner import presets
+    from vmi import settings
+
+    u = presets.PRESETS["adam_ultra"]
+    ch, course = presets.rule_changes("adam_ultra", None)
+    assert ch["debt"]["min_core_ratios_passed"] == 3 and ch["debt"]["require_interest_coverage"] and ch["debt"]["min_interest_coverage"] == 5.0
+    assert ch["profitability"]["min_roe"] == 0.15 and ch["profitability"]["min_roic"] == 0.15 and ch["track"]["min_years"] == 10
+    with settings.temporary(ch, course_defaults=course):
+        # all three core ratios needed, plus interest coverage
+        f = make_fund(revenue=[100] * 6, net_income=[10] * 6, cfo=[20] * 6, ebitda=[30] * 6, operating_income=[25] * 6,
+                      interest_expense=[10] * 6, current_assets=[150] * 6, current_liabilities=[100] * 6, lt_debt=[40] * 6, st_debt=[0] * 6)
+        f.latest = {"current_assets": 150, "current_liabilities": 100, "lt_debt": 40, "st_debt": 0}
+        res = S.step5_debt(f, BizType.NORMAL, None, RULES)
+        assert check(res, "interest_coverage").passed is False and not res.passed            # coverage 2.5x < 5x
+        f2 = make_fund(revenue=[100] * 6, net_income=[10] * 6, cfo=[20] * 6, ebitda=[30] * 6, operating_income=[60] * 6,
+                       interest_expense=[5] * 6, current_assets=[150] * 6, current_liabilities=[100] * 6, lt_debt=[40] * 6, st_debt=[0] * 6)
+        f2.latest = f.latest
+        assert S.step5_debt(f2, BizType.NORMAL, None, RULES).passed                           # 12x coverage, all 3 core ratios ok
+    assert RULES.debt.require_interest_coverage is False                                      # restored
+
+
+def test_speculative_step1_exception_can_be_switched_off():
+    f = make_fund(revenue=[1, 1.5, 2.2, 3.3, 5, 7], net_income=[1, -1, -2, -3, -2, 1], cfo=[1, -.2, -.5, -.6, -.1, 1.5],
+                  gross_profit=[.5, .8, 1.2, 1.7, 2.5, 3.5])
+    f.quarterly["cfo"] = [Point(end="2026-03-31", value=1.0), Point(end="2026-06-30", value=1.2)]
+    f.quarterly["net_income"] = [Point(end="2026-03-31", value=.5), Point(end="2026-06-30", value=.6)]
+    assert S.step1_track_record(f, BizType.SPECULATIVE, RULES).passed                       # Adam's exception: turned positive
+    strict = RULES.with_overrides({"speculative": {"step1_exception": False}})
+    res = S.step1_track_record(f, BizType.SPECULATIVE, strict)
+    assert not res.passed and not any(c.name == "speculative_turned_positive" for c in res.checks)

@@ -70,6 +70,9 @@ SOURCES: dict[str, tuple[str, str]] = {
     "debt.min_bank_cet1": (ADAM, "banks: CET1 >10% (checklist)"),
     "debt.max_reit_gearing": (ADAM, "REITs: gearing ≤45% (checklist)"),
     "debt.safe_reit_gearing": (ADAM, "ideally <40% (checklist)"),
+    "debt.require_interest_coverage": (OWNER, "owner 2026-11-16 (ultra excellent preset): interest coverage must pass; with min 5 = Adam's 'very safe'"),
+    "profitability.require_efficiency_checks": (OWNER, "owner 2026-11-16 (ultra excellent preset): ROE not falling, sales vs receivables and cash conversion cycle become required"),
+    "speculative.step1_exception": (OWNER, "owner 2026-11-16: switch off Adam's speculative-growth shortcut in Step 1 (default on = his rule)"),
     "debt.min_core_ratios_passed": (ADAM, "'Passing 2 out of 3 is acceptable' (l.4026)"),
     # ---- Step 6 / valuation -------------------------------------------------------------------------------
     "valuation.horizon_years": (ADAM, "20-year DCF (years 1–5, 6–10, 11–20)"),

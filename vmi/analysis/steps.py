@@ -156,7 +156,7 @@ def step1_track_record(f: Fundamentals, biz: BizType, rules: VMIRules = RULES) -
         checks.append(Check(f"{label}_stable", ok, round(cur, 4), f"≥ 5y avg {avg5:.1%} (−{r.margin_tolerance:.0%} tol)",
                             "; ".join(x for x in (f"falling {streak} yrs in a row" if streak >= 2 else "", _norm_note(rules)) if x)))
     # Speculative-growth exception (half allocation)
-    if biz == BizType.SPECULATIVE:
+    if biz == BizType.SPECULATIVE and rules.speculative.step1_exception:
         q_cfo = [p.value for p in f.quarterly.get("cfo", [])[-2:]]
         q_ni = [p.value for p in f.quarterly.get("net_income", [])[-2:]]
         turned = bool(q_cfo and q_cfo[-1] > 0) and bool(q_ni and q_ni[-1] > 0)
@@ -353,6 +353,8 @@ def step4_profitability(f: Fundamentals, biz: BizType, rules: VMIRules = RULES) 
         checks.append(Check("cash_conversion_cycle", not rising, [round(v, 1) for v in ccc],
                             f"not rising >{p.ccc_max_increase_days:.0f} days (negative = fantastic)"))
     req = {"roe", "roic"}
+    if p.require_efficiency_checks:
+        req |= {"roe_not_declining", "revenue_vs_receivables", "cash_conversion_cycle"}   # rows that do not apply stay out
     return _finish(4, "Profitable & efficient", checks, [], req)
 
 
@@ -417,6 +419,11 @@ def step5_debt(f: Fundamentals, biz: BizType, est: Estimates | None = None, rule
     res.passed = bool(core) and sum(c.passed for c in core) >= min(d.min_core_ratios_passed, len(core))
     if rules.normalise.enabled:
         res.notes.append(_norm_note(rules) + " for current ratio, debt/EBITDA, debt servicing and interest coverage")
+    if d.require_interest_coverage:
+        ic = next((c for c in checks if c.name == "interest_coverage"), None)
+        ic_ok = bool(ic and ic.passed is True)
+        res.passed = res.passed and ic_ok
+        res.notes.append(f"Strict: interest coverage must pass (above {d.min_interest_coverage:g}): {'ok' if ic_ok else 'NOT met'}")
     res.notes.append(f"{sum(c.passed for c in core)}/{len(core)} core ratios pass (≥{d.min_core_ratios_passed} required: "
                      "one weak ratio is acceptable when the others are strong)")
     return res

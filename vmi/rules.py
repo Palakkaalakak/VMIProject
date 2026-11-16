@@ -26,6 +26,7 @@ class SpeculativeRules:  # Step 1 exception + Lesson 8 category 4
     positive_quarters_required: int = 1    # Palantir case: first positive quarter of CFO
     allocation_multiplier: float = 0.5     # "half of my normal investment allocation"
     upgrade_after_years: int = 5
+    step1_exception: bool = True           # False: speculative-growth companies get NO shortcut and must show the full 5-10 year record
 
 
 @dataclass(frozen=True)
@@ -89,6 +90,9 @@ class ProfitabilityRules:  # Step 4
     min_roic: float = 0.12
     excellent_roic: float = 0.15
     ccc_max_increase_days: float = 30.0    # "must not be increasing too much"
+    # Strict mode: also REQUIRE ROE not falling for years, sales growing at least as fast as receivables, and a cash conversion cycle
+    # that is not rising (otherwise these three are shown but do not decide Step 4).
+    require_efficiency_checks: bool = False
 
 
 @dataclass(frozen=True)
@@ -104,6 +108,9 @@ class DebtRules:  # Step 5
     # "Passing 2 out of 3 is acceptable" (current ratio, debt/EBITDA, debt servicing): one weak ratio is fine
     # when the others are strong (e.g. subscription businesses whose deferred revenue pushes the current ratio < 1).
     min_core_ratios_passed: int = 2
+    # Strict mode ("ultra excellent"): interest coverage must PASS too (it is a bonus check otherwise); with min_interest_coverage 5
+    # this is Adam's "very safe" bar.
+    require_interest_coverage: bool = False
 
 
 @dataclass(frozen=True)

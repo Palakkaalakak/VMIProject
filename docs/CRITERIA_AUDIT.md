@@ -24,6 +24,7 @@ earlier values I changed without being asked; they are restored and marked for t
 | `speculative.positive_quarters_required` | 1 | Adam states it | net income and CFO positive in the last 1–2 quarters (checklist) |
 | `speculative.allocation_multiplier` | 0.5 | Adam states it | half the normal allocation (checklist) |
 | `speculative.upgrade_after_years` | 5 | Adam states it | upgrade to normal after 5 years of consistency (checklist) |
+| `speculative.step1_exception` | True | owner's rule/spec | owner 2026-11-16: switch off Adam's speculative-growth shortcut in Step 1 (default on = his rule) |
 | `growth.min_projected_growth` | 0.0 | Adam states it | projected growth must be positive (Step 2) |
 | `growth.cap_years_6_10` | 0.15 | Adam states it | years 6–10 capped at 15% (l.4572) |
 | `growth.years_11_20` | 0.04 | Adam states it | years 11–20 default 4% (l.4467) |
@@ -52,6 +53,7 @@ earlier values I changed without being asked; they are restored and marked for t
 | `profitability.min_roic` | 0.12 | Adam states it | ROIC ≥12% (checklist) |
 | `profitability.excellent_roic` | 0.15 | Adam states it | ROIC ≥15% excellent (checklist) |
 | `profitability.ccc_max_increase_days` | 30.0 | interpretation of Adam's words | Adam: cash conversion cycle 'consistent or declining, not sharply rising' |
+| `profitability.require_efficiency_checks` | False | owner's rule/spec | owner 2026-11-16 (ultra excellent preset): ROE not falling, sales vs receivables and cash conversion cycle become required |
 | `debt.min_current_ratio` | 1.0 | Adam states it | current ratio >1 (checklist) |
 | `debt.max_debt_to_ebitda` | 3.0 | Adam states it | debt/EBITDA ≤3 (checklist) |
 | `debt.max_debt_servicing` | 0.3 | Adam states it | debt servicing <30% (checklist) |
@@ -61,6 +63,7 @@ earlier values I changed without being asked; they are restored and marked for t
 | `debt.max_reit_gearing` | 0.45 | Adam states it | REITs: gearing ≤45% (checklist) |
 | `debt.safe_reit_gearing` | 0.4 | Adam states it | ideally <40% (checklist) |
 | `debt.min_core_ratios_passed` | 2 | Adam states it | 'Passing 2 out of 3 is acceptable' (l.4026) |
+| `debt.require_interest_coverage` | False | owner's rule/spec | owner 2026-11-16 (ultra excellent preset): interest coverage must pass; with min 5 = Adam's 'very safe' |
 | `normalise.enabled` | False | owner's rule/spec | owner (2026-11-16): option to use average historical values instead of the latest, against short-term distortions |
 | `normalise.years` | 3 | owner's rule/spec | owner: how many fiscal years are averaged when normalising (3 by default; our choice of number) |
 | `valuation.horizon_years` | 20 | Adam states it | 20-year DCF (years 1–5, 6–10, 11–20) |

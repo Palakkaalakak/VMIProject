@@ -53,6 +53,18 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - "Adam: ULTRA excellent" preset and three strict-mode rules
+
+- Preset `adam_ultra` (course defaults + every step-up bar he mentions): ROE and ROIC >= 15% (l.1237); ALL 3 core debt ratios
+  (`debt.min_core_ratios_passed` 3; he says ideally all three, l.1140); interest coverage must pass and be > 5, his "very safe" (l.1136);
+  REIT gearing <= 40% (safest); 10 years of record (`track.min_years` 10: "5 to 10, 10 better", l.2065); margins not below the 5-year average
+  (`track.margin_tolerance` 0); ROE not falling, sales growing at least as fast as receivables and a non-rising cash conversion cycle become
+  REQUIRED; no speculative shortcut in Step 1; steps 1, 2, 4, 5 enforced; 10-year uptrend; market cap >= $10B. Moat stays a manual wide-only
+  review (cannot be scanned). Expect very few names.
+- New rules (all default OFF/ON = old behaviour): `debt.require_interest_coverage`, `profitability.require_efficiency_checks`,
+  `speculative.step1_exception` (default True = Adam's rule; the SNDK-type shortcut can now be switched off). Tests in tests/test_normalise.py.
+- Not done: Adam gives no stricter number for the current ratio (>1) or for "wide" moat beyond the manual review.
+
 ### 2026-11-16 - The 7-step card in plain language
 
 - New `static/js/steps_view.js` replaces the raw dump: each check has a plain name and a one-line "what it asks", values are shown as
