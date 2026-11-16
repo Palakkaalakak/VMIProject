@@ -3,6 +3,7 @@
 import { api } from "../api.js";
 import { $, esc, fmt, loading, modal, run, table, toast } from "../ui.js";
 import { refreshPortfolios, state } from "../state.js";
+import { sizeSelect } from "../sizes.js";
 
 export async function render(root, params = {}) {
   await refreshPortfolios();
@@ -88,7 +89,7 @@ function editModal(root, id, r) {
     <label>Intrinsic value <input name="iv" type="number" step="any" value="${r?.intrinsic_value ?? ""}"></label>
     <label>Only buy below IV <select name="below"><option value="true" ${r?.require_below_iv === false ? "" : "selected"}>Yes</option><option value="false" ${r?.require_below_iv === false ? "selected" : ""}>No</option></select></label>
     <label>Full allocation $ (blank = portfolio sizing) <input name="alloc" type="number" step="any" value="${r?.allocation ?? ""}"></label>
-    <label>Category multiplier (½ speculative, ¾ narrow) <input name="mult" type="number" step="any" value="${r?.multiplier ?? 1}"></label>
+    <label>Position size (fraction of a full position; speculative 1/2 down to 1/14) ${sizeSelect("mult", r?.multiplier ?? 1)}</label>
     <label>Auto <select name="auto"><option value="">follow portfolio</option><option value="true" ${r?.auto === true ? "selected" : ""}>on</option><option value="false" ${r?.auto === false ? "selected" : ""}>off</option></select></label>
     <label class="wide">Buy levels (one per line: <code>price fraction</code>, fractions of the full allocation; blank fraction = equal split)<textarea name="buy" rows="4">${esc(toText(r?.buy_levels))}</textarea></label>
     <label class="wide">Sell levels (<code>price fraction</code> or <code>+50% fraction</code> = 50% over IV; fraction of shares held)<textarea name="sell" rows="3">${esc(toText(r?.sell_levels))}</textarea></label>

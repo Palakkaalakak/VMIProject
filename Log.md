@@ -53,6 +53,18 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - Position-size steps 1/2 to 1/14, large-growth preset fix, normalise chip, "speculative turned positive"
+
+- Sizing: a shared fraction picker (`static/js/sizes.js`: full, 3/4 narrow moat, 1/2 ... 1/14) in the Plans editor (per-stock position size)
+  and in the analysis trade panel ("Position size": automatic by category, or a fraction), used for the auto-sized tranche. Backend
+  already took any multiplier; test covers 1/2..1/14.
+- Large growth preset showed stocks under 20% because it filtered on the AVERAGE estimate while the Growth column shows the LOWEST.
+  It now filters on the lowest estimate (growth conservative, 20%); the note says how to switch to average/highest.
+- Analysis header chip "normalise: ON (3y) / off" so the state is visible; settings-page save path tested end to end
+  (live rules change at once; "(NORMALISED)" shows on Step 4). If the owner's app shows nothing: it is running code older than 40d2ee4 (check the footer version).
+- `speculative_turned_positive` (Step 1) = Adam's speculative-growth exception (Palantir case, l.2095/2118/2860): a company with revenue growing
+  50%+ may skip the 5-year earnings record if its latest quarterly CFO and net income are positive. It is why SNDK passed Step 1.
+
 ### 2026-11-16 - Years 1-5 growth cap is now an explicit switch
 
 - A 40% cap on years 1-5 growth already existed silently (`growth.max_years_1_5`, "not in the course"). New boolean

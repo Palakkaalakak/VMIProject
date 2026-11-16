@@ -2,6 +2,7 @@
 // judgement overrides and one-click paper trading (tranche sizing).
 import { api } from "../api.js";
 import { $, esc, fmt, badge, loading, run, toast, signClass } from "../ui.js";
+import { sizeSelect } from "../sizes.js";
 import { state } from "../state.js";
 
 let SCHEMA = null; // override fields, from GET /api/overrides/schema (declared once in vmi/overrides.py)
@@ -51,7 +52,7 @@ function header(r) {
   const v = r.valuation || {};
   return `<div class="card head">
     <div><h2>${esc(r.ticker)} <small>${esc(r.name || "")}</small></h2>
-      <p class="muted">${esc(r.sector || "")} · ${esc(r.industry || "")} · type <b>${esc(r.biz_type)}</b> · ${esc(r.category || "")} · ${esc(r.style || "")} · moat <b>${esc(r.moat)}</b>${r.moat_reviewed ? "" : ' <span class="muted">(unreviewed)</span>'}</p></div>
+      <p class="muted">${esc(r.sector || "")} · ${esc(r.industry || "")} · type <b>${esc(r.biz_type)}</b> · ${esc(r.category || "")} · ${esc(r.style || "")} · moat <b>${esc(r.moat)}</b>${r.moat_reviewed ? "" : ' <span class="muted">(unreviewed)</span>'} · <a href="#/settings" class="small" title="Settings → normalise">normalise: ${r.normalised?.enabled ? `<b>ON (${r.normalised.years}y)</b>` : "off"}</a></p></div>
     <div class="kpis">
       <div class="kpi"><span>Price</span><b>${fmt.money(r.price)}</b></div>
       <div class="kpi"><span>Intrinsic value</span><b>${fmt.money(r.intrinsic_value)}</b></div>
@@ -125,6 +126,7 @@ function trade(r) {
       <select id="trade-pf">${opts}</select>
       <select id="trade-side"><option>BUY</option><option>SELL</option></select>
       <label class="check"><input type="checkbox" id="trade-tranche" checked> one VMI tranche (auto-size)</label>
+      <label class="small">Position size ${sizeSelect("trade-mult", null, { auto: `automatic (category: ×${r.allocation_multiplier ?? 1})`, id: "trade-mult" })}</label>
       <input id="trade-qty" type="number" step="any" min="0" placeholder="or qty">
       <button class="primary">Submit (paper)</button>
     </form>
@@ -204,19 +206,22 @@ async function bindOverrides(out, r) {
 const view = (r) => `${header(r)}<div class="cols"><div>${valuation(r)}${technicals(r)}</div><div>${trade(r)}${overrides()}</div></div>${steps(r)}`;
 
 function bind(out, r) {
-  const pf = $("#trade-pf", out), mult = r.allocation_multiplier || 1;
+  const pf = $("#trade-pf", out);
+  const chosen = () => { const v = $("#trade-mult", out)?.value; return v ? parseFloat(v) : (r.allocation_multiplier || 1); };
   const showSize = async () => {
     if (!pf.value) return;
+    const mult = chosen();
     const s = await api.size(r.ticker, pf.value, mult).catch(() => null);
     if (s) $("#trade-size", out).textContent =
       `Full allocation ${fmt.money(s.full_allocation, 0)} (×${mult}) · tranche ${fmt.money(s.tranche_value, 0)} ≈ ${s.shares_next_tranche} sh · held ${fmt.money(s.current_value, 0)} · remaining ${fmt.money(s.remaining_value, 0)} ${s.warning ? "· ⚠ " + s.warning : ""}`;
   };
   pf?.addEventListener("change", showSize);
+  $("#trade-mult", out)?.addEventListener("change", showSize);
   showSize();
   $("#trade-form", out)?.addEventListener("submit", (e) => {
     e.preventDefault();
     const qty = parseFloat($("#trade-qty", out).value);
-    const body = { symbol: r.ticker, side: $("#trade-side", out).value, multiplier: mult,
+    const body = { symbol: r.ticker, side: $("#trade-side", out).value, multiplier: chosen(),
       tranche: $("#trade-tranche", out).checked && !qty, qty: qty || null };
     run(e.submitter, async () => {
       const res = await api.stockOrder(pf.value, body);

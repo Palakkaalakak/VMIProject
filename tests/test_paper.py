@@ -66,3 +66,9 @@ def test_csp_contracts():
 ])
 def test_market_session(ts, expected):
     assert market_hours.session_now(datetime.fromisoformat(ts).replace(tzinfo=market_hours.ET)) == expected
+
+
+def test_speculative_position_sizes_from_one_half_down_to_one_fourteenth():
+    for n in range(2, 15):
+        p = plan(equity=100_000, price=50, target_positions=10, multiplier=1 / n)
+        assert p.full_allocation == pytest.approx(10_000 / n, abs=0.01) and p.tranche_value == pytest.approx(10_000 / n / 4, abs=0.01)

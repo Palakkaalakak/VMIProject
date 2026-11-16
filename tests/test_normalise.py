@@ -79,3 +79,19 @@ def test_normalised_mode_is_labelled_everywhere_it_matters():
     assert "(NORMALISED)" in check(on, "roe").note and "(NORMALISED)" in check(on, "roic").note
     off = S.step4_profitability(f, BizType.NORMAL, RULES)
     assert "NORMALISED" not in check(off, "roe").note
+
+
+def test_settings_page_save_turns_normalised_mode_on_in_the_live_rules(tmp_path, monkeypatch):
+    """The path the Settings page uses (PUT /api/settings -> settings.update) must change the live rules at once."""
+    from vmi import settings
+
+    monkeypatch.setattr(settings, "SETTINGS_FILE", tmp_path / "rules_settings.json")
+    try:
+        settings.update({"normalise": {"enabled": "true", "years": "4"}})
+        assert RULES.normalise.enabled is True and RULES.normalise.years == 4
+        f = fund_with_roe([0.20, 0.22, 0.21, 0.23, 0.04])
+        res = S.step4_profitability(f, BizType.NORMAL, RULES)           # the module-level default rules, as the app uses
+        assert "(NORMALISED)" in check(res, "roe").note
+    finally:
+        settings.update({"normalise": {"enabled": None, "years": None}})
+    assert RULES.normalise.enabled is False

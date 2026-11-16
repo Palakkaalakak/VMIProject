@@ -99,3 +99,7 @@ def test_ten_year_chart_slope_in_degrees():
     assert abs(chart_slope(flat_noisy)["angle_deg"]) < 6                             # noise: a few degrees at most
     assert chart_slope(down)["angle_deg"] < -10
     assert chart_slope(steady[:30]) is None                                          # too short to judge
+
+
+def test_large_growth_preset_filters_on_the_lowest_estimate_shown_in_the_growth_column():
+    assert presets.PRESETS["adam_large_growth"]["filters"]["profile"] == "growth_conservative"
