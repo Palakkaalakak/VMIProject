@@ -85,19 +85,7 @@ async def runtime_error(_, exc: RuntimeError):
 sysr = APIRouter(prefix="/api", tags=["system"], route_class=SafeRoute)
 
 
-_VERSION: dict = {}
-
-
-def version() -> str:
-    """Commit the running code is at ("abc1234 2026-11-16 subject"), read once at start; "unknown" outside a git checkout."""
-    if not _VERSION:
-        import subprocess
-        try:
-            _VERSION["v"] = subprocess.run(["git", "log", "-1", "--format=%h %cs %s"], cwd=ROOT, capture_output=True, text=True,
-                                           timeout=5).stdout.strip() or "unknown"
-        except Exception:
-            _VERSION["v"] = "unknown"
-    return _VERSION["v"]
+from vmi.version import version  # noqa: E402
 
 
 @sysr.get("/health")

@@ -12,3 +12,4 @@ beautifulsoup4>=4.12
 lxml>=5.0
 pytest>=8
 playwright>=1.40   # IB fundamentals sign-in window (vmi.data.ibportal.browser)
+psutil>=5.9   # launcher: stop an old copy of the app on the port

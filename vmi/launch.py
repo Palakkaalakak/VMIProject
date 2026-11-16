@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import subprocess
 import sys
 import time
@@ -50,12 +51,38 @@ def ensure_deps(root: Path = ROOT, run=subprocess.call) -> bool:
 
 
 # ------------------------------------------------------------------------------------------------- server
-def is_up(port: int, timeout: float = 1.5) -> bool:
+def health(port: int, timeout: float = 1.5) -> dict | None:
+    """The running app's /api/health answer, or None when nothing (or something else) answers."""
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=timeout) as r:
-            return r.status == 200
+            return json.loads(r.read()) if r.status == 200 else None
     except Exception:
-        return False
+        return None
+
+
+def is_up(port: int, timeout: float = 1.5) -> bool:
+    return health(port, timeout) is not None
+
+
+def stop_listener(port: int, kill=None) -> bool:
+    """Stop whatever process listens on `port` (used for an OLD copy of this app). True when the port is free afterwards."""
+    import psutil
+
+    pids = {c.pid for c in psutil.net_connections(kind="tcp") if c.status == psutil.CONN_LISTEN and c.laddr and c.laddr.port == port and c.pid}
+    for pid in pids:
+        try:
+            proc = psutil.Process(pid)
+            proc.terminate()
+            try:
+                proc.wait(10)
+            except psutil.TimeoutExpired:
+                proc.kill()
+        except psutil.Error:
+            pass
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and is_up(port, 0.5):
+        time.sleep(0.3)
+    return not is_up(port, 0.5)
 
 
 def wait_until_up(port: int, proc, secs: float = WAIT_SECS, sleep=time.sleep) -> bool:
@@ -70,11 +97,21 @@ def wait_until_up(port: int, proc, secs: float = WAIT_SECS, sleep=time.sleep) ->
 
 
 def serve(port: int, open_browser: bool = True, root: Path = ROOT) -> int:
-    if is_up(port):
-        say(f"The app is already running: opening http://localhost:{port}")
-        if open_browser:
-            webbrowser.open(f"http://localhost:{port}")
-        return 0
+    from vmi.version import version
+
+    h = health(port)
+    if h is not None:
+        theirs, ours = h.get("version"), version()
+        if theirs == ours:
+            say(f"The app is already running (version {ours[:40]}): opening http://localhost:{port}")
+            if open_browser:
+                webbrowser.open(f"http://localhost:{port}")
+            return 0
+        say(f"An OLD copy of the app is still running on port {port} (version: {theirs or 'older than version tracking'}; "
+            f"this folder is at: {ours}). Stopping it and starting the new one...")
+        if not stop_listener(port):
+            say("Could not stop it. Close the other VMI window (or restart the PC) and try again.")
+            return 1
     log_path = root / "data" / "launcher.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     cmd = [sys.executable, "-m", "uvicorn", "vmi.api.app:app", "--host", "127.0.0.1", "--port", str(port)]

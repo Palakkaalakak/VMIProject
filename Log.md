@@ -53,6 +53,16 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - Root cause of "Update VMI.bat then still the old screen": an old server kept the port
+
+- The owner's Update printed commit 62067e8 (pull fine) yet the page stayed old: an OLD copy of the app was still running on port 8000
+  (older server, started before the launcher existed or never closed), and `Start VMI.bat` just opened it ("already running").
+- Fix: the launcher compares the running app's `/api/health` `version` with this folder's commit; if it differs or is missing it
+  stops the old listener (psutil, terminate then kill) and starts the new app; only an identical version is reused. `vmi/version.py`
+  (shared), `psutil` added to requirements. Verified on Linux with a fake old server on the port (replaced, new version served);
+  tests/test_launch.py. UNVERIFIED on Windows: stopping a process there needs the same Windows user; if it cannot be stopped the window
+  says to close the other VMI window or restart the PC.
+
 ### 2026-11-16 - Owner still saw the old scanner after Update VMI.bat
 
 - Likely causes: the app was not restarted (a running server keeps old code), the browser cached the JS modules, or the pull did not

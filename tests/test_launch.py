@@ -26,13 +26,16 @@ class _Health(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200 if self.path == "/api/health" else 404)
         self.end_headers()
-        self.wfile.write(b"{}")
+        self.wfile.write(getattr(self, "body", b"{}"))
 
     def log_message(self, *a):
         pass
 
 
 def test_already_running_app_is_detected_and_not_started_twice(monkeypatch):
+    from vmi import version as ver
+    monkeypatch.setattr(ver, "_CACHE", {"v": "abc1234 2026-11-16 x"})
+    _Health.body = b'{"version": "abc1234 2026-11-16 x"}'
     srv = http.server.HTTPServer(("127.0.0.1", 0), _Health)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     port = srv.server_address[1]
@@ -50,3 +53,17 @@ def test_nothing_listening_is_not_up_and_wait_gives_up_when_the_server_dies():
             return 1
     assert not launch.is_up(1)
     assert not launch.wait_until_up(1, Dead(), secs=2, sleep=lambda s: None)
+
+
+def test_old_copy_on_the_port_is_stopped_before_starting(monkeypatch):
+    """The 'Update VMI.bat then still the old screen' bug: an old server kept the port and the launcher just opened it."""
+    from vmi import version as ver
+    monkeypatch.setattr(ver, "_CACHE", {"v": "new1234 2026-11-16 x"})
+    _Health.body = b'{"ok": true}'                                        # old app: no version field
+    srv = http.server.HTTPServer(("127.0.0.1", 0), _Health)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    port = srv.server_address[1]
+    stopped = []
+    monkeypatch.setattr(launch, "stop_listener", lambda p: stopped.append(p) or False)    # could not stop: reports and exits
+    assert launch.serve(port, open_browser=False) == 1 and stopped == [port]
+    srv.shutdown()
