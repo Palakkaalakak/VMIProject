@@ -85,11 +85,26 @@ async def runtime_error(_, exc: RuntimeError):
 sysr = APIRouter(prefix="/api", tags=["system"], route_class=SafeRoute)
 
 
+_VERSION: dict = {}
+
+
+def version() -> str:
+    """Commit the running code is at ("abc1234 2026-11-16 subject"), read once at start; "unknown" outside a git checkout."""
+    if not _VERSION:
+        import subprocess
+        try:
+            _VERSION["v"] = subprocess.run(["git", "log", "-1", "--format=%h %cs %s"], cwd=ROOT, capture_output=True, text=True,
+                                           timeout=5).stdout.strip() or "unknown"
+        except Exception:
+            _VERSION["v"] = "unknown"
+    return _VERSION["v"]
+
+
 @sysr.get("/health")
 def health():
     from vmi.data import mode
     return {"ok": True, "ib": gateway().info(), "ib_fundamentals": ib_fundamentals.status(),
-            "fundamental_review": mode.fundamental_review()}
+            "fundamental_review": mode.fundamental_review(), "version": version()}
 
 
 class ModeIn(BaseModel):
@@ -810,12 +825,21 @@ def opt_suggest(symbol: str, strategy: str = "CSP", expiry: str | None = None):
 for r in (sysr, ar, sr, pr, lg, ob, wr, alr, orr):
     app.include_router(r)
 
+class NoCacheStatic(StaticFiles):
+    """The UI is plain JS modules: always revalidate, so an update shows up on the next page load (no stale screens)."""
+
+    async def get_response(self, path, scope):
+        resp = await super().get_response(path, scope)
+        resp.headers["Cache-Control"] = "no-cache"
+        return resp
+
+
 if STATIC.exists():
-    app.mount("/static", StaticFiles(directory=STATIC), name="static")
+    app.mount("/static", NoCacheStatic(directory=STATIC), name="static")
 
 
 @app.get("/")
 def index():
     if (STATIC / "index.html").exists():
-        return FileResponse(STATIC / "index.html")
+        return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
     return {"app": "VMI Toolkit", "docs": "/docs"}

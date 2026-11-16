@@ -53,6 +53,14 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - Owner still saw the old scanner after Update VMI.bat
+
+- Likely causes: the app was not restarted (a running server keeps old code), the browser cached the JS modules, or the pull did not
+  happen (Update VMI.bat refuses with local changes). Fixes: static files and index.html are served with `Cache-Control: no-cache`;
+  the footer shows the running code version (`/api/health` -> `version`); Update VMI.bat prints the commit it ended on and says to
+  close and restart the app. UNVERIFIED which cause hit the owner: the screenshot showed the version from before the presets
+  (several updates old), which points to the pull not having happened.
+
 ### 2026-11-16 - Scanner filters are an "add a filter" searchable list
 
 - The fixed scan fields (market cap, price, 10y return, uptrend, speculative, steps, limit) and the long rule list are replaced by one

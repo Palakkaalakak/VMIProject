@@ -58,6 +58,7 @@ async function pollHealth() {
     el.textContent = review ? "Review mode: IB paused (Yahoo prices)" : ok ? "IB connected" : "IB offline (Yahoo fallback)";
     el.className = `status ${review ? "" : ok ? "ok" : "warn"}`;
     el.title = review ? "Fundamental review mode: IB Gateway is not looked for" : ok ? `${h.ib.host}:${h.ib.port}` : (h.ib?.last_error || "TWS / IB Gateway not reachable");
+    const v = $("#app-version"); if (v && h.version) v.textContent = `· version ${h.version.slice(0, 60)}`;
     const b = $("#mode-btn");
     b.textContent = review ? "Resume IB" : "Review mode";
     b.dataset.on = review ? "1" : "";
