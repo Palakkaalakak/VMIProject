@@ -8,6 +8,11 @@
                    uptrend filter is dropped because such companies are young
   custom           the owner edits any scan option and ANY rule on the scanner page; those values ride in `rules`
 
+Each preset may also carry `filters`: values for the RESULTS filter panel (growth profile, yield, category ...) that the scanner
+page applies when the preset is chosen; they only change what is shown, all results stay saved.
+More presets, each tied to a passage of the master document (line numbers): predictable (l.2822), large growth (l.2846),
+dividend (l.2789), turnaround (l.2898), Adam's Finviz screen (l.3002).
+
 Per-scan overrides typed on the scanner page (`rules`) are applied on top of the preset.
 """
 from __future__ import annotations
@@ -29,6 +34,27 @@ PRESETS: dict[str, dict] = {
                          "note": "Revenue growing >= 50%, profits not required yet, no 10-year chart filter (young companies); half allocation.",
                          "params": {"include_speculative": True, "require_ten_year_uptrend": False, "min_market_cap": 1e9},
                          "rules": {}, "course_defaults": True},
+    "adam_predictable": {"label": "Adam: predictable (5-10% growth, large, steady)",
+                         "note": "His 'predictable' category (l.2822: PEP, CB, MCD, WM, SPGI, MA ...): large, predictable earnings and cash flow, growth about 5-10%. Shows only stocks whose average analyst growth is 5% to 15%.",
+                         "params": {"min_market_cap": 10e9, "require_ten_year_uptrend": True, "include_speculative": False, "require_steps": [1, 2, 4, 5]}, "rules": {}, "course_defaults": True,
+                         "filters": {"profile": "defensive_balanced", "profile_threshold": "15", "min_growth": "5"}},
+    "adam_large_growth": {"label": "Adam: large growth (20%+)",
+                          "note": "His 'large growth' category (l.2846): growing above 20-25% a year, profitable 5+ years, wide or narrow moat. Shows only stocks whose average analyst growth is at least 20%.",
+                          "params": {"min_market_cap": 10e9, "require_ten_year_uptrend": True, "include_speculative": False, "require_steps": [1, 2, 4, 5]}, "rules": {}, "course_defaults": True,
+                          "filters": {"profile": "growth_balanced", "profile_threshold": "20"}},
+    "adam_dividend": {"label": "Adam: dividend stocks",
+                      "note": "His dividend category (l.2789): yield well above the market (about 5%+ in Singapore, 3%+ screen for US), steady earnings and cash flow, debt servicing under 30%, current ratio above 1. Shows yield >= 3%.",
+                      "params": {"min_market_cap": 10e9, "require_ten_year_uptrend": True, "include_speculative": False, "require_steps": [1, 2, 4, 5]}, "rules": {}, "course_defaults": True,
+                      "filters": {"min_yield": "3"}},
+    "adam_turnaround": {"label": "Adam: turnaround (great company, profits down)",
+                        "note": "His turnaround category (l.2898): a great business whose profits fell more than 25% in a year or two years in a row, moat intact. Step 1 is NOT required (profits dipped); steps 2, 4 and 5 are. Shows only stocks the scan classes as turnarounds.",
+                        "params": {"min_market_cap": 10e9, "require_ten_year_uptrend": False, "include_speculative": False, "require_steps": [2, 4, 5]},
+                        "rules": {}, "course_defaults": True, "filters": {"category": "turnaround"}},
+    "adam_finviz": {"label": "Adam: his Finviz screen",
+                    "note": "The screen he shows (l.3002): ROE above 10%, EPS growth next 5 years above 10%, PEG below 2, 10-year uptrend. Market cap from $2B. Steps are not enforced (it is a first sieve).",
+                    "params": {"min_market_cap": 2e9, "require_ten_year_uptrend": True, "include_speculative": False},
+                    "rules": {"profitability": {"min_roe": 0.10}}, "course_defaults": True,
+                    "filters": {"min_growth": "10", "max_peg": "2"}},
     "custom": {"label": "Custom", "note": "Edit any scan option and any rule below; nothing is saved to Settings.",
                "params": {}, "rules": {}, "course_defaults": False},
 }

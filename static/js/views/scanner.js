@@ -59,8 +59,14 @@ function drawAdded(root) {
   box.querySelectorAll("[data-remove]").forEach((b) => b.addEventListener("click", () => { delete added[b.dataset.remove]; drawAdded(root); }));
 }
 
-function drawPreset(root, id) {
-  $("#scan-preset-note", root).textContent = presetData.presets[id].note;
+function drawPreset(root, id, apply = false) {
+  const preset = presetData.presets[id];
+  $("#scan-preset-note", root).textContent = preset.note;
+  if (apply) {            // the preset's results filters (growth profile, yield, category ...) replace the saved ones
+    save(preset.filters || {});
+    const form = $("#scan-filter-box form", root);
+    if (form) { setForm(form, preset.filters || {}); drawRows(root); }
+  }
   drawAdded(root);          // untouched rows follow the new preset's defaults
 }
 
@@ -105,7 +111,7 @@ export async function render(root) {
   const sel = $("#scan-preset", root);
   sel.innerHTML = Object.entries(presetData.presets).map(([k, p]) => `<option value="${k}">${esc(p.label)}</option>`).join("");
   $("#scan-pick-list", root).innerHTML = pickerOptions();
-  sel.addEventListener("change", () => drawPreset(root, sel.value));
+  sel.addEventListener("change", () => drawPreset(root, sel.value, true));
   $("#scan-pick", root).addEventListener("change", (e) => {
     const key = e.target.value.trim();
     const known = SCAN_OPTIONS[key] || presetData.schema.some((r) => `${r.section}.${r.key}` === key);

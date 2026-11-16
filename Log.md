@@ -53,6 +53,14 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - Five more scanner presets (all from Adam's document)
+
+- Added: Adam predictable (l.2822), large growth 20%+ (l.2846), dividend (l.2789), turnaround (l.2898; steps 2, 4, 5 required, not 1),
+  his Finviz screen (l.3002; ROE >= 10%, growth >= 10%, PEG <= 2). A preset may now carry `filters` for the RESULTS panel (growth
+  profile, yield, category, PEG ...); choosing the preset applies them (display only, all results stay saved). Dividend yield bars use
+  the 3% US screen; the 5% figure is his Singapore one. None of these is a new criterion of ours. Not added (no scanner-checkable rule):
+  deep cyclical, deep value, ETF. Test: tests/test_scan_presets.py; checked in Chromium (10 presets, filters applied).
+
 ### 2026-11-16 - Stale cached UI modules made impossible
 
 - The server now stamps every relative import in served JS (and the script/css links in index.html) with `?v=<token>`, a value that

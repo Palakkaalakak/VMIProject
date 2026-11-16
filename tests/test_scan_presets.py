@@ -72,3 +72,16 @@ def test_scan_rows_carry_low_avg_high_growth():
     g = _growth_spread(est, GrowthControls())
     assert g["low"] == 0.10 and g["high"] == 0.20 and g["avg"] == pytest.approx(0.15) and g["n"] == 3
     assert _growth_spread(Estimates("Y"), GrowthControls())["n"] == 0
+
+
+def test_all_presets_are_valid_and_sourced():
+    from vmi.scanner.funnel import ScanParams
+    ids = set(presets.PRESETS)
+    assert {"adam_predictable", "adam_large_growth", "adam_dividend", "adam_turnaround", "adam_finviz"} <= ids
+    for pid, pr in presets.PRESETS.items():
+        ScanParams.from_dict(presets.resolved_params(pid))               # params are real scan options
+        ch, course = presets.rule_changes(pid, None)
+        with settings.temporary(ch, course_defaults=course):             # every rule override is a real rule
+            pass
+    assert presets.PRESETS["adam_turnaround"]["params"]["require_steps"] == [2, 4, 5]
+    assert presets.PRESETS["adam_finviz"]["rules"]["profitability"]["min_roe"] == 0.10
