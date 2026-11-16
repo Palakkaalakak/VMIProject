@@ -53,6 +53,16 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - Watchlist stats; why a stock failing steps 1-5 can sit in a growth list
+
+- Watchlists page: "Watchlist stats" (`GET /api/watchlists/{id}/stats`, `vmi/watchlist/stats.py`): average of the LOWEST / AVERAGE /
+  HIGHEST growth estimates (and how many stocks clear a threshold by each), mean/median/min/max of ROE, ROIC, net margin, MOS, P/E,
+  PEG, beta, yield, steps passed, per-step pass counts, sector/industry/style/category/moat/method mix, concentration, and the list of
+  stocks that FAIL steps 1-5 (first failed step) so a failing stock cannot sit unnoticed. Analysis errors are listed, never hidden.
+- Why WST was in a growth list (read from the code, not from the owner's database): the scanner's deep stage keeps every candidate and
+  only labels it (`great_business`, `steps_passed`); the growth filters only look at growth; "Save shown list as a watchlist" and
+  manual adds do not check steps 1-5. A scan option / save guard to stop this was planned (`docs` plan, not built): owner to decide.
+
 ### 2026-11-16 - Growth / defensive profiles in the scanner filters
 
 - Each scan row now stores the lowest / average / highest usable 5-year growth estimate and every source (`growth_low`, `growth_avg`,

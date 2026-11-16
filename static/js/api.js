@@ -63,6 +63,7 @@ export const api = {
   removeItem: (id, s) => request("DELETE", `/api/watchlists/${id}/items/${s}`),
   autofill: (id, s) => request("POST", `/api/watchlists/${id}/items/${s}/autofill`),
   importList: (id, text, auto_fill) => request("POST", `/api/watchlists/${id}/import`, { text, auto_fill }),
+  watchlistStats: (id, threshold) => request("GET", `/api/watchlists/${id}/stats${qs({ threshold })}`),
   scanWatchlist: (id) => request("POST", `/api/watchlists/${id}/scan`),
   // alerts
   alerts: () => request("GET", "/api/alerts"),

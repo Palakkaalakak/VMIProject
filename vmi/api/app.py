@@ -715,6 +715,13 @@ def wl_autofill(wid: int, symbol: str):
     return service.autofill(wid, symbol)
 
 
+@wr.get("/{wid}/stats")
+def wl_stats(wid: int, threshold: float = 0.15):
+    """Average growth (of lowest / average / highest estimates), quality, valuation, mix and the stocks failing steps 1-5."""
+    from vmi.watchlist import stats
+    return stats.watchlist_stats(wid, threshold)
+
+
 @wr.post("/{wid}/import")
 def wl_import(wid: int, body: ImportIn):
     from vmi.watchlist import service
