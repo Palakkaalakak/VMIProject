@@ -53,6 +53,16 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - Simplified filter list in the scanner
+
+- Research: the full rule list is 114 rules in 13 sections (valuation 30, technical 12, growth 11, moat 11, debt 9, execution 9,
+  portfolio 8, track 6 ...). Most are valuation/technical/execution internals; the ones that decide whether a stock is shown are few.
+- The "Filters" box on the scanner has a mode drop-down: "Simplified" (29 named filters in groups: growth, quality, debt, track
+  record, chart, normalise, steps, size, value, income, risk, niche) or "Every filter and rule" (135). Growth is condensed into
+  lowest / average / highest estimate and the valuation blend (min and max forms). Two kinds of rows: scan rules/options (sent with the
+  scan) and "display" filters (only change which saved results are shown, live; a "display" badge marks them). New results filters:
+  growth lowest/average/highest at least/at most. Checked in Chromium (add, change, remove, scan payload).
+
 ### 2026-11-16 - Moat 10-year chart as a fitted slope; plain-language help on the moat page
 
 - Step 3's 10-year chart check (and the scanner's 10-year pre-filter) now draw the straight least-squares line through the LOG price

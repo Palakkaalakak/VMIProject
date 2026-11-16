@@ -20,6 +20,45 @@ const SCAN_OPTIONS = {
   "scan.deep_limit": { label: "Deep-analysis limit", help: "Safety cap on how many stocks get the full analysis", type: "int", param: "deep_limit", value: () => 400, send: (v) => parseInt(v, 10) },
 };
 
+/** RESULTS filters (display only: the scan still saves everything). key "view.<results filter id>"; value in percent / plain numbers. */
+const VIEW_OPTIONS = {
+  "view.min_growth": { label: "Growth (blend used for valuation) at least %", help: "The growth rate the valuation uses: by default the lowest source, the average for defensives", def: 15 },
+  "view.max_growth": { label: "Growth (blend used for valuation) below %", help: "Defensive stocks", def: 15 },
+  "view.min_growth_low": { label: "Growth: lowest estimate at least %", help: "Conservative: even the most pessimistic analyst source says this", def: 15 },
+  "view.min_growth_avg": { label: "Growth: average estimate at least %", help: "Balanced: average of the analyst sources", def: 15 },
+  "view.min_growth_high": { label: "Growth: highest estimate at least %", help: "Optimistic: the most bullish source says this", def: 15 },
+  "view.max_growth_high": { label: "Growth: highest estimate at most %", help: "Conservative defensive: even the most bullish source is below this", def: 15 },
+  "view.min_roe": { label: "ROE at least % (shown results)", help: "Display filter on the scan's ROE column", def: 15 },
+  "view.min_roic": { label: "ROIC at least % (shown results)", help: "Display filter on the ROIC column (provider ROIC nets out cash: huge for cash-rich companies)", def: 12 },
+  "view.min_margin": { label: "Net margin at least %", help: "Display filter", def: 10 },
+  "view.min_mos": { label: "Margin of safety at least %", help: "How far below the intrinsic value the price is", def: 10 },
+  "view.max_peg": { label: "PEG at most", help: "Adam only uses PEG as a screen: 1.5 fine, above 2 expensive", def: 2 },
+  "view.min_yield": { label: "Dividend yield at least %", help: "Dividend stocks", def: 3 },
+  "view.min_cap": { label: "Market cap at least ($B, shown results)", help: "Display filter", def: 10 },
+  "view.max_beta": { label: "Beta at most", help: "Lower-volatility names", def: 1 },
+  "view.max_industry_rank": { label: "Leader of its industry: top N by market cap", help: "1 = the biggest company of its industry among the scan results", def: 1 },
+};
+
+/** The simplified list: friendly names for the filters that matter most, grouped. Everything else stays under "Every filter". */
+const SIMPLE = [
+  ["Growth: lowest estimate at least %", "view.min_growth_low"], ["Growth: average estimate at least %", "view.min_growth_avg"],
+  ["Growth: highest estimate at least %", "view.min_growth_high"], ["Growth: blend (valuation growth) at least %", "view.min_growth"],
+  ["Growth: blend below % (defensive)", "view.max_growth"], ["Growth: highest estimate below % (defensive)", "view.max_growth_high"],
+  ["Quality: min ROE (scan rule)", "profitability.min_roe"], ["Quality: min ROIC (scan rule)", "profitability.min_roic"],
+  ["Quality: net margin at least %", "view.min_margin"],
+  ["Debt: min current ratio", "debt.min_current_ratio"], ["Debt: max debt / EBITDA", "debt.max_debt_to_ebitda"],
+  ["Debt: max debt servicing (interest / cash flow)", "debt.max_debt_servicing"], ["Debt: min interest coverage", "debt.min_interest_coverage"],
+  ["Track record: years of history required", "track.min_years"], ["Track record: down years allowed", "track.max_down_years_5y"],
+  ["Track record: margin tolerance vs 5-year average", "track.margin_tolerance"],
+  ["Chart: require 10-year uptrend", "scan.require_ten_year_uptrend"], ["Chart: min 10-year slope (degrees)", "moat.ten_year_min_degrees"],
+  ["Normalise: use multi-year average values", "normalise.enabled"], ["Normalise: years averaged", "normalise.years"],
+  ["Steps: drop stocks failing steps 1, 2, 4, 5", "scan.require_steps"], ["Keep speculative growth (50%+ revenue growth)", "scan.include_speculative"],
+  ["Size: min market cap ($B, full-market scan)", "scan.min_market_cap"], ["Size: min price", "scan.min_price"],
+  ["Value: margin of safety at least %", "view.min_mos"], ["Value: PEG at most", "view.max_peg"],
+  ["Income: dividend yield at least %", "view.min_yield"], ["Risk: beta at most", "view.max_beta"],
+  ["Niche: leader of its industry (top N by market cap)", "view.max_industry_rank"],
+];
+
 /** Rule values a preset starts from: course defaults when the preset says so, else the Settings page, plus its own rules. */
 function baseRules(preset) {
   const base = {};
@@ -28,13 +67,26 @@ function baseRules(preset) {
   return base;
 }
 
+const isView = (k) => k.startsWith("view.");
 const defOf = (key, preset) => {
+  if (VIEW_OPTIONS[key]) return VIEW_OPTIONS[key].def;
   if (SCAN_OPTIONS[key]) return SCAN_OPTIONS[key].value(preset);
   const [sec, k] = key.split(".");
   return baseRules(preset)[sec]?.[k];
 };
 
+/** Results filter (display only) set from a view row: persists and redraws the table. */
+function setView(root, key, value) {
+  const id = key.slice(5);
+  const saved = loadSaved();
+  if (value === "" || value == null) delete saved[id]; else saved[id] = String(value);
+  save(saved);
+  const form = $("#scan-filter-box form", root);
+  if (form) { setForm(form, saved); drawRows(root); }
+}
+
 function input(key, value) {
+  if (VIEW_OPTIONS[key]) return `<input name="${esc(key)}" type="number" step="any" value="${esc(value)}">`;
   const o = SCAN_OPTIONS[key];
   const name = `name="${esc(key)}"`;
   if (o) {
@@ -49,13 +101,19 @@ function drawAdded(root) {
   const box = $("#scan-added", root);
   const keys = Object.keys(added);
   box.innerHTML = keys.length ? `<table class="compact"><tbody>${keys.map((k) => {
-    const o = SCAN_OPTIONS[k], r = o ? null : presetData.schema.find((x) => `${x.section}.${x.key}` === k);
+    const o = VIEW_OPTIONS[k] || SCAN_OPTIONS[k], r = o ? null : presetData.schema.find((x) => `${x.section}.${x.key}` === k);
     const cur = added[k].touched ? added[k].value : defOf(k, preset);
-    return `<tr data-key="${esc(k)}"><td><b>${esc(o ? o.label : k)}</b> ${r ? badgeFor(r) : ""}<div class="small muted">${esc(o ? o.help : r.help || r.source_note)}</div></td>
-      <td>${input(k, cur)}</td><td class="small muted">preset: ${esc(String(defOf(k, preset)))}</td><td><button type="button" class="small danger" data-remove="${esc(k)}" title="Back to the preset's value">✕</button></td></tr>`;
+    const nice = (SIMPLE.find((x) => x[1] === k) || [])[0];
+    return `<tr data-key="${esc(k)}"><td><b>${esc(o ? o.label : nice || k)}</b> ${r ? badgeFor(r) : ""}${isView(k) ? ` <span class="badge na" title="Only changes which results are shown; the scan still saves everything">display</span>` : ""}<div class="small muted">${esc(o ? o.help : r.help || r.source_note)}</div></td>
+      <td>${input(k, cur)}</td><td class="small muted">${isView(k) ? "" : "preset: " + esc(String(defOf(k, preset)))}</td><td><button type="button" class="small danger" data-remove="${esc(k)}" title="Back to the preset's value">✕</button></td></tr>`;
   }).join("")}</tbody></table>` : `<p class="small muted">No filters added: this scan uses the preset's values.</p>`;
-  box.querySelectorAll("[name]").forEach((el) => el.addEventListener("input", () => { added[el.name].touched = true; added[el.name].value = el.type === "checkbox" ? el.checked : el.value; }));
-  box.querySelectorAll("[data-remove]").forEach((b) => b.addEventListener("click", () => { delete added[b.dataset.remove]; drawAdded(root); }));
+  box.querySelectorAll("[name]").forEach((el) => el.addEventListener("input", () => {
+    added[el.name].touched = true; added[el.name].value = el.type === "checkbox" ? el.checked : el.value;
+    if (isView(el.name)) setView(root, el.name, el.value);
+  }));
+  box.querySelectorAll("[data-remove]").forEach((b) => b.addEventListener("click", () => {
+    const k = b.dataset.remove; delete added[k]; if (isView(k)) setView(root, k, ""); drawAdded(root);
+  }));
 }
 
 function drawPreset(root, id, apply = false) {
@@ -69,10 +127,19 @@ function drawPreset(root, id, apply = false) {
   drawAdded(root);          // untouched rows follow the new preset's defaults
 }
 
-function pickerOptions() {
+function pickerOptions(simple) {
+  if (simple) return SIMPLE.map(([label, key]) => `<option value="${esc(label)}"></option>`).join("");
   const ruleOpts = presetData.schema.map((r) => `<option value="${esc(r.section)}.${esc(r.key)}" label="${esc((r.help || r.source_note || "").slice(0, 110))}"></option>`);
   const scanOpts = Object.entries(SCAN_OPTIONS).map(([k, o]) => `<option value="${esc(k)}" label="${esc(o.label)}"></option>`);
-  return scanOpts.join("") + ruleOpts.join("");
+  const viewOpts = Object.entries(VIEW_OPTIONS).map(([k, o]) => `<option value="${esc(k)}" label="${esc(o.label)}"></option>`);
+  return viewOpts.join("") + scanOpts.join("") + ruleOpts.join("");
+}
+
+function resolveKey(text) {
+  const t = text.trim();
+  const byLabel = SIMPLE.find(([label]) => label.toLowerCase() === t.toLowerCase());
+  if (byLabel) return byLabel[1];
+  return VIEW_OPTIONS[t] || SCAN_OPTIONS[t] || presetData.schema.some((r) => `${r.section}.${r.key}` === t) ? t : null;
 }
 
 export async function render(root) {
@@ -85,7 +152,8 @@ export async function render(root) {
         <label class="wide">Symbols (custom list) <input name="symbols" placeholder="AAPL, MSFT, AZO …"></label>
         <p class="small muted wide" style="grid-column:1/-1" id="scan-preset-note"></p>
         <div class="wide" style="grid-column:1/-1">
-          <label>Add a filter (type to search every scan option and every rule, e.g. roic, current ratio, margin)
+          <label>Filters <select id="scan-pick-mode"><option value="simple">Simplified (the ones that matter)</option><option value="all">Every filter and rule</option></select></label>
+          <label>Add a filter (type to search, e.g. growth, roic, debt, chart)
             <input id="scan-pick" list="scan-pick-list" placeholder="search filters…" autocomplete="off" style="width:min(32rem,100%)"></label>
           <datalist id="scan-pick-list"></datalist>
           <div id="scan-added"></div>
@@ -109,14 +177,16 @@ export async function render(root) {
   added = {};
   const sel = $("#scan-preset", root);
   sel.innerHTML = Object.entries(presetData.presets).map(([k, p]) => `<option value="${k}">${esc(p.label)}</option>`).join("");
-  $("#scan-pick-list", root).innerHTML = pickerOptions();
+  const fillPicker = () => { $("#scan-pick-list", root).innerHTML = pickerOptions($("#scan-pick-mode", root).value === "simple"); };
+  fillPicker();
+  $("#scan-pick-mode", root).addEventListener("change", fillPicker);
   sel.addEventListener("change", () => drawPreset(root, sel.value, true));
   $("#scan-pick", root).addEventListener("change", (e) => {
-    const key = e.target.value.trim();
-    const known = SCAN_OPTIONS[key] || presetData.schema.some((r) => `${r.section}.${r.key}` === key);
-    if (!known) { if (key) toast(`No filter called “${key}”: pick one from the list`, "error"); return; }
+    const key = resolveKey(e.target.value);
+    if (!key) { if (e.target.value.trim()) toast(`No filter called “${e.target.value.trim()}”: pick one from the list`, "error"); return; }
     added[key] ||= { touched: false, value: null };
     e.target.value = "";
+    if (isView(key)) setView(root, key, VIEW_OPTIONS[key].def);
     drawAdded(root);
   });
   drawPreset(root, sel.value);
@@ -128,7 +198,7 @@ export async function render(root) {
       symbols: String(f.get("symbols") || "").split(/[\s,;]+/).filter(Boolean).map((s) => s.toUpperCase()) };
     for (const key of Object.keys(added)) {                       // only the filters the owner added; the rest = preset values
       const el = e.target.elements[key];
-      if (!el) continue;
+      if (!el || isView(key)) continue;                              // display filters are applied to the results, not sent
       if (SCAN_OPTIONS[key]) body[SCAN_OPTIONS[key].param] = SCAN_OPTIONS[key].send(el.value);
       else { const [sec, k] = key.split("."); (body.rules[sec] ||= {})[k] = el.value; }
     }
