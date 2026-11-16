@@ -83,9 +83,9 @@ def test_backfill_while_offline_and_gap_down(pid):
     from sqlalchemy import select                    # last check 10 days ago
     with store.session() as s:
         p = s.scalar(select(store.TranchePlan))
-        p.last_checked = datetime.now(timezone.utc) - timedelta(days=10)
+        p.last_checked = datetime.now(timezone.utc) - timedelta(days=21)
         s.commit()
-    days = pd.bdate_range(date.today() - timedelta(days=9), date.today() - timedelta(days=1))
+    days = pd.bdate_range(date.today() - timedelta(days=20), date.today() - timedelta(days=1))   # >= 6 bars any weekday
     bars = pd.DataFrame({"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0}, index=days)
     bars.iloc[2, :] = [97.0, 98.0, 94.0, 96.0]       # touches 95 intraday → fill at 95
     bars.iloc[5, :] = [82.0, 84.0, 80.0, 83.0]       # gaps below 85 → fill at the open 82
