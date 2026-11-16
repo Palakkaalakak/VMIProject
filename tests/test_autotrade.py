@@ -108,20 +108,24 @@ def test_sell_level_over_iv(pid):
     assert len(sells) == 1 and sells[0]["qty"] == pytest.approx(10)
 
 
-def test_plans_from_watchlist(pid):
+def test_plans_from_watchlist_never_calculates_levels(pid):
     with store.session() as s:
         w = store.Watchlist(name="W")
         s.add(w)
         s.flush()
-        s.add(store.WatchItem(watchlist_id=w.id, symbol="AAA", intrinsic_value=100, supports=[110, 95, 80]))
-        s.add(store.WatchItem(watchlist_id=w.id, symbol="BBB", intrinsic_value=50, supports=[]))
+        s.add(store.WatchItem(watchlist_id=w.id, symbol="AAA", intrinsic_value=100, iv_source="manual", supports=[110, 95, 80]))
+        s.add(store.WatchItem(watchlist_id=w.id, symbol="BBB", intrinsic_value=50, iv_source="auto", supports=[40]))
         s.commit()
         wid = w.id
     res = autotrade.plans_from_watchlist(pid, wid)
-    assert res["created"] == ["AAA"] and "BBB" in res["skipped"]
-    plan = autotrade.get_plans(pid)[0]
-    assert [l["price"] for l in plan["buy_levels"]] == [95, 80] and plan["buy_levels"][0]["fraction"] == 0.5
+    assert sorted(res["created"]) == ["AAA", "BBB"]
+    plans = {p["symbol"]: p for p in autotrade.get_plans(pid)}
+    assert plans["AAA"]["buy_levels"] == [] and plans["BBB"]["buy_levels"] == []        # supports are NOT turned into levels
+    assert plans["AAA"]["intrinsic_value"] == 100 and plans["BBB"]["intrinsic_value"] is None   # only a typed IV is copied
     assert res["settings"]["sizing_mode"] == "watchlist"
+    autotrade.update_settings(pid, {"auto_trade": True})
+    autotrade.run(pid, quote_fn=quote(50), history_fn=no_history, in_session=lambda: True)
+    assert not _trades(pid)                                                            # no levels, nothing happens
 
 
 def test_hand_entered_order_at_a_level_fills_it_so_automation_does_not_double_buy(pid):

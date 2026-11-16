@@ -174,28 +174,26 @@ def delete_plan(pid: int, symbol: str) -> None:
 
 
 def plans_from_watchlist(pid: int, wid: int, overwrite: bool = False) -> dict:
-    """One plan per watchlist stock: buy levels = its supports below its intrinsic value, equal fractions.
-    Links the watchlist to the portfolio (watchlist sizing) if none is linked yet."""
+    """One EMPTY plan per watchlist stock. Tranche levels are never calculated for you (owner, 2026-11-16): you set the buy
+    and sell levels yourself; a plan without levels does nothing. The IV is copied only when you typed it in the watchlist
+    (iv_source "manual"). Links the watchlist to the portfolio (watchlist sizing) if none is linked yet."""
     with store.session() as s:
         items = list(s.scalars(select(store.WatchItem).where(store.WatchItem.watchlist_id == wid)))
         existing = {p.symbol for p in s.scalars(select(store.TranchePlan).where(store.TranchePlan.portfolio_id == pid))}
-    cfg = settings(pid)
-    if not cfg.get("watchlist_id"):
+    if not settings(pid).get("watchlist_id"):
         update_settings(pid, {"watchlist_id": wid})         # sizing follows the watchlist unless a mode was chosen
     made, skipped = [], {}
     for it in items:
         if it.symbol in existing and not overwrite:
             skipped[it.symbol] = "plan exists"
             continue
-        levels = sorted({float(l) for l in (it.supports or []) if not it.intrinsic_value or float(l) < it.intrinsic_value},
-                        reverse=True)
-        if not levels:
-            skipped[it.symbol] = "no support levels below intrinsic value"
-            continue
-        upsert_plan(pid, it.symbol, buy_levels=[{"price": l} for l in levels], intrinsic_value=it.intrinsic_value,
-                    source="watchlist", status="active")
+        fields = {"source": "watchlist", "status": "active", "buy_levels": [], "sell_levels": []}
+        if it.iv_source == "manual" and it.intrinsic_value:
+            fields["intrinsic_value"] = it.intrinsic_value
+        upsert_plan(pid, it.symbol, **fields)
         made.append(it.symbol)
-    return {"created": made, "skipped": skipped, "settings": settings(pid)}
+    return {"created": made, "skipped": skipped, "settings": settings(pid),
+            "note": "Plans are empty: set the tranche levels yourself."}
 
 
 def match_manual_fill(pid: int, trade_id: int) -> str | None:

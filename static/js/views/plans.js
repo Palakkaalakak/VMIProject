@@ -37,7 +37,7 @@ async function draw(root, id) {
         Backfill uses daily bars: it fills at the level, or at the open if the price gapped through it, dated that day.</p></section>
     <section class="card"><div class="inline"><h3>Plans (${d.plans.length})</h3>
       <button id="pl-new">+ Plan</button>
-      <select id="pl-wl"><option value="">From watchlist…</option>${wls.map((w) => `<option value="${w.id}">${esc(w.name)}</option>`).join("")}</select>
+      <select id="pl-wl"><option value="">Add plans for a watchlist (you set the levels)…</option>${wls.map((w) => `<option value="${w.id}">${esc(w.name)}</option>`).join("")}</select>
       <button id="pl-run" class="secondary">Run now</button></div><div id="pl-table"></div></section>`;
   $("#pl-table", root).appendChild(table([
     { key: "symbol", label: "Stock", render: (r) => `<a href="#/analysis/${esc(r.symbol)}"><b>${esc(r.symbol)}</b></a>` },
@@ -48,7 +48,7 @@ async function draw(root, id) {
     { key: "sell", label: "Sell levels", render: (r) => levels(r.sell_levels, "sell") },
     { key: "last_checked", label: "Checked", render: (r) => esc(String(r.last_checked || "").slice(0, 16).replace("T", " ")) },
     { key: "_a", label: "", render: () => `<button class="small secondary" data-action="edit">Edit</button> <button class="small secondary" data-action="hist">History</button> <button class="small danger" data-action="del">Delete</button>` },
-  ], d.plans, { empty: "No plans: add one, or build them from a watchlist's support levels.", actions: {
+  ], d.plans, { empty: "No plans: add one, or add empty plans for a watchlist's stocks and set the levels yourself.", actions: {
     edit: (r) => editModal(root, id, r), hist: (r) => modal(`${r.symbol} history`, `<pre class="small">${esc(JSON.stringify(r.history, null, 1))}</pre>`),
     del: (r, b) => confirm(`Delete the plan for ${r.symbol}?`) && run(b, async () => { await api.deletePlan(id, r.symbol); draw(root, id); }) } }));
   $("#pl-set", root).addEventListener("submit", (e) => {

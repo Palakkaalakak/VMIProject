@@ -21,7 +21,12 @@ const FIELDS = [
   { id: "min_yield", label: "Min dividend yield %", kind: "min", field: "dividend_yield", parse: pctOf },
   { id: "min_cap", label: "Min market cap ($B)", kind: "min", field: "market_cap", parse: (v) => (num(v) == null ? null : num(v) * 1e9) },
   { id: "max_beta", label: "Max beta", kind: "max", field: "beta", parse: num },
+  { id: "q", label: "Search name / ticker / industry", kind: "text" },
   { id: "sector", label: "Sector", kind: "pick", field: "sector" },
+  { id: "industry", label: "Industry (niche)", kind: "pick", field: "industry" },
+  { id: "max_industry_rank", label: "Top N by market cap within its industry (1 = leader)", kind: "max", field: "industry_rank", parse: num },
+  { id: "min_industry_share", label: "Min share of the industry's market cap %", kind: "min", field: "industry_share", parse: pctOf },
+  { id: "min_industry_n", label: "Industry has at least N companies in the results", kind: "min", field: "industry_n", parse: num },
   { id: "method", label: "Valuation method", kind: "pick", field: "method" },
   { id: "moat", label: "Moat", kind: "pick", field: "moat" },
   { id: "style", label: "Style", kind: "pick", field: "style" },
@@ -42,6 +47,7 @@ const tri = (id, label) => `<label>${esc(label)} <select name="${id}"><option va
 export function filterPanel(rows) {
   const parts = FIELDS.map((f) => {
     if (f.kind === "flag") return tri(f.id, f.label);
+    if (f.kind === "text") return `<label class="wide">${esc(f.label)} <input name="${f.id}" placeholder="e.g. payment, semiconductor, WST"></label>`;
     if (f.kind === "pick") return `<label>${esc(f.label)} <select name="${f.id}"><option value="">any</option>${uniq(rows, f.field).map((o) => `<option>${esc(o)}</option>`).join("")}</select></label>`;
     return `<label>${esc(f.label)} <input name="${f.id}" type="number" step="any" style="width:6rem"></label>`;
   });
@@ -65,6 +71,7 @@ export function applyFilters(rows, f) {
     for (const d of FIELDS) {
       const raw = f[d.id];
       if (raw === undefined) continue;
+      if (d.kind === "text") { if (!`${r.symbol} ${r.name} ${r.industry} ${r.sector}`.toLowerCase().includes(raw.toLowerCase())) return false; continue; }
       const v = r[d.field];
       if (d.kind === "flag") { if (Boolean(d.truthy ? v : v === true) !== (raw === "yes")) return false; }
       else if (d.kind === "pick") { if (String(v ?? "") !== raw) return false; }
@@ -83,4 +90,18 @@ export const save = (f) => { try { localStorage.setItem(STORE, JSON.stringify(f)
 
 export function setForm(form, f) {
   for (const el of form.elements) if (el.name) el.value = f[el.name] ?? "";
+}
+
+/** Industry leadership among ALL saved results (call once after loading, before filtering): industry_rank by market cap,
+ *  industry_n, industry_share of the industry's total market cap. Lets you narrow to the dominant force of a niche. */
+export function addIndustryStats(rows) {
+  const by = {};
+  for (const r of rows) (by[r.industry || "?"] ||= []).push(r);
+  for (const g of Object.values(by)) {
+    const total = g.reduce((a, r) => a + (r.market_cap || 0), 0);
+    [...g].sort((a, b) => (b.market_cap || 0) - (a.market_cap || 0)).forEach((r, i) => {
+      r.industry_rank = i + 1; r.industry_n = g.length; r.industry_share = total ? (r.market_cap || 0) / total : null;
+    });
+  }
+  return rows;
 }

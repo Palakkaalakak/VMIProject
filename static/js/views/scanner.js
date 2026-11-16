@@ -2,7 +2,7 @@
 import { api } from "../api.js";
 import { $, esc, fmt, badge, loading, run, table, toast, signClass } from "../ui.js";
 import { ruleGroups } from "../rule_fields.js";
-import { applyFilters, filterPanel, loadSaved, readFilters, save, setForm } from "./scanner_filters.js";
+import { addIndustryStats, applyFilters, filterPanel, loadSaved, readFilters, save, setForm } from "./scanner_filters.js";
 
 let poll = null;
 
@@ -55,6 +55,7 @@ export async function render(root) {
       <div class="toolbar inline">
         <h3>Results</h3>
         <button id="scan-dropped" class="secondary">Why dropped?</button>
+        <button id="scan-save" class="secondary">Save shown list as a watchlist</button>
       </div>
       <div id="scan-filter-box"></div>
       <div id="scan-results">${loading()}</div>
@@ -89,6 +90,15 @@ export async function render(root) {
     };
     run(e.submitter, async () => { await api.scanStart(body); toast(`Scan started (${presetData.presets[body.preset].label}${Object.keys(rules).length ? ", with your rule edits" : ""})`, "ok"); startPolling(root); });
   });
+  $("#scan-save", root).addEventListener("click", (e) => run(e.target, async () => {
+    const rows = applyFilters(allRows, readFilters($("#scan-filter-box form", root)));
+    if (!rows.length) return toast("Nothing is shown", "error");
+    const name = prompt(`Watchlist name (${rows.length} stocks currently shown; all scan results stay saved)`, "Scan " + new Date().toISOString().slice(0, 10));
+    if (!name) return;
+    const w = await api.createWatchlist(name);
+    await api.importList(w.id, rows.map((r) => r.symbol).join(", "), false);
+    toast(`Saved ${rows.length} stocks to “${name}”`, "ok");
+  }));
   $("#scan-dropped", root).addEventListener("click", (e) => run(e.target, () => showDropped(root)));
   startPolling(root);
   loadResults(root);
@@ -119,7 +129,7 @@ let allRows = [];
 async function loadResults(root) {
   const box = $("#scan-results", root);
   try {
-    allRows = (await api.scanResults({})).results || [];
+    allRows = addIndustryStats((await api.scanResults({})).results || []);
     const fb = $("#scan-filter-box", root);
     const wasOpen = fb.querySelector("details")?.open;
     fb.innerHTML = filterPanel(allRows);
@@ -148,6 +158,7 @@ function drawRows(root) {
 const COLUMNS = [
   { key: "symbol", label: "Ticker", render: (r) => `<b>${esc(r.symbol)}</b>${r.pinned ? ` <span class="badge na" title="${esc(r.pinned)}">judged</span>` : ""}<div class="small muted">${esc(r.name || "")}</div>` },
   { key: "sector", label: "Sector" },
+  { key: "industry", label: "Industry", render: (r) => `${esc(r.industry || "")}<div class="small muted">#${r.industry_rank ?? "—"} of ${r.industry_n ?? "—"} · ${fmt.pct(r.industry_share, 0)} of its cap</div>` },
   { key: "price", label: "Price", cls: "num", render: (r) => fmt.money(r.price) },
   { key: "intrinsic_value", label: "IV", cls: "num", render: (r) => `${fmt.money(r.intrinsic_value)}${r.iv_low_confidence ? ` <span class="badge na" title="${esc(r.iv_note)}">IV may be high</span>` : ""}` },
   { key: "margin_of_safety", label: "MOS", cls: "num", render: (r) => `<span class="${signClass(r.margin_of_safety)}">${fmt.pct(r.margin_of_safety)}</span>` },

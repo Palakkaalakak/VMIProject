@@ -53,6 +53,18 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - Narrowing scan results by industry; tranche levels are never auto-calculated
+
+- Scanner results stay saved in full; the filter panel now also has search (name/ticker/industry), Industry (niche), "top N by
+  market cap within its industry" (1 = the leader), share of the industry's market cap, industry size, plus an Industry column
+  (rank, count, share). Button "Save shown list as a watchlist". The industry stats are computed among ALL saved results, so
+  they describe the saved scan only (not the whole market). "Market" (country/exchange) is not in the scan rows: not added.
+- Owner: tranche levels are never auto-calculated. "Add plans for a watchlist" now creates EMPTY plans (levels are set by hand;
+  only a typed IV is copied); a plan without levels does nothing. Test updated.
+- Answer to "what is WST": West Pharmaceutical Services (Medical Instruments & Supplies: injectable drug containment such as
+  stoppers and seals). Not a UNH (Healthcare Plans) competitor, not named in Adam's document or any config: it is only in the
+  scan output because it is an S&P 500 stock that reached the deep stage (4 of 7 steps, moat unreviewed, category growth).
+
 ### 2026-11-16 - Scanner presets and a full per-scan rule editor
 
 - Scanner page: Preset selector (Current settings, Adam: great business, Adam: excellent ROE+ROIC >= 15%, Adam: speculative growth,
