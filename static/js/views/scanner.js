@@ -26,6 +26,7 @@ function drawPreset(root, id) {
   set("min_market_cap", pm.min_market_cap !== undefined ? pm.min_market_cap / 1e9 : 2);
   set("require_ten_year_uptrend", pm.require_ten_year_uptrend ?? true);
   set("include_speculative", pm.include_speculative ?? true);
+  set("require_steps", !!(pm.require_steps && pm.require_steps.length));
   $("#scan-rules", root).innerHTML = ruleGroups(presetData.schema, baseRules(preset), OPEN);
   root._base = baseRules(preset);
 }
@@ -44,6 +45,7 @@ export async function render(root) {
         <label>10y chart: min total return <input name="ten_year_min_return" type="number" step="0.1" value="0.5"></label>
         <label>Deep-analysis limit <input name="deep_limit" type="number" value="400"></label>
         <label class="check"><input type="checkbox" name="require_ten_year_uptrend" checked> require 10y uptrend</label>
+        <label class="check"><input type="checkbox" name="require_steps"> drop stocks failing steps 1, 2, 4, 5 (the checks the scan can verify from data)</label>
         <label class="check"><input type="checkbox" name="include_speculative" checked> keep speculative growth (50%+ revenue growth)</label>
         <details class="wide" style="grid-column:1/-1"><summary><b>Every rule for this scan</b> <span class="muted small">(edit any; applies to this scan only, nothing is saved to Settings; changed values are sent as overrides)</span></summary>
           <div id="scan-rules"></div></details>
@@ -87,6 +89,7 @@ export async function render(root) {
       deep_limit: parseInt(f.get("deep_limit"), 10),
       require_ten_year_uptrend: f.get("require_ten_year_uptrend") === "on",
       include_speculative: f.get("include_speculative") === "on",
+      require_steps: f.get("require_steps") === "on" ? [1, 2, 4, 5] : [],
     };
     run(e.submitter, async () => { await api.scanStart(body); toast(`Scan started (${presetData.presets[body.preset].label}${Object.keys(rules).length ? ", with your rule edits" : ""})`, "ok"); startPolling(root); });
   });

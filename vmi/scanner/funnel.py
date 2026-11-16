@@ -43,6 +43,7 @@ class ScanParams:
     min_roe: float | None = None         # None = the Step-4 rule profitability.min_roe at run time
     require_ten_year_uptrend: bool = True
     ten_year_min_return: float = 0.5     # 10-year monthly chart: total return must exceed this (and the slope be up)
+    require_steps: list = field(default_factory=list)   # e.g. [1, 2, 4, 5]: drop every stock failing one of these steps
     preset: str = "current"              # which preset the owner chose (recorded with the run)
     rules: dict = field(default_factory=dict)   # scan-only rule overrides {section: {key: value}} (nothing is saved)
     deep_limit: int = 400                # safety cap on deep analyses per run
@@ -224,6 +225,19 @@ def stage_long_term_chart(cands: list[Candidate], p: ScanParams) -> list[Candida
     return out
 
 
+def failed_required_steps(rep: dict, required: list) -> str | None:
+    """"Step 1: earnings_consistent, net_margin_stable; Step 4: roic" for every required step that failed, else None.
+    Steps the scan can check 100% from data are 1, 2, 4 and 5 (3 is a judgement, 6 and 7 are price and chart)."""
+    if not required:
+        return None
+    bad = []
+    for st in rep.get("steps", []):
+        if st["step"] in [int(x) for x in required] and not st["passed"]:
+            names = [c["name"] for c in st.get("checks", []) if c.get("passed") is False]
+            bad.append(f"Step {st['step']}: " + (", ".join(names) or "failed"))
+    return "; ".join(bad) or None
+
+
 def stage_deep(cands: list[Candidate], p: ScanParams) -> list[Candidate]:
     from vmi.analysis.pipeline import analyse_ticker
 
@@ -247,10 +261,15 @@ def stage_deep(cands: list[Candidate], p: ScanParams) -> list[Candidate]:
                 STATE.message = f"deep analysis error: {exc}"
                 continue
             STATE.message = f"deep analysis {done}/{len(todo)} — {c.symbol}"
+            why = failed_required_steps(rep, p.require_steps)
+            if why:
+                STATE.dropped[c.symbol] = why
+                continue
             results.append(compact(rep, c))
     results.sort(key=lambda r: (not r["great_business"], -(r.get("margin_of_safety") or -9)))
     STATE.results = results
-    return [c for c in todo]
+    kept = {r['symbol'] for r in results}
+    return [c for c in todo if c.symbol in kept]
 
 
 STAGES: list[tuple[str, Callable[[list[Candidate], ScanParams], list[Candidate]]]] = [

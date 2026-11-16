@@ -53,6 +53,18 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - Watchlist re-scan drops failures; normalised (average) mode for Step 1/4/5 numbers
+
+- Re-running the VMI scan on a watchlist (`POST /api/watchlists/{id}/scan`) now drops every stock failing a step the scan can verify
+  from data: 1, 2, 4, 5 (3 is judged by hand, 6/7 are price and chart). Reasons are listed under "Why dropped?" ("Step 1:
+  earnings_consistent, net_margin_stable"). The watchlist itself is NOT edited (nothing is deleted automatically). Same option on the
+  scanner page ("drop stocks failing steps 1, 2, 4, 5", on in the Adam presets): `ScanParams.require_steps`.
+- New rule section `normalise` (Settings page, also editable per scan): `enabled` (default off) and `years` (default 3). When on, the
+  "current" value of the Step 1 margin tests, Step 4 ROE/ROIC and Step 5 current ratio, debt/EBITDA, debt servicing and interest
+  coverage is the average of the last N fiscal years instead of the latest year; each check's note says so. Not covered (said
+  plainly): analyst growth estimates (Step 2), the cheap scanner pre-filter ROE (one calendar year), valuation base cash flow (has its
+  own jump/plunge normalisation) and the technical steps. Tests: tests/test_normalise.py; full suite 167 passing.
+
 ### 2026-11-16 - Watchlist stats; why a stock failing steps 1-5 can sit in a growth list
 
 - Watchlists page: "Watchlist stats" (`GET /api/watchlists/{id}/stats`, `vmi/watchlist/stats.py`): average of the LOWEST / AVERAGE /

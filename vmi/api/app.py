@@ -254,6 +254,7 @@ class ScanIn(BaseModel):
     deep_limit: int = 400
     workers: int = 4
     include_speculative: bool | None = None
+    require_steps: list[int] | None = None   # drop stocks failing these steps (1, 2, 4, 5 are fully data-checkable)
     preset: str = "current"                  # see vmi/scanner/presets.py
     rules: dict = Field(default_factory=dict)  # scan-only rule overrides {section: {key: value}}
 
@@ -734,7 +735,9 @@ def wl_scan(wid: int):
     from vmi.scanner import funnel
     from vmi.watchlist import service
     syms = [i["symbol"] for i in service.get(wid)["items"]]
-    return funnel.start_background({"universe": "list", "symbols": syms, "require_ten_year_uptrend": False})
+    # a re-run drops every stock failing a step the scan can verify from data (1, 2, 4, 5); 3 is judged by hand, 6/7 are price/chart
+    return funnel.start_background({"universe": "list", "symbols": syms, "require_ten_year_uptrend": False,
+                                    "require_steps": [1, 2, 4, 5]})
 
 
 alr = APIRouter(prefix="/api/alerts", tags=["alerts"], route_class=SafeRoute)

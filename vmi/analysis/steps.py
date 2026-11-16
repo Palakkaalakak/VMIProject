@@ -61,11 +61,32 @@ def _ratio_vals(f: Fundamentals, name: str, n: int = 6) -> list[float]:
     return [p.value for p in f.ratios.get(name, []) if p.end != "TTM"][-n:]
 
 
-def _ratio_now(f: Fundamentals, name: str) -> float | None:
+def _ratio_now(f: Fundamentals, name: str, rules: VMIRules = RULES) -> float | None:
+    """Latest ratio, or (rules.normalise) the average of the last N fiscal years' ratios."""
     pts = f.ratios.get(name, [])
     if not pts:
         return None
+    n = rules.normalise
+    if n.enabled:
+        vals = _ratio_vals(f, name, n.years)
+        if vals:
+            return mean(vals)
     return pts[-1].value
+
+
+def _level(f: Fundamentals, concept: str, rules: VMIRules = RULES, balance: bool = False) -> float | None:
+    """Latest value of a statement line, or (rules.normalise) its average over the last N fiscal years."""
+    n = rules.normalise
+    if n.enabled:
+        vals = f.series(concept)[-n.years:]
+        if vals:
+            return mean(vals)
+    return f.latest.get(concept) if balance else f.last(concept)
+
+
+def _norm_note(rules: VMIRules) -> str:
+    n = rules.normalise
+    return f"normalised: average of the last {n.years} fiscal years" if n.enabled else ""
 
 
 # ------------------------------------------------------------------------------------------ STEP 1
@@ -94,7 +115,7 @@ def step1_track_record(f: Fundamentals, biz: BizType, rules: VMIRules = RULES) -
             checks.append(Check(f"{label}_stable", None, None, "", "not reported (n/a for this business)"))
             continue
         avg5 = mean(m[-6:-1]) or m[-1]
-        cur = m[-1]
+        cur = mean(m[-rules.normalise.years:]) if rules.normalise.enabled else m[-1]
         streak = falling_streak(m)
         ok = streak < r.reject_if_margin_falls_n_years - 1 and (avg5 <= 0 or cur >= avg5 * (1 - r.margin_tolerance))
         checks.append(Check(f"{label}_stable", ok, round(cur, 4), f"≥ 5y avg {avg5:.1%} (−{r.margin_tolerance:.0%} tol)",
@@ -258,11 +279,11 @@ def step4_profitability(f: Fundamentals, biz: BizType, rules: VMIRules = RULES) 
     p = rules.profitability
     checks: list[Check] = []
     roe_hist = _ratio_vals(f, "roe")
-    roe = _ratio_now(f, "roe")
+    roe = _ratio_now(f, "roe", rules)
     if roe is not None:
         avg = mean(roe_hist[:-1]) if len(roe_hist) > 1 else roe
         checks.append(Check("roe", roe >= p.min_roe, round(roe, 4), f"≥{p.min_roe:.0%} (>15% exceptional)",
-                            f"5y avg {avg:.1%}" if avg is not None else ""))
+                            "; ".join(x for x in (f"5y avg {avg:.1%}" if avg is not None else "", _norm_note(rules)) if x)))
         if len(roe_hist) >= 4:
             tr = trend(roe_hist, 3, 3, require_positive_last=False)
             declining = falling_streak(roe_hist) >= 3
@@ -276,10 +297,10 @@ def step4_profitability(f: Fundamentals, biz: BizType, rules: VMIRules = RULES) 
         else:
             checks.append(Check("roe", False, None, f"≥{p.min_roe:.0%}", "ROE unavailable"))
     skip_roic = biz in (BizType.BANK, BizType.INSURANCE, BizType.UTILITY)
-    roic = _ratio_now(f, "roic")
+    roic = _ratio_now(f, "roic", rules)
     checks.append(Check("roic", None if skip_roic else (roic is not None and roic >= p.min_roic),
                         round(roic, 4) if roic is not None else None, f"≥{p.min_roic:.0%}",
-                        f"n/a for {biz.value}" if skip_roic else ""))
+                        f"n/a for {biz.value}" if skip_roic else _norm_note(rules)))
     # revenue growing faster than receivables
     rev, ar = f.series("revenue"), f.series("receivables")
     if len(rev) >= 4 and len(ar) >= 4 and rev[-4] > 0 and ar[-4] > 0:
@@ -318,35 +339,36 @@ def step5_debt(f: Fundamentals, biz: BizType, est: Estimates | None = None, rule
         return StepResult(5, "Conservative debt", True, 1.0, [],
                           ["Debt ratios do not apply to insurance/financial companies (Adam's Step 5 exception) — "
                            "judge the balance sheet qualitatively (reserves, leverage vs peers)."])
-    cr = _ratio_now(f, "current_ratio")
-    ca, cl = f.latest.get("current_assets"), f.latest.get("current_liabilities")
+    cr = _ratio_now(f, "current_ratio", rules)
+    ca, cl = _level(f, "current_assets", rules, True), _level(f, "current_liabilities", rules, True)
     if cr is None and ca and cl:
         cr = ca / cl
     deferred_ok = False
     if cr is not None and cr < d.min_current_ratio:
         # subscription / upfront-collection exception: big deferred revenue or very strong FCF
-        cfo, cl_v = f.last("cfo"), cl or 0
+        cfo, cl_v = _level(f, "cfo", rules), cl or 0
         deferred_ok = bool(cfo and cl_v and cfo > 0.5 * cl_v)
     checks.append(Check("current_ratio", None if cr is None else (cr > d.min_current_ratio or deferred_ok),
                         round(cr, 3) if cr else None, f">{d.min_current_ratio}",
-                        "below 1 but upfront-collection/strong CFO exception" if deferred_ok else ""))
-    de = _ratio_now(f, "debt_ebitda")
-    debt = abs(f.latest.get("lt_debt", 0.0)) + abs(f.latest.get("st_debt", 0.0))
-    ebitda = f.last("ebitda")
+                        "; ".join(x for x in ("below 1 but upfront-collection/strong CFO exception" if deferred_ok else "",
+                                              _norm_note(rules)) if x)))
+    de = _ratio_now(f, "debt_ebitda", rules)
+    debt = abs(_level(f, "lt_debt", rules, True) or 0.0) + abs(_level(f, "st_debt", rules, True) or 0.0)
+    ebitda = _level(f, "ebitda", rules)
     if de is None and ebitda and ebitda > 0:
         de = debt / ebitda
     if debt == 0:
         de = 0.0
     checks.append(Check("debt_to_ebitda", None if de is None else de <= d.max_debt_to_ebitda,
                         round(de, 3) if de is not None else None, f"≤{d.max_debt_to_ebitda}"))
-    interest, cfo = f.last("interest_expense"), f.last("cfo")
+    interest, cfo = _level(f, "interest_expense", rules), _level(f, "cfo", rules)
     interest = abs(interest) if interest else 0.0
     if cfo and cfo > 0:
         dsr = interest / cfo
         checks.append(Check("debt_servicing", dsr < d.max_debt_servicing, round(dsr, 4), f"<{d.max_debt_servicing:.0%}"))
     else:
         checks.append(Check("debt_servicing", None if not interest else False, None, "<30%", "CFO not positive"))
-    oi = f.last("operating_income")
+    oi = _level(f, "operating_income", rules)
     if interest > 0 and oi is not None:
         icr = oi / interest
         checks.append(Check("interest_coverage", icr > d.min_interest_coverage, round(icr, 2), f">{d.min_interest_coverage} (>5 very safe)"))
@@ -355,6 +377,8 @@ def step5_debt(f: Fundamentals, biz: BizType, est: Estimates | None = None, rule
     core = [c for c in checks if c.name in ("current_ratio", "debt_to_ebitda", "debt_servicing") and c.passed is not None]
     res = _finish(5, "Conservative debt", checks, [])
     res.passed = bool(core) and sum(c.passed for c in core) >= min(d.min_core_ratios_passed, len(core))
+    if rules.normalise.enabled:
+        res.notes.append(_norm_note(rules).capitalize() + " (current ratio, debt/EBITDA, debt servicing, interest coverage)")
     res.notes.append(f"{sum(c.passed for c in core)}/{len(core)} core ratios pass (≥{d.min_core_ratios_passed} required: "
                      "one weak ratio is acceptable when the others are strong)")
     return res

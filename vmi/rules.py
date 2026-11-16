@@ -216,6 +216,14 @@ class ExecutionRules:
 
 
 @dataclass(frozen=True)
+class NormaliseRules:  # smoothing short-term distortions in the Step 1, 4 and 5 numbers
+    # When enabled, the "current" value of each Step 1 margin test, Step 4 ratio (ROE, ROIC) and Step 5 ratio (current ratio,
+    # debt/EBITDA, debt servicing, interest coverage) is the AVERAGE of the last `years` fiscal years instead of the latest year.
+    enabled: bool = False
+    years: int = 3
+
+
+@dataclass(frozen=True)
 class VMIRules:
     track: TrackRecordRules = field(default_factory=TrackRecordRules)
     speculative: SpeculativeRules = field(default_factory=SpeculativeRules)
@@ -223,6 +231,7 @@ class VMIRules:
     moat: MoatRules = field(default_factory=MoatRules)
     profitability: ProfitabilityRules = field(default_factory=ProfitabilityRules)
     debt: DebtRules = field(default_factory=DebtRules)
+    normalise: NormaliseRules = field(default_factory=NormaliseRules)
     valuation: ValuationRules = field(default_factory=ValuationRules)
     technical: TechnicalRules = field(default_factory=TechnicalRules)
     portfolio: PortfolioRules = field(default_factory=PortfolioRules)

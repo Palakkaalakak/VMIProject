@@ -93,6 +93,8 @@ SOURCES: dict[str, tuple[str, str]] = {
     "valuation.min_discount_rate": (ADAM, "5.8% is the lowest rate in the table (l.4391)"),
     "valuation.max_discount_rate": (MODEL, "guard against extrapolating the table for very high betas"),
     "valuation.doomsday_growth_factor": (ADAM, "growth halves after year 5 (l.4472)"),
+    "normalise.enabled": (OWNER, "owner (2026-11-16): option to use average historical values instead of the latest, against short-term distortions"),
+    "normalise.years": (OWNER, "owner: how many fiscal years are averaged when normalising (3 by default; our choice of number)"),
     "valuation.iv_flag_enabled": (OWNER, "owner asked for an on/off switch for the 'IV may be high' warning (2026-11-07)"),
     "valuation.iv_flag_ratio": (APPROVED, "our heuristic, not Adam: selected IV >= 1.3x the lowest credible alternative (Log 2026-11-07)"),
     "valuation.iv_flag_ni_jump": (INTERP, "net income TTM > 1.5x last FY = abnormal (Adam l.2502 idea), not used as a comparator"),

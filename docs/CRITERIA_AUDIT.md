@@ -58,6 +58,8 @@ earlier values I changed without being asked; they are restored and marked for t
 | `debt.max_reit_gearing` | 0.45 | Adam states it | REITs: gearing ≤45% (checklist) |
 | `debt.safe_reit_gearing` | 0.4 | Adam states it | ideally <40% (checklist) |
 | `debt.min_core_ratios_passed` | 2 | Adam states it | 'Passing 2 out of 3 is acceptable' (l.4026) |
+| `normalise.enabled` | False | owner's rule/spec | owner (2026-11-16): option to use average historical values instead of the latest, against short-term distortions |
+| `normalise.years` | 3 | owner's rule/spec | owner: how many fiscal years are averaged when normalising (3 by default; our choice of number) |
 | `valuation.horizon_years` | 20 | Adam states it | 20-year DCF (years 1–5, 6–10, 11–20) |
 | `valuation.peg_attractive` | 1.5 | Adam states it | PEG target ≤1.5 (l.5177) |
 | `valuation.peg_screen` | 2.0 | interpretation of Adam's words | PEG above 1.5 'getting expensive' (l.1285); 2.0 is our cut-off for 'expensive' |
