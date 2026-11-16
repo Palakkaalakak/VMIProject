@@ -77,7 +77,7 @@ def watchlist_size(wid: int | None) -> int | None:
     if not wid:
         return None
     with store.session() as s:
-        n = len(list(s.scalars(select(store.WatchItem).where(store.WatchItem.watchlist_id == wid))))
+        n = len(list(s.scalars(select(store.WatchItem).where(store.WatchItem.watchlist_id == wid, store.WatchItem.stage != "review"))))
     return n or None
 
 
@@ -178,7 +178,7 @@ def plans_from_watchlist(pid: int, wid: int, overwrite: bool = False) -> dict:
     and sell levels yourself; a plan without levels does nothing. The IV is copied only when you typed it in the watchlist
     (iv_source "manual"). Links the watchlist to the portfolio (watchlist sizing) if none is linked yet."""
     with store.session() as s:
-        items = list(s.scalars(select(store.WatchItem).where(store.WatchItem.watchlist_id == wid)))
+        items = list(s.scalars(select(store.WatchItem).where(store.WatchItem.watchlist_id == wid, store.WatchItem.stage != "review")))
         existing = {p.symbol for p in s.scalars(select(store.TranchePlan).where(store.TranchePlan.portfolio_id == pid))}
     if not settings(pid).get("watchlist_id"):
         update_settings(pid, {"watchlist_id": wid})         # sizing follows the watchlist unless a mode was chosen

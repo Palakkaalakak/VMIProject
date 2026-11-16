@@ -54,7 +54,8 @@ def list_all() -> list[dict]:
     with store.session() as s:
         out = []
         for w in s.scalars(select(store.Watchlist).order_by(store.Watchlist.id)):
-            out.append({**store.to_dict(w), "count": len(w.items)})
+            out.append({**store.to_dict(w), "count": sum(1 for i in w.items if i.stage != "review"),
+                        "review_count": sum(1 for i in w.items if i.stage == "review")})
         return out
 
 
@@ -76,7 +77,7 @@ def delete(wid: int) -> None:
 
 
 def upsert_item(wid: int, symbol: str, intrinsic_value: float | None = None, supports: list[float] | None = None,
-                notes: str | None = None, iv_source: str | None = None) -> dict:
+                notes: str | None = None, iv_source: str | None = None, stage: str | None = None) -> dict:
     sym = _clean_symbol(symbol)
     if not sym:
         raise ValueError(f"bad symbol '{symbol}'")
@@ -93,8 +94,29 @@ def upsert_item(wid: int, symbol: str, intrinsic_value: float | None = None, sup
             it.triggered = []
         if notes is not None:
             it.notes = notes
+        if stage is not None:
+            if stage not in ("watching", "review"):
+                raise ValueError("stage must be 'watching' or 'review'")
+            it.stage = stage
         s.commit()
         return store.to_dict(it)
+
+
+def add_to_review(wid: int, symbol: str, notes: str = "") -> dict:
+    """Candidate for a full review: lands in the watchlist's review queue unless the stock is already in the list (any stage)."""
+    sym = _clean_symbol(symbol)
+    if not sym:
+        raise ValueError(f"bad symbol '{symbol}'")
+    with store.session() as s:
+        have = s.scalar(select(store.WatchItem).where(store.WatchItem.watchlist_id == wid, store.WatchItem.symbol == sym))
+        if have is not None:
+            return {**store.to_dict(have), "already": have.stage}
+    return {**upsert_item(wid, sym, notes=notes, stage="review"), "already": None}
+
+
+def promote(wid: int, symbol: str) -> dict:
+    """Review done: the stock joins the watchlist proper."""
+    return upsert_item(wid, symbol, stage="watching")
 
 
 def remove_item(wid: int, symbol: str) -> None:
@@ -199,7 +221,7 @@ def check_all() -> list[dict]:
     """Refresh prices for every watched symbol and create alerts for newly triggered conditions."""
     new_alerts: list[dict] = []
     with store.session() as s:
-        items = list(s.scalars(select(store.WatchItem)))
+        items = [i for i in s.scalars(select(store.WatchItem)) if i.stage != "review"]
         symbols = sorted({i.symbol for i in items})
         prices: dict[str, float | None] = {}
         for sym in symbols:

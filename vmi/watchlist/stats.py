@@ -82,7 +82,7 @@ def watchlist_stats(wid: int, threshold: float = 0.15, workers: int = 4) -> dict
         w = s.get(store.Watchlist, wid)
         if not w:
             raise ValueError("watchlist not found")
-        symbols = sorted({i.symbol for i in w.items})
+        symbols = sorted({i.symbol for i in w.items if i.stage != "review"})
         name = w.name
     with ThreadPoolExecutor(max_workers=workers) as ex:
         rows = list(ex.map(_row, symbols))

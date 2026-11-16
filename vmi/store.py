@@ -177,6 +177,9 @@ class WatchItem(Base):
     last_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     last_checked: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     triggered: Mapped[list] = mapped_column(JSON, default=list)            # levels already alerted
+    # "watching" = in the watchlist; "review" = a candidate that still needs a full review (not counted in sizing, plans,
+    # stats or price alerts until it is promoted)
+    stage: Mapped[str] = mapped_column(String(10), default="watching")
     watchlist: Mapped[Watchlist] = relationship(back_populates="items")
 
 

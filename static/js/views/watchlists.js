@@ -9,7 +9,7 @@ export async function render(root, params = {}) {
   const sel = params.id ? +params.id : lists[0]?.id;
   root.innerHTML = `
     <section class="card">
-      <div class="tabs">${lists.map((w) => `<a class="tab ${w.id === sel ? "active" : ""}" href="#/watchlists/${w.id}">${esc(w.name)} <span class="muted">${w.count}</span></a>`).join("")}
+      <div class="tabs">${lists.map((w) => `<a class="tab ${w.id === sel ? "active" : ""}" href="#/watchlists/${w.id}">${esc(w.name)} <span class="muted">${w.count}</span>${w.review_count ? ` <span class="badge" title="stocks in the review queue">${w.review_count} to review</span>` : ""}</a>`).join("")}
         <button id="wl-new" class="secondary">+ New</button></div>
     </section>
     <div id="wl-detail">${sel ? "" : `<div class="card muted">Create a watchlist to start tracking stocks.</div>`}</div>`;
@@ -41,8 +41,18 @@ async function detail(box, id) {
       </form>
     </section>
     <section id="wl-stats-box"></section>
-    <section class="card"><div id="wl-items"></div></section>`;
-  $("#wl-items", box).appendChild(table(COLS, w.items || [], {
+    <section class="card"><div id="wl-items"></div></section>
+    <section class="card" id="wl-review-card" ${(w.items || []).some((i) => i.stage === "review") ? "" : "hidden"}><h3>Review queue <span class="muted small">candidates from the scanner that still need a full review; not counted in sizing, plans, stats or price alerts until promoted</span></h3><div id="wl-review"></div></section>`;
+  const review = (w.items || []).filter((i) => i.stage === "review"), watching = (w.items || []).filter((i) => i.stage !== "review");
+  $("#wl-review", box).appendChild(table([
+    { key: "symbol", label: "Candidate", render: (r) => `<a href="#/analysis/${esc(r.symbol)}"><b>${esc(r.symbol)}</b></a>` },
+    { key: "notes", label: "From the scan" },
+    { key: "_a", label: "", render: () => `<button class="small primary" data-action="promote">Promote to watchlist</button> <button class="small secondary" data-action="moat">Moat review</button> <button class="small danger" data-action="remove">Remove</button>` },
+  ], review, { empty: "Nothing to review.", actions: {
+    promote: (r, b) => run(b, async () => { await api.promote(id, r.symbol); toast(`${r.symbol} is in the watchlist`, "ok"); detail(box, id); }),
+    moat: (r) => window.open(`#/moat/${r.symbol}`, "_blank"),
+    remove: (r, b) => run(b, async () => { await api.removeItem(id, r.symbol); detail(box, id); }) } }));
+  $("#wl-items", box).appendChild(table(COLS, watching, {
     empty: "Empty — add tickers or import a list.",
     initialSort: { key: "distance_to_level", desc: false },
     onRow: (r) => { location.hash = `#/analysis/${r.symbol}`; },

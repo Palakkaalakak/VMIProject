@@ -58,6 +58,8 @@ export async function render(root) {
         <h3>Results</h3>
         <button id="scan-dropped" class="secondary">Why dropped?</button>
         <button id="scan-save" class="secondary">Save shown list as a watchlist</button>
+        <span class="spacer"></span>
+        <label class="small">Add to review queue of <select id="scan-review-wl"></select></label>
       </div>
       <div id="scan-filter-box"></div>
       <div id="scan-results">${loading()}</div>
@@ -105,6 +107,16 @@ export async function render(root) {
   $("#scan-dropped", root).addEventListener("click", (e) => run(e.target, () => showDropped(root)));
   startPolling(root);
   loadResults(root);
+  fillReviewTargets(root);
+}
+
+async function fillReviewTargets(root) {
+  const sel = $("#scan-review-wl", root);
+  const lists = await api.watchlists().catch(() => []);
+  let want = null;
+  try { want = localStorage.getItem("vmi.scanner.reviewWl"); } catch { /* private window */ }
+  sel.innerHTML = lists.length ? lists.map((w) => `<option value="${w.id}" ${String(w.id) === want ? "selected" : ""}>${esc(w.name)}</option>`).join("") : `<option value="">(create a watchlist first)</option>`;
+  sel.addEventListener("change", () => { try { localStorage.setItem("vmi.scanner.reviewWl", sel.value); } catch { /* ignore */ } });
 }
 
 export function destroy() { clearInterval(poll); poll = null; }
@@ -155,7 +167,19 @@ function drawRows(root) {
     empty: allRows.length ? "No stock matches these filters." : "No results yet — start a scan.",
     initialSort: { key: "margin_of_safety", desc: true },
     onRow: (r) => { location.hash = `#/analysis/${r.symbol}`; },
+    actions: { review: (r, b) => addToReview(root, r, b) },
   }));
+}
+
+function addToReview(root, r, btn) {
+  const wid = $("#scan-review-wl", root).value;
+  if (!wid) return toast("Pick a watchlist first (corner of the results)", "error");
+  const note = `scanner ${r.steps_passed}/7${r.great_business ? "" : ", not a great business yet"}; growth ${fmt.pct(r.growth_low ?? r.growth, 0)}-${fmt.pct(r.growth_high ?? r.growth, 0)}; ${r.industry || r.sector || ""} (${new Date().toISOString().slice(0, 10)})`;
+  run(btn, async () => {
+    const res = await api.addReview(wid, r.symbol, note);
+    const name = $("#scan-review-wl", root).selectedOptions[0].textContent;
+    toast(res.already ? `${r.symbol} is already in “${name}” (${res.already})` : `${r.symbol} added to the review queue of “${name}”`, res.already ? "info" : "ok");
+  });
 }
 
 const COLUMNS = [
@@ -177,6 +201,7 @@ const COLUMNS = [
   { key: "steps_passed", label: "Steps", cls: "num", render: (r) => `${r.steps_passed}/7` },
   { key: "trend", label: "Trend" },
   { key: "vmi_pass", label: "Buy?", render: (r) => badge(r.vmi_pass, "BUY", "—") },
+  { key: "_review", label: "", render: () => `<button class="small secondary" data-action="review" title="Add to the review queue of the chosen watchlist">+ Review</button>` },
 ];
 
 async function showDropped(root) {

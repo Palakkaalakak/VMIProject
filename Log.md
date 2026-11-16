@@ -53,6 +53,14 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - Scanner "+ Review": candidates go to a watchlist's review queue
+
+- Each scanner result has a "+ Review" button; the target watchlist is a drop-down in the results corner (remembered in the
+  browser). It adds the stock as `WatchItem.stage = "review"` with a note (steps passed, growth range, industry, date); a stock already
+  in that list is not moved (says which stage). Watchlists page: a "Review queue" card (Promote to watchlist / Moat review / Remove)
+  and a "N to review" badge on the tab. Review items are NOT counted in watchlist sizing, plans-from-watchlist, watchlist stats or
+  price alerts until promoted. Tests: tests/test_watchlist_review.py; checked in Chromium. Scans and "re-run scan on list" are unchanged.
+
 ### 2026-11-16 - Watchlist re-scan drops failures; normalised (average) mode for Step 1/4/5 numbers
 
 - Re-running the VMI scan on a watchlist (`POST /api/watchlists/{id}/scan`) now drops every stock failing a step the scan can verify

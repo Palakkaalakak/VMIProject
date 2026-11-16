@@ -710,6 +710,23 @@ def wl_remove(wid: int, symbol: str):
     return {"ok": True}
 
 
+class ReviewIn(BaseModel):
+    notes: str = ""
+
+
+@wr.post("/{wid}/review/{symbol}")
+def wl_add_review(wid: int, symbol: str, body: ReviewIn):
+    """Add a scanner result to the watchlist's review queue (a candidate needing a full review, not in the list yet)."""
+    from vmi.watchlist import service
+    return service.add_to_review(wid, symbol, body.notes)
+
+
+@wr.post("/{wid}/items/{symbol}/promote")
+def wl_promote(wid: int, symbol: str):
+    from vmi.watchlist import service
+    return service.promote(wid, symbol)
+
+
 @wr.post("/{wid}/items/{symbol}/autofill")
 def wl_autofill(wid: int, symbol: str):
     from vmi.watchlist import service
