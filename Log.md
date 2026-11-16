@@ -53,6 +53,18 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - Scanner presets and a full per-scan rule editor
+
+- Scanner page: Preset selector (Current settings, Adam: great business, Adam: excellent ROE+ROIC >= 15%, Adam: speculative growth,
+  Custom) + every scan option (market cap, price, 10y return bar, uptrend, speculative, limit) + "Every rule for this scan": ALL rules
+  of `vmi/rules.py` (ROIC, debt ratios, track record, moat, growth, ... with help text and source badge), edited for this scan only.
+- Backend: `vmi/scanner/presets.py`, `settings.temporary()` (in-memory overrides restored after the run; nothing saved),
+  `GET /api/scan/presets`, `POST /api/scan/start` takes `preset` + `rules`; the run records preset and overrides in `ScanRun.params`.
+  Min ROE in the cheap stage now follows rule `profitability.min_roe`. Shared `static/js/rule_fields.js` (Settings page uses it too).
+- "Adam" presets apply the course defaults for that scan and ignore Settings changes; market cap >= $10B is his personal preference
+  (l.235), ROE/ROIC 15% his "excellent" bar (l.1237), speculative = l.2095. Tests: tests/test_scan_presets.py; checked in Chromium.
+- Caveat: rule overrides are process-wide while a scan runs, so another screen analysing at that moment sees them.
+
 ### 2026-11-16 - "Review mode" button (fundamental review, no IB pestering)
 
 - Header button toggles fundamental review mode (`vmi/data/mode.py`, `GET/PUT /api/mode`, persisted in the cache DB; default OFF =

@@ -246,19 +246,34 @@ sr = APIRouter(prefix="/api/scan", tags=["scanner"], route_class=SafeRoute)
 class ScanIn(BaseModel):
     universe: str = "us"
     symbols: list[str] = Field(default_factory=list)
-    min_market_cap: float = 2e9
+    min_market_cap: float | None = None      # None = the preset's value (else 2e9)
     min_price: float = 5.0
-    min_roe: float = RULES.profitability.min_roe
-    require_ten_year_uptrend: bool = True
+    min_roe: float | None = None             # None = rule profitability.min_roe
+    require_ten_year_uptrend: bool | None = None
+    ten_year_min_return: float = 0.5
     deep_limit: int = 400
     workers: int = 4
-    include_speculative: bool = True
+    include_speculative: bool | None = None
+    preset: str = "current"                  # see vmi/scanner/presets.py
+    rules: dict = Field(default_factory=dict)  # scan-only rule overrides {section: {key: value}}
+
+
+@sr.get("/presets")
+def scan_presets():
+    """Presets (label, note, the scan options they set) and every editable rule (for the Custom editor)."""
+    from vmi import settings
+    from vmi.scanner import presets
+    return {"presets": presets.PRESETS, "schema": settings.schema(), "course_defaults": settings.course_defaults_diff()}
 
 
 @sr.post("/start")
 def scan_start(body: ScanIn):
-    from vmi.scanner import funnel
-    return funnel.start_background(body.model_dump())
+    from vmi.scanner import funnel, presets
+    d = body.model_dump()
+    explicit = {k: v for k, v in d.items() if v is not None and k in body.model_fields_set}
+    params = {"min_market_cap": 2e9, "require_ten_year_uptrend": True, "include_speculative": True,
+              **presets.resolved_params(body.preset), **explicit}
+    return funnel.start_background(params)
 
 
 @sr.get("/status")

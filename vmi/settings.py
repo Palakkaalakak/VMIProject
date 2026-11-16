@@ -144,6 +144,56 @@ def update(changes: dict[str, dict[str, Any]]) -> list[dict]:
     return schema()
 
 
+_temp_lock = threading.RLock()
+
+
+def course_defaults_diff() -> dict[str, dict[str, Any]]:
+    """{section: {key: default}} for every rule the owner changed on the Settings page (what "back to course defaults" means)."""
+    out: dict[str, dict[str, Any]] = {}
+    for sec in fields(R.VMIRules):
+        cur, dft = getattr(R.RULES, sec.name), getattr(_DEFAULTS, sec.name)
+        for f in fields(type(cur)):
+            if getattr(cur, f.name) != getattr(dft, f.name):
+                out.setdefault(sec.name, {})[f.name] = getattr(dft, f.name)
+    return out
+
+
+class temporary:
+    """`with settings.temporary({"profitability": {"min_roic": 0.15}}):` applies rule overrides in memory for the block
+    only (nothing is saved) and restores the previous values afterwards. Used for one scanner run; other screens
+    analysing at the same moment would see the same values, so the scan documents which overrides it ran with."""
+
+    def __init__(self, changes: dict[str, dict[str, Any]] | None = None, course_defaults: bool = False):
+        self.changes = {k: dict(v) for k, v in (changes or {}).items()}
+        if course_defaults:
+            for sec, vals in course_defaults_diff().items():
+                for k, v in vals.items():
+                    self.changes.setdefault(sec, {}).setdefault(k, v)
+        self.before: dict[str, dict[str, Any]] = {}
+
+    def __enter__(self):
+        _temp_lock.acquire()
+        try:
+            for sec, vals in self.changes.items():
+                cur = getattr(R.RULES, sec, None)
+                if cur is None:
+                    raise ValueError(f"unknown settings section '{sec}'")
+                self.before[sec] = {k: getattr(cur, k) for k in vals if hasattr(cur, k)}
+            _apply(self.changes)
+        except Exception:
+            _temp_lock.release()
+            raise
+        return self
+
+    def __exit__(self, *exc):
+        try:
+            for sec, vals in self.before.items():
+                for k, v in vals.items():
+                    object.__setattr__(getattr(R.RULES, sec), k, v)
+        finally:
+            _temp_lock.release()
+
+
 def reset_all() -> list[dict]:
     return update({sec: {k: None for k in vals} for sec, vals in saved().items()})
 

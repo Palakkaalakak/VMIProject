@@ -40,8 +40,11 @@ class ScanParams:
     symbols: list[str] = field(default_factory=list)   # for universe="list" (imported watchlist etc.)
     min_market_cap: float = 2e9
     min_price: float = 5.0
-    min_roe: float = RULES.profitability.min_roe
+    min_roe: float | None = None         # None = the Step-4 rule profitability.min_roe at run time
     require_ten_year_uptrend: bool = True
+    ten_year_min_return: float = 0.5     # 10-year monthly chart: total return must exceed this (and the slope be up)
+    preset: str = "current"              # which preset the owner chose (recorded with the run)
+    rules: dict = field(default_factory=dict)   # scan-only rule overrides {section: {key: value}} (nothing is saved)
     deep_limit: int = 400                # safety cap on deep analyses per run
     workers: int = 4
     include_speculative: bool = True     # keep 50%+ revenue growers even if NI not yet consistent
@@ -173,8 +176,9 @@ def stage_profitability(cands: list[Candidate], p: ScanParams) -> list[Candidate
             continue
         roe = n / e
         c.notes["roe_proxy"] = roe
-        if roe < p.min_roe:
-            STATE.dropped[c.symbol] = f"Step 4: ROE {roe:.1%} < {p.min_roe:.0%}"
+        floor = RULES.profitability.min_roe if p.min_roe is None else p.min_roe
+        if roe < floor:
+            STATE.dropped[c.symbol] = f"Step 4: ROE {roe:.1%} < {floor:.0%}"
             continue
         out.append(c)
     return out
@@ -213,7 +217,7 @@ def stage_long_term_chart(cands: list[Candidate], p: ScanParams) -> list[Candida
             slope = np.polyfit(np.arange(len(closes)), np.log(closes.values), 1)[0]
             ret = closes.iloc[-1] / closes.iloc[0] - 1
             by[s].notes["ten_year_return"] = float(ret)
-            if slope > 0 and ret > 0.5:
+            if slope > 0 and ret > p.ten_year_min_return:
                 out.append(by[s])
             else:
                 STATE.dropped[s] = f"Lesson 6: 10-year chart not in a long-term uptrend ({ret:+.0%})"
@@ -324,19 +328,24 @@ def run(params: dict | None = None) -> dict:
         STATE.run_id = row.id
     cands: list[Candidate] = []
     pinned: dict[str, Candidate] = {}
+    from vmi import settings as rule_settings
+    from vmi.scanner import presets
+
+    changes, course = presets.rule_changes(p.preset, p.rules)
     try:
-        for i, (name, fn) in enumerate(STAGES):
-            STATE.stage = name
-            STATE.progress = min(0.6, i / (len(STAGES) - 1) * 0.6)
-            t0 = time.time()
-            n_in = len(cands)
-            if name == "deep":
-                cands = _restore_pinned(cands, pinned)
-            cands = fn(cands, p)
-            if name == "universe":
-                pinned = _pinned_candidates(cands)
-            STATE.funnel.append({"stage": name, "in": n_in, "out": len(cands), "secs": round(time.time() - t0, 1)})
-        status = "done"
+        with rule_settings.temporary(changes, course_defaults=course):
+            for i, (name, fn) in enumerate(STAGES):
+                STATE.stage = name
+                STATE.progress = min(0.6, i / (len(STAGES) - 1) * 0.6)
+                t0 = time.time()
+                n_in = len(cands)
+                if name == "deep":
+                    cands = _restore_pinned(cands, pinned)
+                cands = fn(cands, p)
+                if name == "universe":
+                    pinned = _pinned_candidates(cands)
+                STATE.funnel.append({"stage": name, "in": n_in, "out": len(cands), "secs": round(time.time() - t0, 1)})
+            status = "done"
     except Exception as exc:
         STATE.error = f"{type(exc).__name__}: {exc}"
         log.error("scan failed: %s", traceback.format_exc())

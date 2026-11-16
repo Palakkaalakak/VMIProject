@@ -3,18 +3,7 @@
 import { api } from "../api.js";
 import { $, esc, loading, run, toast } from "../ui.js";
 
-const KIND = { adam: ["Adam", "ok"], interpretation: ["interpretation", "na"], owner: ["owner", "na"],
-  approved: ["approved", "na"], calibration: ["calibration", "na"], model: ["software", "na"], unspecified: ["UNSPECIFIED", "bad"] };
-const badgeFor = (s) => `<span class="badge ${KIND[s.source_kind]?.[1] || "na"}" title="${esc(s.source_note)}">${esc(KIND[s.source_kind]?.[0] || s.source_kind)}</span>`;
-const show = (v) => (Array.isArray(v) ? JSON.stringify(v) : String(v));
-
-function input(s) {
-  const name = `name="${esc(s.section)}.${esc(s.key)}"`;
-  if (s.type === "choice") return `<select ${name}>${s.choices.map((c) => `<option ${c === s.value ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>`;
-  if (s.type === "bool") return `<select ${name}><option value="true" ${s.value ? "selected" : ""}>yes</option><option value="false" ${s.value ? "" : "selected"}>no</option></select>`;
-  if (s.type === "int" || s.type === "float") return `<input ${name} type="number" step="any" value="${esc(s.value)}">`;
-  return `<input ${name} value="${esc(show(s.value))}">`;
-}
+import { badgeFor, ruleInput as input, show } from "../rule_fields.js";
 
 function rulesCard(schema) {
   const sections = [...new Set(schema.map((s) => s.section))];
