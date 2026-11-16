@@ -53,6 +53,14 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - The 7-step card in plain language
+
+- New `static/js/steps_view.js` replaces the raw dump: each check has a plain name and a one-line "what it asks", values are shown as
+  people read them (0.212 -> 21.2%, ratios as 1.02x, debt as years of earnings, money as $7.13B, lists as 47% -> 39% -> 37%, objects as
+  sentences), "needs:" shows the bar, failing rows are tinted and listed first, information-only rows are folded into their own
+  group, every step has a one-line verdict ("Fails: 4 of 6 tests ok. Failing: ..."), and the old raw JSON sits under "raw data". Banner
+  counts steps 1-5 passed. Checked in Chromium with real SNDK data. Backend values unchanged (raw numbers still in the API).
+
 ### 2026-11-16 - Position-size steps 1/2 to 1/14, large-growth preset fix, normalise chip, "speculative turned positive"
 
 - Sizing: a shared fraction picker (`static/js/sizes.js`: full, 3/4 narrow moat, 1/2 ... 1/14) in the Plans editor (per-stock position size)

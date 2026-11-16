@@ -3,6 +3,7 @@
 import { api } from "../api.js";
 import { $, esc, fmt, badge, loading, run, toast, signClass } from "../ui.js";
 import { sizeSelect } from "../sizes.js";
+import { stepsCard } from "../steps_view.js";
 import { state } from "../state.js";
 
 let SCHEMA = null; // override fields, from GET /api/overrides/schema (declared once in vmi/overrides.py)
@@ -65,16 +66,7 @@ function header(r) {
   </div>`;
 }
 
-function steps(r) {
-  return `<div class="card"><h3>7 steps</h3>${(r.steps || []).map((s) => `
-    <details ${s.passed ? "" : "open"}><summary>${badge(s.passed)} <b>Step ${s.step}</b> — ${esc(s.title)}${s.extra?.normalised ? ` <b class="badge na" title="average of the last ${s.extra.normalised} fiscal years">(NORMALISED)</b>` : ""} <span class="muted">score ${fmt.pct(s.score, 0)}</span></summary>
-      <table class="compact"><tbody>${s.checks.map((c) => `<tr><td>${badge(c.passed)}</td><td>${esc(c.name)}</td>
-        <td>${esc(typeof c.value === "number" ? fmt.num(c.value, 4) : Array.isArray(c.value) ? c.value.map((x) => fmt.num(x, 3)).join(", ") : typeof c.value === "object" && c.value ? JSON.stringify(c.value) : c.value ?? "")}</td>
-        <td class="muted">${esc(c.threshold ?? "")}</td><td class="muted small">${esc(c.note || "")}</td></tr>`).join("")}</tbody></table>
-      ${(s.notes || []).filter((n) => !n.startsWith("moat_grade=")).map((n) => `<p class="note">${esc(n)}</p>`).join("")}
-      ${s.step === 3 && s.extra?.sources ? moatChecklist(s.extra, r.ticker) : ""}
-    </details>`).join("")}</div>`;
-}
+const steps = (r) => stepsCard(r, moatChecklist);
 
 /** Step 3 summary + the button to the dedicated Moat evaluation page (views/moat.js), opened in its own tab. */
 function moatChecklist(x, ticker) {
