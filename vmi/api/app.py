@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -813,11 +814,36 @@ def opt_suggest(symbol: str, strategy: str = "CSP", expiry: str | None = None):
 for r in (sysr, ar, sr, pr, lg, ob, wr, alr, orr):
     app.include_router(r)
 
+_TOKEN: dict = {"t": 0.0, "v": ""}
+
+
+def ui_token() -> str:
+    """Changes whenever any file under static/ changes. Stamped on every module URL, so a browser can never reuse a stale cached
+    copy of a script (a changed URL is a new file for the browser, whatever it cached before)."""
+    import time as _t
+
+    if _t.time() - _TOKEN["t"] > 2:
+        newest = max((f.stat().st_mtime_ns for f in STATIC.rglob("*") if f.is_file()), default=0)
+        _TOKEN.update(t=_t.time(), v=f"{newest:x}")
+    return _TOKEN["v"]
+
+
+_IMPORT = re.compile(r"""((?:from\s+|import\s*\(\s*|import\s+)["'])(\.{1,2}/[^"']+?\.js)(["'])""")
+
+
+def stamp_js(text: str, token: str) -> str:
+    """Add ?v=token to every relative import ("./x.js", "../ui.js", dynamic import("./views/y.js"))."""
+    return _IMPORT.sub(lambda m: f"{m.group(1)}{m.group(2)}?v={token}{m.group(3)}", text)
+
+
 class NoCacheStatic(StaticFiles):
-    """The UI is plain JS modules: always revalidate, so an update shows up on the next page load (no stale screens)."""
+    """The UI is plain JS modules: always revalidate, and every import carries the current token (see ui_token)."""
 
     async def get_response(self, path, scope):
         resp = await super().get_response(path, scope)
+        if path.endswith(".js") and resp.status_code == 200:
+            text = (self.directory / path).read_text(encoding="utf-8")
+            return Response(stamp_js(text, ui_token()), media_type="text/javascript", headers={"Cache-Control": "no-cache"})
         resp.headers["Cache-Control"] = "no-cache"
         return resp
 
@@ -832,8 +858,10 @@ def index(request: Request):
     (Clear-Site-Data), because modules cached before the no-cache header existed would otherwise stay stale for hours."""
     if (STATIC / "index.html").exists():
         ver = version().split()[0]
-        headers = {"Cache-Control": "no-cache"}
-        resp = FileResponse(STATIC / "index.html", headers=headers)
+        tok = ui_token()
+        html = (STATIC / "index.html").read_text(encoding="utf-8").replace("/static/js/app.js", f"/static/js/app.js?v={tok}") \
+            .replace("/static/css/app.css", f"/static/css/app.css?v={tok}")
+        resp = Response(html, media_type="text/html", headers={"Cache-Control": "no-cache"})
         if request.cookies.get("vmi_ui") != ver:
             resp.headers["Clear-Site-Data"] = '"cache"'
             resp.set_cookie("vmi_ui", ver, max_age=365 * 86400, samesite="lax")

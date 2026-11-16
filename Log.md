@@ -53,6 +53,13 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - Stale cached UI modules made impossible
+
+- The server now stamps every relative import in served JS (and the script/css links in index.html) with `?v=<token>`, a value that
+  changes whenever any file under `static/` changes, so a browser can never reuse an old cached copy of a script. Verified in
+  Chromium: edit a file, plain reload, the change shows; all 11 views load with no console errors. (The owner reported it fixed
+  on their side before this landed; this is the permanent fix for the cause we could only infer.)
+
 ### 2026-11-16 - Footer showed the new version but the scanner page was still the old one: stale cached JS module
 
 - Evidence (owner screenshot): footer "version 62067e8", Review-mode button present (new app.js), yet the scanner form was the
