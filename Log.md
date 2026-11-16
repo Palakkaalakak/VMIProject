@@ -53,6 +53,14 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - Scanner filters are an "add a filter" searchable list
+
+- The fixed scan fields (market cap, price, 10y return, uptrend, speculative, steps, limit) and the long rule list are replaced by one
+  searchable box: type to search every scan option and every rule (`section.key`, help text shown), pick one and it appears as a row
+  with the preset's value to edit (or remove with the X). Only the filters you add are sent; everything else uses the preset's
+  values. Rows you did not edit follow the preset if you change it. Universe, symbols and preset stay on top. Checked in Chromium
+  (119 searchable filters; values sent as `rules` / scan params).
+
 ### 2026-11-16 - Scanner "+ Review": candidates go to a watchlist's review queue
 
 - Each scanner result has a "+ Review" button; the target watchlist is a drop-down in the results corner (remembered in the

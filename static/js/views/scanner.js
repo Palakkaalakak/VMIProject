@@ -1,13 +1,25 @@
 // Superscanner view: start a funnel run (broad/cheap filters first), live funnel progress, sortable results.
 import { api } from "../api.js";
 import { $, esc, fmt, badge, loading, run, table, toast, signClass } from "../ui.js";
-import { ruleGroups } from "../rule_fields.js";
+import { badgeFor, ruleInput } from "../rule_fields.js";
 import { addIndustryStats, applyFilters, filterPanel, loadSaved, readFilters, save, setForm } from "./scanner_filters.js";
 
 let poll = null;
 
-const OPEN = ["track", "profitability", "debt"];
 let presetData = null;
+let added = {};          // key -> {def, el}: filters the owner chose to set (everything else uses the preset's values)
+
+/** Scan options (not rules). `value(preset)` = the preset's default shown when the filter is added. */
+const SCAN_OPTIONS = {
+  "scan.min_market_cap": { label: "Min market cap ($B)", help: "Full-market scan only (S&P 500 and custom lists ignore it)", type: "float", param: "min_market_cap",
+    value: (p) => (p.params.min_market_cap ?? 2e9) / 1e9, send: (v) => parseFloat(v) * 1e9 },
+  "scan.min_price": { label: "Min price", help: "Full-market scan only", type: "float", param: "min_price", value: () => 5, send: parseFloat },
+  "scan.ten_year_min_return": { label: "10-year chart: min total return", help: "0.5 = +50% over ten years (and an upward trend)", type: "float", param: "ten_year_min_return", value: () => 0.5, send: parseFloat },
+  "scan.require_ten_year_uptrend": { label: "Require 10-year uptrend", help: "Adam's long-term chart filter", type: "bool", param: "require_ten_year_uptrend", value: (p) => p.params.require_ten_year_uptrend ?? true, send: (v) => v === "true" },
+  "scan.include_speculative": { label: "Keep speculative growth (50%+ revenue growth)", help: "Young companies whose profits are not consistent yet", type: "bool", param: "include_speculative", value: (p) => p.params.include_speculative ?? true, send: (v) => v === "true" },
+  "scan.require_steps": { label: "Drop stocks failing steps 1, 2, 4, 5", help: "The steps the scan can verify 100% from data", type: "bool", param: "require_steps", value: (p) => !!(p.params.require_steps || []).length, send: (v) => (v === "true" ? [1, 2, 4, 5] : []) },
+  "scan.deep_limit": { label: "Deep-analysis limit", help: "Safety cap on how many stocks get the full analysis", type: "int", param: "deep_limit", value: () => 400, send: (v) => parseInt(v, 10) },
+};
 
 /** Rule values a preset starts from: course defaults when the preset says so, else the Settings page, plus its own rules. */
 function baseRules(preset) {
@@ -17,18 +29,45 @@ function baseRules(preset) {
   return base;
 }
 
+const defOf = (key, preset) => {
+  if (SCAN_OPTIONS[key]) return SCAN_OPTIONS[key].value(preset);
+  const [sec, k] = key.split(".");
+  return baseRules(preset)[sec]?.[k];
+};
+
+function input(key, value) {
+  const o = SCAN_OPTIONS[key];
+  const name = `name="${esc(key)}"`;
+  if (o) {
+    if (o.type === "bool") return `<select ${name}><option value="true" ${value ? "selected" : ""}>yes</option><option value="false" ${value ? "" : "selected"}>no</option></select>`;
+    return `<input ${name} type="number" step="any" value="${esc(value)}">`;
+  }
+  return ruleInput(presetData.schema.find((r) => `${r.section}.${r.key}` === key), value);
+}
+
+function drawAdded(root) {
+  const preset = presetData.presets[$("#scan-preset", root).value];
+  const box = $("#scan-added", root);
+  const keys = Object.keys(added);
+  box.innerHTML = keys.length ? `<table class="compact"><tbody>${keys.map((k) => {
+    const o = SCAN_OPTIONS[k], r = o ? null : presetData.schema.find((x) => `${x.section}.${x.key}` === k);
+    const cur = added[k].touched ? added[k].value : defOf(k, preset);
+    return `<tr data-key="${esc(k)}"><td><b>${esc(o ? o.label : k)}</b> ${r ? badgeFor(r) : ""}<div class="small muted">${esc(o ? o.help : r.help || r.source_note)}</div></td>
+      <td>${input(k, cur)}</td><td class="small muted">preset: ${esc(String(defOf(k, preset)))}</td><td><button type="button" class="small danger" data-remove="${esc(k)}" title="Back to the preset's value">✕</button></td></tr>`;
+  }).join("")}</tbody></table>` : `<p class="small muted">No filters added: this scan uses the preset's values.</p>`;
+  box.querySelectorAll("[name]").forEach((el) => el.addEventListener("input", () => { added[el.name].touched = true; added[el.name].value = el.type === "checkbox" ? el.checked : el.value; }));
+  box.querySelectorAll("[data-remove]").forEach((b) => b.addEventListener("click", () => { delete added[b.dataset.remove]; drawAdded(root); }));
+}
+
 function drawPreset(root, id) {
-  const preset = presetData.presets[id];
-  const pm = preset.params || {};
-  const f = $("#scan-form", root);
-  $("#scan-preset-note", root).textContent = preset.note;
-  const set = (name, v) => { if (v !== undefined) { const el = f.elements[name]; el.type === "checkbox" ? (el.checked = !!v) : (el.value = v); } };
-  set("min_market_cap", pm.min_market_cap !== undefined ? pm.min_market_cap / 1e9 : 2);
-  set("require_ten_year_uptrend", pm.require_ten_year_uptrend ?? true);
-  set("include_speculative", pm.include_speculative ?? true);
-  set("require_steps", !!(pm.require_steps && pm.require_steps.length));
-  $("#scan-rules", root).innerHTML = ruleGroups(presetData.schema, baseRules(preset), OPEN);
-  root._base = baseRules(preset);
+  $("#scan-preset-note", root).textContent = presetData.presets[id].note;
+  drawAdded(root);          // untouched rows follow the new preset's defaults
+}
+
+function pickerOptions() {
+  const ruleOpts = presetData.schema.map((r) => `<option value="${esc(r.section)}.${esc(r.key)}" label="${esc((r.help || r.source_note || "").slice(0, 110))}"></option>`);
+  const scanOpts = Object.entries(SCAN_OPTIONS).map(([k, o]) => `<option value="${esc(k)}" label="${esc(o.label)}"></option>`);
+  return scanOpts.join("") + ruleOpts.join("");
 }
 
 export async function render(root) {
@@ -37,18 +76,15 @@ export async function render(root) {
       <h3>Superscanner</h3>
       <form id="scan-form" class="grid">
         <label>Preset <select name="preset" id="scan-preset"></select></label>
-        <p class="small muted wide" style="grid-column:1/-1" id="scan-preset-note"></p>
         <label>Universe <select name="universe"><option value="sp500">S&amp;P 500</option><option value="us">Full US market</option><option value="list">Custom list</option></select></label>
         <label class="wide">Symbols (custom list) <input name="symbols" placeholder="AAPL, MSFT, AZO …"></label>
-        <label>Min market cap ($B) <input name="min_market_cap" type="number" step="0.5" value="2"></label>
-        <label>Min price <input name="min_price" type="number" step="1" value="5"></label>
-        <label>10y chart: min total return <input name="ten_year_min_return" type="number" step="0.1" value="0.5"></label>
-        <label>Deep-analysis limit <input name="deep_limit" type="number" value="400"></label>
-        <label class="check"><input type="checkbox" name="require_ten_year_uptrend" checked> require 10y uptrend</label>
-        <label class="check"><input type="checkbox" name="require_steps"> drop stocks failing steps 1, 2, 4, 5 (the checks the scan can verify from data)</label>
-        <label class="check"><input type="checkbox" name="include_speculative" checked> keep speculative growth (50%+ revenue growth)</label>
-        <details class="wide" style="grid-column:1/-1"><summary><b>Every rule for this scan</b> <span class="muted small">(edit any; applies to this scan only, nothing is saved to Settings; changed values are sent as overrides)</span></summary>
-          <div id="scan-rules"></div></details>
+        <p class="small muted wide" style="grid-column:1/-1" id="scan-preset-note"></p>
+        <div class="wide" style="grid-column:1/-1">
+          <label>Add a filter (type to search every scan option and every rule, e.g. roic, current ratio, margin)
+            <input id="scan-pick" list="scan-pick-list" placeholder="search filters…" autocomplete="off" style="width:min(32rem,100%)"></label>
+          <datalist id="scan-pick-list"></datalist>
+          <div id="scan-added"></div>
+        </div>
         <button class="primary">Start scan</button>
       </form>
     </section>
@@ -65,35 +101,34 @@ export async function render(root) {
       <div id="scan-results">${loading()}</div>
     </section>`;
   presetData = await api.scanPresets();
+  added = {};
   const sel = $("#scan-preset", root);
   sel.innerHTML = Object.entries(presetData.presets).map(([k, p]) => `<option value="${k}">${esc(p.label)}</option>`).join("");
+  $("#scan-pick-list", root).innerHTML = pickerOptions();
   sel.addEventListener("change", () => drawPreset(root, sel.value));
+  $("#scan-pick", root).addEventListener("change", (e) => {
+    const key = e.target.value.trim();
+    const known = SCAN_OPTIONS[key] || presetData.schema.some((r) => `${r.section}.${r.key}` === key);
+    if (!known) { if (key) toast(`No filter called “${key}”: pick one from the list`, "error"); return; }
+    added[key] ||= { touched: false, value: null };
+    e.target.value = "";
+    drawAdded(root);
+  });
   drawPreset(root, sel.value);
   $("#scan-form", root).addEventListener("submit", (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
-    const rules = {};                      // only what differs from the preset's starting values
-    for (const r of presetData.schema) {
-      const el = e.target.elements[`${r.section}.${r.key}`];
+    const preset = presetData.presets[f.get("preset")];
+    const body = { preset: f.get("preset"), universe: f.get("universe"), rules: {},
+      symbols: String(f.get("symbols") || "").split(/[\s,;]+/).filter(Boolean).map((s) => s.toUpperCase()) };
+    for (const key of Object.keys(added)) {                       // only the filters the owner added; the rest = preset values
+      const el = e.target.elements[key];
       if (!el) continue;
-      const was = root._base[r.section]?.[r.key];
-      const now = r.type === "bool" ? el.value === "true" : el.value;
-      const same = r.type === "bool" ? now === was : r.type === "int" || r.type === "float" ? Number(now) === Number(was) : String(now) === (Array.isArray(was) ? JSON.stringify(was) : String(was));
-      if (!same) (rules[r.section] ||= {})[r.key] = now;
+      if (SCAN_OPTIONS[key]) body[SCAN_OPTIONS[key].param] = SCAN_OPTIONS[key].send(el.value);
+      else { const [sec, k] = key.split("."); (body.rules[sec] ||= {})[k] = el.value; }
     }
-    const body = {
-      preset: f.get("preset"), rules,
-      universe: f.get("universe"),
-      symbols: String(f.get("symbols") || "").split(/[\s,;]+/).filter(Boolean).map((s) => s.toUpperCase()),
-      min_market_cap: parseFloat(f.get("min_market_cap")) * 1e9,
-      min_price: parseFloat(f.get("min_price")),
-      ten_year_min_return: parseFloat(f.get("ten_year_min_return")),
-      deep_limit: parseInt(f.get("deep_limit"), 10),
-      require_ten_year_uptrend: f.get("require_ten_year_uptrend") === "on",
-      include_speculative: f.get("include_speculative") === "on",
-      require_steps: f.get("require_steps") === "on" ? [1, 2, 4, 5] : [],
-    };
-    run(e.submitter, async () => { await api.scanStart(body); toast(`Scan started (${presetData.presets[body.preset].label}${Object.keys(rules).length ? ", with your rule edits" : ""})`, "ok"); startPolling(root); });
+    const n = Object.keys(added).length;
+    run(e.submitter, async () => { await api.scanStart(body); toast(`Scan started (${preset.label}${n ? `, ${n} filter${n > 1 ? "s" : ""} set by you` : ""})`, "ok"); startPolling(root); });
   });
   $("#scan-save", root).addEventListener("click", (e) => run(e.target, async () => {
     const rows = applyFilters(allRows, readFilters($("#scan-filter-box form", root)));
