@@ -121,7 +121,7 @@ def _level(f: Fundamentals, concept: str, rules: VMIRules = RULES, balance: bool
 
 def _norm_note(rules: VMIRules) -> str:
     n = rules.normalise
-    return f"normalised: average of the last {n.years} fiscal years" if n.enabled else ""
+    return f"(NORMALISED) average of the last {n.years} fiscal years, not the latest year" if n.enabled else ""
 
 
 # ------------------------------------------------------------------------------------------ STEP 1
@@ -154,7 +154,7 @@ def step1_track_record(f: Fundamentals, biz: BizType, rules: VMIRules = RULES) -
         streak = falling_streak(m)
         ok = streak < r.reject_if_margin_falls_n_years - 1 and (avg5 <= 0 or cur >= avg5 * (1 - r.margin_tolerance))
         checks.append(Check(f"{label}_stable", ok, round(cur, 4), f"≥ 5y avg {avg5:.1%} (−{r.margin_tolerance:.0%} tol)",
-                            f"falling {streak} yrs in a row" if streak >= 2 else ""))
+                            "; ".join(x for x in (f"falling {streak} yrs in a row" if streak >= 2 else "", _norm_note(rules)) if x)))
     # Speculative-growth exception (half allocation)
     if biz == BizType.SPECULATIVE:
         q_cfo = [p.value for p in f.quarterly.get("cfo", [])[-2:]]
@@ -416,7 +416,7 @@ def step5_debt(f: Fundamentals, biz: BizType, est: Estimates | None = None, rule
     res = _finish(5, "Conservative debt", checks, [])
     res.passed = bool(core) and sum(c.passed for c in core) >= min(d.min_core_ratios_passed, len(core))
     if rules.normalise.enabled:
-        res.notes.append(_norm_note(rules).capitalize() + " (current ratio, debt/EBITDA, debt servicing, interest coverage)")
+        res.notes.append(_norm_note(rules) + " for current ratio, debt/EBITDA, debt servicing and interest coverage")
     res.notes.append(f"{sum(c.passed for c in core)}/{len(core)} core ratios pass (≥{d.min_core_ratios_passed} required: "
                      "one weak ratio is acceptable when the others are strong)")
     return res

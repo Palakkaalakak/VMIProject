@@ -138,6 +138,9 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
     cat = ov.get("category") or category(biz, g, f, rules)
     s1.notes += [w for w in f.warnings if w.startswith("revenue restated")]  # evidence for the reviewer
     _turnaround_exception(s1, s3, cat)
+    if rules.normalise.enabled:                      # make it unmistakable on every normalised step
+        for st in (s1, s4, s5):
+            st.extra["normalised"] = rules.normalise.years
     steps = _apply_step_overrides([s1, s2, s3, s4, s5, s6, s7], ov)
     s1, s2, s3, s4, s5, s6, s7 = steps
 
@@ -173,6 +176,7 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
         "vmi_pass": great and s6.passed and s7.passed and moat_reviewed,
         "watchlist_candidate": great and not s6.passed,
         "steps": [s.to_dict() for s in (s1, s2, s3, s4, s5, s6, s7)],
+        "normalised": {"enabled": rules.normalise.enabled, "years": rules.normalise.years},
         "valuation": val.to_dict(), "iv_confidence": _iv_confidence(val, g, f, ov, rules),
         "intrinsic_value": iv, "technicals": tech_dict, "metrics": metrics,
         "estimates": {k: v for k, v in est.to_dict().items() if k != "extra"},

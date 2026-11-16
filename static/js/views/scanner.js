@@ -308,7 +308,7 @@ const COLUMNS = [
   { key: "method", label: "Method" },
   { key: "moat", label: "Moat", render: (r) => `${esc(r.moat ?? "")}${r.moat_reviewed ? "" : " ?"}` },
   { key: "style", label: "Style" },
-  { key: "steps_passed", label: "Steps", cls: "num", render: (r) => `${r.steps_passed}/7` },
+  { key: "steps_passed", label: "Steps", cls: "num", render: (r) => `${r.steps_passed}/7${r.normalised ? ' <b class="badge na" title="Steps 1, 4, 5 use multi-year averages">(NORMALISED)</b>' : ""}` },
   { key: "trend", label: "Trend" },
   { key: "vmi_pass", label: "Buy?", render: (r) => badge(r.vmi_pass, "BUY", "—") },
   { key: "_review", label: "", render: () => `<button class="small secondary" data-action="review" title="Add to the review queue of the chosen watchlist">+ Review</button>` },

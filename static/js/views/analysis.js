@@ -59,13 +59,14 @@ function header(r) {
       <div class="kpi"><span>Conservative</span><b>${fmt.money(v.conservative_value)}</b></div>
       ${verdict(r)}
     </div>
+    ${r.normalised?.enabled ? `<p class="note"><b>(NORMALISED)</b> Steps 1, 4 and 5 use the average of the last ${r.normalised.years} fiscal years instead of the latest year (Settings → normalise). Margins, ROE, ROIC, current ratio, debt/EBITDA, debt servicing and interest coverage below are averages.</p>` : ""}
     ${(r.overrides_applied || []).length ? `<p class="note">Judgement overrides (${esc(r.overrides.source || "")}): ${esc(r.overrides_applied.join(" · "))}${r.overrides.note ? ` — ${esc(r.overrides.note)}` : ""}</p>` : ""}
   </div>`;
 }
 
 function steps(r) {
   return `<div class="card"><h3>7 steps</h3>${(r.steps || []).map((s) => `
-    <details ${s.passed ? "" : "open"}><summary>${badge(s.passed)} <b>Step ${s.step}</b> — ${esc(s.title)} <span class="muted">score ${fmt.pct(s.score, 0)}</span></summary>
+    <details ${s.passed ? "" : "open"}><summary>${badge(s.passed)} <b>Step ${s.step}</b> — ${esc(s.title)}${s.extra?.normalised ? ` <b class="badge na" title="average of the last ${s.extra.normalised} fiscal years">(NORMALISED)</b>` : ""} <span class="muted">score ${fmt.pct(s.score, 0)}</span></summary>
       <table class="compact"><tbody>${s.checks.map((c) => `<tr><td>${badge(c.passed)}</td><td>${esc(c.name)}</td>
         <td>${esc(typeof c.value === "number" ? fmt.num(c.value, 4) : Array.isArray(c.value) ? c.value.map((x) => fmt.num(x, 3)).join(", ") : typeof c.value === "object" && c.value ? JSON.stringify(c.value) : c.value ?? "")}</td>
         <td class="muted">${esc(c.threshold ?? "")}</td><td class="muted small">${esc(c.note || "")}</td></tr>`).join("")}</tbody></table>

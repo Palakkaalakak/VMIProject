@@ -53,6 +53,12 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - "(NORMALISED)" labels
+
+- When `normalise.enabled` is on: a banner "(NORMALISED)" at the top of the analysis page, a "(NORMALISED)" badge on Steps 1, 4 and 5,
+  "(NORMALISED)" in the note of every check that uses an average (margins, ROE, ROIC, current ratio, debt ratios), and a
+  "(NORMALISED)" badge beside the Steps count of each scanner result (`normalised` field on scan rows). Test in tests/test_normalise.py.
+
 ### 2026-11-16 - Simplified filter list in the scanner
 
 - Research: the full rule list is 114 rules in 13 sections (valuation 30, technical 12, growth 11, moat 11, debt 9, execution 9,

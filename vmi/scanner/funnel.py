@@ -306,6 +306,7 @@ def compact(rep: dict, c: Candidate | None = None) -> dict:
         "great_business": rep.get("great_business"), "undervalued": rep.get("undervalued"),
         "entry_ok": rep.get("entry_ok"), "vmi_pass": rep.get("vmi_pass"),
         "steps_passed": sum(1 for v in steps.values() if v), "steps": steps,
+        "normalised": bool((rep.get("normalised") or {}).get("enabled")),
         "trend": (tech.get("daily") or {}).get("state"), "buy_levels": [b["price"] for b in tech.get("buy_levels", [])],
         "entry_reason": tech.get("entry_reason"), "allocation_multiplier": rep.get("allocation_multiplier"),
         "pinned": (c.notes.get("pinned") if c else None),

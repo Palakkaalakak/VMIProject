@@ -30,7 +30,7 @@ def test_one_bad_year_fails_roe_latest_but_passes_when_normalised():
     assert not check(S.step4_profitability(f, BizType.NORMAL, RULES), "roe").passed
     res = S.step4_profitability(f, BizType.NORMAL, rules_with(enabled=True, years=3))
     roe = check(res, "roe")
-    assert roe.passed and roe.value == pytest.approx((0.21 + 0.23 + 0.04) / 3, abs=1e-3) and "normalised" in roe.note
+    assert roe.passed and roe.value == pytest.approx((0.21 + 0.23 + 0.04) / 3, abs=1e-3) and "NORMALISED" in roe.note
 
 
 def test_normalised_current_ratio_and_debt_ratios():
@@ -71,3 +71,11 @@ def test_stage_deep_drops_failures_of_required_steps(monkeypatch):
     kept = funnel.stage_deep(cands, funnel.ScanParams(universe="list", require_steps=[1, 2, 4, 5], workers=1))
     assert [c.symbol for c in kept] == ["GOOD"] and [r["symbol"] for r in funnel.STATE.results] == ["GOOD"]
     assert funnel.STATE.dropped["BAD"] == "Step 1: earnings_consistent"
+
+
+def test_normalised_mode_is_labelled_everywhere_it_matters():
+    f = fund_with_roe([0.20, 0.22, 0.21, 0.23, 0.04])
+    on = S.step4_profitability(f, BizType.NORMAL, rules_with(enabled=True, years=3))
+    assert "(NORMALISED)" in check(on, "roe").note and "(NORMALISED)" in check(on, "roic").note
+    off = S.step4_profitability(f, BizType.NORMAL, RULES)
+    assert "NORMALISED" not in check(off, "roe").note
