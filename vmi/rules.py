@@ -34,7 +34,8 @@ class GrowthRules:  # Step 2 + Lesson 5 §4.6
     cap_years_6_10: float = 0.15           # "cap at a maximum of 15%"
     years_11_20: float = 0.04              # "default 4%"
     conservative_years_11_20: float = 0.02  # "you may use a lower figure (e.g. 2%)"
-    max_years_1_5: float = 0.40            # sanity cap on analyst estimates (not in course; guards outliers)
+    cap_years_1_5: bool = True             # switch: apply the max_years_1_5 cap to the years 1-5 growth of EVERY valuation (off = raw estimates)
+    max_years_1_5: float = 0.40            # the cap (not in course; guards outliers and peak-earnings extrapolation, e.g. an estimate of 57% becomes 40%)
     growth_stock_threshold: float = 0.15   # user rule: growth ≥15%, defensive <15%
     large_growth_threshold: float = 0.20   # Lesson 8 "cheetah": growing above 20–25%
     # How the analyst 5-year EPS growth sources are combined for years 1–5 (owner directive 2026-11-05):

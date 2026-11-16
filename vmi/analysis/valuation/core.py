@@ -41,7 +41,7 @@ def growth_path(g: float, rules: ValuationRules = RULES.valuation, *, g6_10: flo
     """Years 1–5 = consensus; 6–10 = same, capped at 15%; 11–20 = 4% (Lesson 5 §4.6)."""
     from vmi.rules import RULES as R
 
-    g1 = max(-0.5, min(g, R.growth.max_years_1_5))
+    g1 = max(-0.5, min(g, R.growth.max_years_1_5) if R.growth.cap_years_1_5 else g)
     g2 = min(g1, R.growth.cap_years_6_10) if g6_10 is None else g6_10
     g3 = R.growth.years_11_20 if g11_20 is None else g11_20
     return GrowthPath(g1, g2, g3)

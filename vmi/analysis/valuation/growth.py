@@ -77,7 +77,7 @@ def choose_growth(est: Estimates, f: Fundamentals | None = None, rules: VMIRules
     """Years 1–5 growth. Order: a chosen single source → a chosen blend → the rules' automatic blend
     (lowest; median for defensives or when sources disagree) → fallbacks when no 5-year estimate exists."""
     c = controls or GrowthControls()
-    cap = rules.growth.max_years_1_5
+    cap = rules.growth.max_years_1_5 if rules.growth.cap_years_1_5 else float("inf")
     srcs = collect_sources(est, c)
     if srcs:
         vals = sorted(srcs.values())
@@ -88,10 +88,10 @@ def choose_growth(est: Estimates, f: Fundamentals | None = None, rules: VMIRules
             else:
                 g = srcs[c.source]
                 return GrowthChoice(min(g, cap), f"source:{c.source}", srcs, vals[0], vals[-1],
-                                    notes + ([f"capped at {cap:.0%}"] if g > cap else []))
+                                    notes + ([f"(CAPPED at {cap:.0%}: the estimate says {g:.0%})"] if g > cap else []))
         blend = c.blend if c.blend in BLENDS else _auto_blend(vals, rules, notes)
         g = BLENDS[blend](vals)
-        notes += [f"capped at {cap:.0%}"] if g > cap else []
+        notes += [f"(CAPPED at {cap:.0%}: the {blend} estimate says {g:.0%})"] if g > cap else []
         return GrowthChoice(min(g, cap), blend, srcs, vals[0], vals[-1], notes)
     nxt = sorted(float(v["eps_growth_next_year"]) for k, v in (est.sources or {}).items() if k not in c.exclude
                  if v.get("eps_growth_next_year") is not None and -0.5 < v["eps_growth_next_year"] < 1.0)

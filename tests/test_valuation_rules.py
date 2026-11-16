@@ -274,3 +274,20 @@ def test_scenarios_are_ordered_base_conservative_doomsday_even_for_fast_growers(
         res = REGISTRY["dcf_fcf"](_ctx(f, growth=g))
         base, cons, doom = (next(sc.value for sc in res.scenarios if sc.name == n) for n in ("base", "conservative", "doomsday"))
         assert doom <= cons <= base, (g, base, cons, doom)
+
+
+def test_years_1_5_growth_cap_is_a_switch_for_every_valuation(fund_factory):
+    from dataclasses import replace
+    from vmi import settings
+    from vmi.analysis.valuation.core import growth_path
+    from vmi.analysis.valuation.growth import choose_growth
+    from vmi.data.models import Estimates
+
+    est = Estimates("X", sources={"finviz": {"eps_growth_5y": 0.57}, "zacks": {"eps_growth_5y": 0.62}})
+    on = choose_growth(est)
+    assert on.value == pytest.approx(0.40) and any("CAPPED at 40%" in n and "57%" in n for n in on.notes)
+    assert growth_path(0.57).g1_5 == pytest.approx(0.40)
+    with settings.temporary({"growth": {"cap_years_1_5": False}}):
+        assert choose_growth(est).value == pytest.approx(0.57)               # raw estimate
+        assert growth_path(0.57).g1_5 == pytest.approx(0.57)
+    assert growth_path(0.57).g1_5 == pytest.approx(0.40)                     # restored

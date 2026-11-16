@@ -34,6 +34,7 @@ SOURCES: dict[str, tuple[str, str]] = {
     "growth.cap_years_6_10": (ADAM, "years 6–10 capped at 15% (l.4572)"),
     "growth.years_11_20": (ADAM, "years 11–20 default 4% (l.4467)"),
     "growth.conservative_years_11_20": (ADAM, "Adam's lower option for years 11–20 (2%)"),
+    "growth.cap_years_1_5": (OWNER, "owner 2026-11-16: boolean to apply the years 1-5 growth cap to all valuations (default on, as before)"),
     "growth.max_years_1_5": (MODEL, "sanity cap against bad analyst data; not in the course"),
     "growth.growth_stock_threshold": (OWNER, "owner rule: growth ≥15%, defensive below"),
     "growth.large_growth_threshold": (INTERP, "Lesson 8: fast growers 'above 20–25%'"),

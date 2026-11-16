@@ -96,6 +96,7 @@ function valuation(r) {
   return `<div class="card"><h3>Valuation — ${esc(sel.label || v.selected || "none")}</h3>
     <p class="muted small">${esc(v.selection_reason || "")}</p>
     ${(r.iv_confidence?.reasons || []).map((n) => `<p class="note"><b>Low confidence:</b> ${esc(n)}</p>`).join("")}
+    ${(inp.growth_notes || []).filter((n) => n.includes("CAPPED")).map((n) => `<p class="note"><b>${esc(n)}</b> The cap can be switched off in Settings (growth.cap_years_1_5).</p>`).join("")}
     ${inp.base_cash_flow != null ? `<p class="small">Base: <b>${fmt.big(inp.base_cash_flow)}</b> (${esc(inp.base_desc)}) · debt ${fmt.big(inp.debt)} · cash ${fmt.big(inp.cash)} · shares ${fmt.big(inp.shares)} · β ${fmt.num(inp.beta)} → rate ${fmt.pct(inp.discount_rate)} · IV haircut ${fmt.pct(inp.iv_haircut, 0)}${inp.statement_currency && inp.statement_currency !== "USD" ? ` · ${esc(inp.statement_currency)}→USD ${fmt.num(inp.fx, 4)}` : ""}</p>` : ""}
     ${scen ? `<table class="compact"><thead><tr><th>Scenario</th><th>IV</th><th>growth 1–5 / 6–10 / 11–20</th><th></th></tr></thead><tbody>${scen}</tbody></table>` : ""}
     <details><summary>All methods</summary><table class="compact"><tbody>${rows}</tbody></table></details>

@@ -53,6 +53,14 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - Years 1-5 growth cap is now an explicit switch
+
+- A 40% cap on years 1-5 growth already existed silently (`growth.max_years_1_5`, "not in the course"). New boolean
+  `growth.cap_years_1_5` (default ON = unchanged behaviour; Settings page, also in the scanner's rule picker) applies it to every valuation
+  method (`growth_path` and `choose_growth`); OFF uses the raw estimates. When it bites, the valuation card shows
+  "(CAPPED at 40%: the lowest estimate says 57%)". The cap level stays editable. The scanner's growth COLUMN still shows the raw
+  estimates (57%) while the valuation uses 40%. Test in tests/test_valuation_rules.py.
+
 ### 2026-11-16 - "(NORMALISED)" labels
 
 - When `normalise.enabled` is on: a banner "(NORMALISED)" at the top of the analysis page, a "(NORMALISED)" badge on Steps 1, 4 and 5,

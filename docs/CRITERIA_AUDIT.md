@@ -28,6 +28,7 @@ earlier values I changed without being asked; they are restored and marked for t
 | `growth.cap_years_6_10` | 0.15 | Adam states it | years 6–10 capped at 15% (l.4572) |
 | `growth.years_11_20` | 0.04 | Adam states it | years 11–20 default 4% (l.4467) |
 | `growth.conservative_years_11_20` | 0.02 | Adam states it | Adam's lower option for years 11–20 (2%) |
+| `growth.cap_years_1_5` | True | owner's rule/spec | owner 2026-11-16: boolean to apply the years 1-5 growth cap to all valuations (default on, as before) |
 | `growth.max_years_1_5` | 0.4 | software guard | sanity cap against bad analyst data; not in the course |
 | `growth.growth_stock_threshold` | 0.15 | owner's rule/spec | owner rule: growth ≥15%, defensive below |
 | `growth.large_growth_threshold` | 0.2 | interpretation of Adam's words | Lesson 8: fast growers 'above 20–25%' |
@@ -36,6 +37,8 @@ earlier values I changed without being asked; they are restored and marked for t
 | `growth.disagreement_ratio` | 1.5 | calibration (owner-approved) | sources ≥1.5× apart usually mean one is stale; docs/CALIBRATION.md |
 | `growth.blend_when_disagree` | median | calibration (owner-approved) | see growth.disagreement_ratio |
 | `moat.min_sources` | 3 | Adam states it | at least THREE of the FIVE moat sources (l.6972) |
+| `moat.ten_year_min_degrees` | 10.0 | owner's rule/spec | owner 2026-11-16: slope of the straight line through the 10-year log chart must be 'considerable' (1 degree is noise); 10 is our number, edit freely |
+| `moat.chart_aspect` | 0.5 | software guard | chart height / width used to turn the fitted slope into degrees; only scales the angle |
 | `moat.min_ai_score` | 7 | Adam states it | AI moat score ≥7/10; 6/10 is 'not strong enough' (l.6999) |
 | `moat.pricing_baseline_years` | (2018, 2019, 2020) | interpretation of Adam's words | the approved test compares with the three years before the stress window |
 | `moat.pricing_stress_years` | (2021, 2022, 2023) | assistant's proposal, approved by owner | docs/MOAT_PROPOSALS.md #3: did margin hold through the 2021–23 cost inflation? (Adam's pricing-power test itself has no numbers) |
