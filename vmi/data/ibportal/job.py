@@ -75,4 +75,6 @@ def start(tickers: list[str] | None = None) -> bool:
 
 def autosync() -> bool:
     """At app start: refresh when the IB data is stale (never synced, or older than ttl_ib_portal)."""
-    return get_settings().ib_portal_autosync and stale() and start()
+    from vmi.data import mode
+
+    return get_settings().ib_portal_autosync and not mode.fundamental_review() and stale() and start()

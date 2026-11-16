@@ -45,14 +45,22 @@ async function navigate() {
   }
 }
 
+$("#mode-btn")?.addEventListener("click", async (e) => {
+  await api.setMode(!e.currentTarget.dataset.on).catch(() => {});
+  pollHealth();
+});
+
 async function pollHealth() {
   const el = $("#conn-status");
   try {
     const h = await api.health();
-    const ok = h.ib?.connected;
-    el.textContent = ok ? "IB connected" : "IB offline (Yahoo fallback)";
-    el.className = `status ${ok ? "ok" : "warn"}`;
-    el.title = ok ? `${h.ib.host}:${h.ib.port}` : (h.ib?.last_error || "TWS / IB Gateway not reachable");
+    const ok = h.ib?.connected, review = h.fundamental_review;
+    el.textContent = review ? "Review mode: IB paused (Yahoo prices)" : ok ? "IB connected" : "IB offline (Yahoo fallback)";
+    el.className = `status ${review ? "" : ok ? "ok" : "warn"}`;
+    el.title = review ? "Fundamental review mode: IB Gateway is not looked for" : ok ? `${h.ib.host}:${h.ib.port}` : (h.ib?.last_error || "TWS / IB Gateway not reachable");
+    const b = $("#mode-btn");
+    b.textContent = review ? "Resume IB" : "Review mode";
+    b.dataset.on = review ? "1" : "";
   } catch {
     el.textContent = "server offline"; el.className = "status bad";
   }

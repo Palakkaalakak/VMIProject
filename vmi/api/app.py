@@ -87,7 +87,26 @@ sysr = APIRouter(prefix="/api", tags=["system"], route_class=SafeRoute)
 
 @sysr.get("/health")
 def health():
-    return {"ok": True, "ib": gateway().info(), "ib_fundamentals": ib_fundamentals.status()}
+    from vmi.data import mode
+    return {"ok": True, "ib": gateway().info(), "ib_fundamentals": ib_fundamentals.status(),
+            "fundamental_review": mode.fundamental_review()}
+
+
+class ModeIn(BaseModel):
+    fundamental_review: bool
+
+
+@sysr.get("/mode")
+def mode_get():
+    from vmi.data import mode
+    return {"fundamental_review": mode.fundamental_review()}
+
+
+@sysr.put("/mode")
+def mode_put(body: ModeIn):
+    """Fundamental review mode: IB Gateway is not looked for and the IBKR sign-in window is not opened."""
+    from vmi.data import mode
+    return {"fundamental_review": mode.set_fundamental_review(body.fundamental_review)}
 
 
 @sysr.get("/ib/sync")

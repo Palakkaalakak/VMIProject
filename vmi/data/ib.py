@@ -93,7 +93,15 @@ class IBGateway:
 
     async def _watchdog(self) -> None:
         delay = 2.0
+        from vmi.data import mode
+
         while True:
+            if mode.fundamental_review():              # owner is not using IB: no connecting, no port probing
+                if self.ib.isConnected():
+                    self.ib.disconnect()
+                self.status = "paused"
+                await asyncio.sleep(3.0)
+                continue
             if not self.ib.isConnected():
                 self.status = "connecting"
                 if await self._connect_any():
@@ -135,7 +143,8 @@ class IBGateway:
         return {"status": self.status, "connected": self.connected, "host": self.settings.ib_host,
                 "port": self.port, "tried_ports": list(candidate_ports(self.settings.ib_port)),
                 "port_errors": dict(getattr(self, "port_errors", {})), "client_id": self.settings.ib_client_id,
-                "last_error": self.last_error, "streaming_lines": len(self._tickers)}
+                "last_error": self.last_error, "streaming_lines": len(self._tickers),
+                "paused": self.status == "paused"}
 
     # ------------------------------------------------------------------ helpers (IB-loop side)
     async def _stock(self, symbol: str):

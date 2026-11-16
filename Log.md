@@ -53,6 +53,13 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - "Review mode" button (fundamental review, no IB pestering)
+
+- Header button toggles fundamental review mode (`vmi/data/mode.py`, `GET/PUT /api/mode`, persisted in the cache DB; default OFF =
+  the app keeps listening for IB Gateway as before). On: the gateway watchdog disconnects and stops probing ports (status
+  "paused"), startup autosync no longer opens the IBKR sign-in window, quotes use Yahoo; the Settings IB sync button still works.
+  Off ("Resume IB"): the gateway reconnects within seconds. Tests: tests/test_mode.py; checked in Chromium.
+
 ### 2026-11-15 - One-click launcher
 
 - `Start VMI.bat` (create `.venv` once, install requirements when `requirements.txt` changes, start the app, open the browser;

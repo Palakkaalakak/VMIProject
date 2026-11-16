@@ -22,6 +22,7 @@ const qs = (params = {}) => {
 
 export const api = {
   health: () => request("GET", "/api/health"),
+  setMode: (fundamental_review) => request("PUT", "/api/mode", { fundamental_review }),
   ibSync: () => request("GET", "/api/ib/sync"),
   startIbSync: () => request("POST", "/api/ib/sync"),
   quote: (s) => request("GET", `/api/quote/${s}`),
