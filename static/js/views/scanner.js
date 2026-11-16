@@ -14,7 +14,6 @@ const SCAN_OPTIONS = {
   "scan.min_market_cap": { label: "Min market cap ($B)", help: "Full-market scan only (S&P 500 and custom lists ignore it)", type: "float", param: "min_market_cap",
     value: (p) => (p.params.min_market_cap ?? 2e9) / 1e9, send: (v) => parseFloat(v) * 1e9 },
   "scan.min_price": { label: "Min price", help: "Full-market scan only", type: "float", param: "min_price", value: () => 5, send: parseFloat },
-  "scan.ten_year_min_return": { label: "10-year chart: min total return", help: "0.5 = +50% over ten years (and an upward trend)", type: "float", param: "ten_year_min_return", value: () => 0.5, send: parseFloat },
   "scan.require_ten_year_uptrend": { label: "Require 10-year uptrend", help: "Adam's long-term chart filter", type: "bool", param: "require_ten_year_uptrend", value: (p) => p.params.require_ten_year_uptrend ?? true, send: (v) => v === "true" },
   "scan.include_speculative": { label: "Keep speculative growth (50%+ revenue growth)", help: "Young companies whose profits are not consistent yet", type: "bool", param: "include_speculative", value: (p) => p.params.include_speculative ?? true, send: (v) => v === "true" },
   "scan.require_steps": { label: "Drop stocks failing steps 1, 2, 4, 5", help: "The steps the scan can verify 100% from data", type: "bool", param: "require_steps", value: (p) => !!(p.params.require_steps || []).length, send: (v) => (v === "true" ? [1, 2, 4, 5] : []) },

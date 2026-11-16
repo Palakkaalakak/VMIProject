@@ -105,7 +105,9 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
 
     s1 = S.step1_track_record(f, biz, rules)
     s2 = S.step2_growth(est, f, rules)
-    s3 = S.step3_moat(f, est, ten_up, biz, ov, rules, ten_year_return=_ten_year_return(hist))
+    sl = T.ten_year_slope(hist) if hist is not None and not hist.empty else None
+    s3 = S.step3_moat(f, est, ten_up, biz, ov, rules, ten_year_return=_ten_year_return(hist),
+                      ten_year_angle=sl["angle_deg"] if sl else None)
     s4 = S.step4_profitability(f, biz, rules)
     s5 = S.step5_debt(f, biz, est, rules)
 

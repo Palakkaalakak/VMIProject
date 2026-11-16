@@ -42,7 +42,6 @@ class ScanParams:
     min_price: float = 5.0
     min_roe: float | None = None         # None = the Step-4 rule profitability.min_roe at run time
     require_ten_year_uptrend: bool = True
-    ten_year_min_return: float = 0.5     # 10-year monthly chart: total return must exceed this (and the slope be up)
     require_steps: list = field(default_factory=list)   # e.g. [1, 2, 4, 5]: drop every stock failing one of these steps
     preset: str = "current"              # which preset the owner chose (recorded with the run)
     rules: dict = field(default_factory=dict)   # scan-only rule overrides {section: {key: value}} (nothing is saved)
@@ -215,13 +214,20 @@ def stage_long_term_chart(cands: list[Candidate], p: ScanParams) -> list[Candida
                 by[s].notes["ten_year"] = "insufficient history"
                 out.append(by[s])
                 continue
-            slope = np.polyfit(np.arange(len(closes)), np.log(closes.values), 1)[0]
-            ret = closes.iloc[-1] / closes.iloc[0] - 1
-            by[s].notes["ten_year_return"] = float(ret)
-            if slope > 0 and ret > p.ten_year_min_return:
+            from vmi.analysis.technicals import chart_slope
+
+            sl = chart_slope(closes.values)
+            if sl is None:             # fewer than 60 monthly points: cannot judge, keep it for the deep stage
+                by[s].notes["ten_year"] = "insufficient history"
+                out.append(by[s])
+                continue
+            by[s].notes["ten_year_angle"] = sl["angle_deg"]
+            by[s].notes["ten_year_return"] = float(closes.iloc[-1] / closes.iloc[0] - 1)
+            if sl and sl["angle_deg"] >= RULES.moat.ten_year_min_degrees:
                 out.append(by[s])
             else:
-                STATE.dropped[s] = f"Lesson 6: 10-year chart not in a long-term uptrend ({ret:+.0%})"
+                STATE.dropped[s] = (f"Lesson 6: 10-year chart not in a clear uptrend (fitted line {sl['angle_deg']:.1f} degrees, "
+                                    f"needs {RULES.moat.ten_year_min_degrees:g})")
     return out
 
 

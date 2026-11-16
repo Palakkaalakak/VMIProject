@@ -232,14 +232,38 @@ def double_bottom(df: pd.DataFrame, rules: TechnicalRules = RULES.technical, loo
             "reclaim_date": str(reclaim.index[0].date()) if not reclaim.empty else None}
 
 
-def ten_year_uptrend(df: pd.DataFrame) -> bool | None:
-    """Lesson 6 §3.3 screening filter: one clear long-term uptrend on the 10-year monthly chart."""
-    monthly = resample(df.dropna(subset=["close"]), "ME")
-    if len(monthly) < 60:
+def chart_slope(closes, aspect: float | None = None) -> dict | None:
+    """The straight line a person draws through a long-term LOG price chart (least squares on ln(price) vs time) and how steep
+    it LOOKS: the chart is scaled so time fills the full width and ln(price) between the period's low and high fills the height
+    (height = `aspect` x width, 0.5 = a 2:1 chart). angle = atan(fitted rise / price range x aspect). Flat/noisy charts give a
+    few degrees (1 degree is noise); a steady doubling over 10 years inside a doubled price range gives about 27 degrees."""
+    m = np.asarray(closes, dtype=float)
+    m = m[np.isfinite(m) & (m > 0)]
+    if len(m) < 60:
         return None
-    m = monthly["close"]
-    slope = np.polyfit(np.arange(len(m)), np.log(m.values), 1)[0]
-    return bool(slope > 0 and m.iloc[-1] / m.iloc[0] - 1 > 0.5)
+    aspect = RULES.moat.chart_aspect if aspect is None else aspect
+    y = np.log(m)
+    x = np.arange(len(m))
+    slope, intercept = np.polyfit(x, y, 1)
+    rise = slope * (len(m) - 1)                                   # fitted change in ln(price) over the whole chart
+    span = float(y.max() - y.min()) or 1e-9
+    return {"angle_deg": float(np.degrees(np.arctan(rise / span * aspect))), "annual_rate": float(np.exp(slope * 12) - 1),
+            "fitted_total_return": float(np.exp(rise) - 1), "months": int(len(m))}
+
+
+def ten_year_slope(df: pd.DataFrame) -> dict | None:
+    monthly = resample(df.dropna(subset=["close"]), "ME")
+    return chart_slope(monthly["close"].values) if len(monthly) else None
+
+
+def ten_year_uptrend(df: pd.DataFrame, min_degrees: float | None = None) -> bool | None:
+    """Lesson 6 §3.3 screening filter: a clear long-term uptrend on the 10-year monthly chart = the fitted straight line slopes up
+    by at least rules.moat.ten_year_min_degrees (owner, 2026-11-16: a degree or two is noise)."""
+    sl = ten_year_slope(df)
+    if sl is None:
+        return None
+    floor = RULES.moat.ten_year_min_degrees if min_degrees is None else min_degrees
+    return bool(sl["angle_deg"] >= floor)
 
 
 # ------------------------------------------------------------------------------------ main entry

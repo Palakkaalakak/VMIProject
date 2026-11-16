@@ -85,3 +85,17 @@ def test_all_presets_are_valid_and_sourced():
             pass
     assert presets.PRESETS["adam_turnaround"]["params"]["require_steps"] == [2, 4, 5]
     assert presets.PRESETS["adam_finviz"]["rules"]["profitability"]["min_roe"] == 0.10
+
+
+def test_ten_year_chart_slope_in_degrees():
+    import numpy as np
+    from vmi.analysis.technicals import chart_slope
+    rng = np.random.default_rng(1)
+    t = np.arange(120)
+    steady = 100 * np.exp(0.0058 * t) * np.exp(rng.normal(0, 0.03, 120))           # ~7%/yr with noise
+    flat_noisy = 100 * np.exp(rng.normal(0, 0.12, 120)).cumprod() ** 0 * np.exp(0.0002 * t + rng.normal(0, 0.12, 120))
+    down = 100 * np.exp(-0.006 * t) * np.exp(rng.normal(0, 0.03, 120))
+    assert chart_slope(steady)["angle_deg"] > 15
+    assert abs(chart_slope(flat_noisy)["angle_deg"]) < 6                             # noise: a few degrees at most
+    assert chart_slope(down)["angle_deg"] < -10
+    assert chart_slope(steady[:30]) is None                                          # too short to judge

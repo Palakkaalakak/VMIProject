@@ -57,6 +57,10 @@ class GrowthRules:  # Step 2 + Lesson 5 §4.6
 @dataclass(frozen=True)
 class MoatRules:  # Step 3
     min_sources: int = 3                   # "at least THREE out of these FIVE"
+    # 10-year chart shortcut (Adam: a clear uptrend = moat sign). We draw the straight least-squares line through the log price
+    # chart and measure how steep it looks; flat or noisy charts give a few degrees.
+    ten_year_min_degrees: float = 10.0     # fitted line must slope up at least this much (owner: 1 degree is noise; the 10 is our choice)
+    chart_aspect: float = 0.5              # chart height / width used to turn the slope into degrees (0.5 = a 2:1 chart)
     min_ai_score: int = 7                  # "7, 8 or 9 out of 10 gives me more confidence"
     # Pricing-power test (approved proposal): did margin hold through the 2021–23 cost-inflation shock, compared
     # with the three years before it? Evidence only; it never changes a verdict.

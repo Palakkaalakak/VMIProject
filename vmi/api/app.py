@@ -254,7 +254,6 @@ class ScanIn(BaseModel):
     min_price: float = 5.0
     min_roe: float | None = None             # None = rule profitability.min_roe
     require_ten_year_uptrend: bool | None = None
-    ten_year_min_return: float = 0.5
     deep_limit: int = 400
     workers: int = 4
     include_speculative: bool | None = None

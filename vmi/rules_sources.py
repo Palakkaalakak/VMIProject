@@ -93,6 +93,8 @@ SOURCES: dict[str, tuple[str, str]] = {
     "valuation.min_discount_rate": (ADAM, "5.8% is the lowest rate in the table (l.4391)"),
     "valuation.max_discount_rate": (MODEL, "guard against extrapolating the table for very high betas"),
     "valuation.doomsday_growth_factor": (ADAM, "growth halves after year 5 (l.4472)"),
+    "moat.ten_year_min_degrees": (OWNER, "owner 2026-11-16: slope of the straight line through the 10-year log chart must be 'considerable' (1 degree is noise); 10 is our number, edit freely"),
+    "moat.chart_aspect": (MODEL, "chart height / width used to turn the fitted slope into degrees; only scales the angle"),
     "normalise.enabled": (OWNER, "owner (2026-11-16): option to use average historical values instead of the latest, against short-term distortions"),
     "normalise.years": (OWNER, "owner: how many fiscal years are averaged when normalising (3 by default; our choice of number)"),
     "valuation.iv_flag_enabled": (OWNER, "owner asked for an on/off switch for the 'IV may be high' warning (2026-11-07)"),

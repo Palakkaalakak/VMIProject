@@ -200,7 +200,7 @@ def moat_verdict(review: dict | None, rules: VMIRules = RULES) -> dict | None:
 
 def step3_moat(f: Fundamentals, est: Estimates, ten_year_uptrend: bool | None, biz: BizType,
                review: dict | None = None, rules: VMIRules = RULES,
-               ten_year_return: float | None = None) -> StepResult:
+               ten_year_return: float | None = None, ten_year_angle: float | None = None) -> StepResult:
     """Step 3 as Adam teaches it. The moat is a judgement, so the PASS comes from the reviewer's verdict.
 
     Until a verdict exists, only his two stated shortcuts decide the provisional result: never a no-moat industry
@@ -215,7 +215,8 @@ def step3_moat(f: Fundamentals, est: Estimates, ten_year_uptrend: bool | None, b
               "not a structurally no-moat industry (Adam's list)"),
         Check("ten_year_chart", ten_year_uptrend, None if ten_year_return is None else round(ten_year_return, 3),
               "clear 10-year uptrend = moat present; downtrend = no competitive advantage (Adam)",
-              "value = 10-year price return"),
+              "value = 10-year price return" + ("" if ten_year_angle is None else
+                  f"; the straight line through the log chart slopes {ten_year_angle:.1f} degrees (needs {rules.moat.ten_year_min_degrees:g}+)")),
     ]
     for label, series in history.items():  # information: Adam gives no numbers for 'very high' vs 'average' margins
         values = [series[y] for y in sorted(series)]
