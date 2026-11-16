@@ -25,12 +25,18 @@ function header(sym, r, step) {
 }
 
 function testsAndEvidence(step) {
-  const row = (c) => `<tr><td>${badge(c.passed)}</td><td>${esc(c.name)}</td><td>${esc(showValue(c.value))}</td>
+  const row = (c) => `<tr><td>${badge(c.passed)}</td><td><b>${esc(c.name.replaceAll("_", " "))}</b>${c.help ? `<div class="small muted" style="max-width:34rem">${esc(c.help)}</div>` : ""}</td><td>${esc(showValue(c.value))}</td>
     <td class="small muted">${esc(c.threshold ?? "")}</td><td class="small">${esc(c.note || "")}</td></tr>`;
   const tests = step.checks.filter((c) => c.passed !== null && c.passed !== undefined);
   const evidence = step.checks.filter((c) => c.passed === null || c.passed === undefined);
   return `<div class="card"><h3>Adam's tests</h3><table class="compact"><tbody>${tests.map(row).join("")}</tbody></table>
     ${(step.notes || []).filter((n) => !n.startsWith("moat_grade=")).map((n) => `<p class="note">${esc(n)}</p>`).join("")}</div>
+    <div class="card"><h3>How to review the moat (Adam, Step 3)</h3><ol class="small">
+      <li><b>Wide, narrow or none.</b> Wide: about 20 years of protection, no or insignificant competitors, can raise prices without losing customers, very high margins. Narrow: about 10 years, several significant competitors, limited pricing power, average margins. None: many competitors selling almost the same thing, price decides. He invests in wide (most of his stocks) and narrow; never in no-moat. <i>This list is set to WIDE only for our watchlists.</i></li>
+      <li><b>Count the five sources</b> and tick the ones you can show with evidence: brand monopoly, switching costs, network effect, barriers to entry (patents, regulation), economies of scale. He wants at least 3 of 5.</li>
+      <li><b>Be the customer.</b> Would you pick a competitor if it were cheaper? Compare the closest competitors (peer table below): they should be weaker, and the company should be the top dog of its niche. No clear leader = forget it.</li>
+      <li><b>Look for trouble signs:</b> customers concentrated in a few buyers (for example 80% from 3 customers), margins falling for years, losing market share.</li>
+      <li><b>Cross-check:</b> the 10-year chart (uptrend = sign of a moat) and, if you have Stock Oracle, its moat grade and AI moat score (he wants 7 to 9 out of 10; 6 is not strong enough).</li></ol></div>
     <div class="card"><h3>Evidence <span class="muted small">(no pass/fail: Adam gives no numbers, you judge)</span></h3>
     <table class="compact"><tbody>${evidence.map(row).join("")}</tbody></table></div>`;
 }

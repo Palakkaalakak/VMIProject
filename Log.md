@@ -53,6 +53,16 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - Moat 10-year chart as a fitted slope; plain-language help on the moat page
+
+- Step 3's 10-year chart check (and the scanner's 10-year pre-filter) now draw the straight least-squares line through the LOG price
+  chart and measure its slope in degrees (chart scaled to the period's price range, 2:1 aspect); needs `moat.ten_year_min_degrees`
+  (default 10, our number, owner: "1 degree is noise"; `moat.chart_aspect` 0.5 only scales). Replaces "slope > 0 and +50% return".
+  Real 10-year charts: AAPL 25, MSFT 26, BKNG 22, UNH 19, META 21, NKE -0.8, BABA -11 degrees. Scan option `ten_year_min_return` removed.
+- Moat evaluation page: a "How to review the moat (Adam, Step 3)" box (wide/narrow/none, the five sources, be the customer, trouble
+  signs, cross-checks) and, under every evidence row, what Adam says and how to read it; margin rows get a factual "Reading:" sentence
+  (range, swing, trend). New `Check.help`. No new pass/fail rules. Test: slope angles in tests/test_scan_presets.py.
+
 ### 2026-11-16 - BUG: doomsday value above the base value for fast growers
 
 - Owner spotted SNDK: base 3,742, conservative 3,502, doomsday 4,139. Cause: the doomsday years 6-10 rate was the UNcapped lowest

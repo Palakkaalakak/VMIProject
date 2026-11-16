@@ -28,6 +28,7 @@ class Check:
     value: Any = None
     threshold: Any = None
     note: str = ""
+    help: str = ""               # plain-language guidance: what Adam says and how to read this row
 
     def to_dict(self):
         return asdict(self)
@@ -55,6 +56,40 @@ def _finish(step: int, title: str, checks: list[Check], notes: list[str] | None 
     req = [c for c in applicable if required is None or c.name in required]
     passed = bool(req) and all(c.passed for c in req)
     return StepResult(step, title, passed, round(score, 3), checks, notes or [])
+
+
+MOAT_HELP = {
+    "industry_structure": "Adam never invests in commodity businesses, airlines, auto makers, property developers, construction, shipping or "
+                          "oil & gas (no moat: customers buy on price). PASS only means the industry is not on that list; it says nothing "
+                          "about this company's moat.",
+    "ten_year_chart": "Adam's quick sign: a clear uptrend on the 10-year chart usually means a strong moat, a downtrend means no competitive "
+                      "advantage. We draw the straight line through the log price chart and measure how steeply it slopes; a degree or two "
+                      "is noise, the bar is set in Settings (moat.ten_year_min_degrees).",
+    "margins": "Adam: a WIDE moat has very high profit margins and a consistent rise in sales and profits; NARROW has average margins; NO moat "
+               "has low margins because customers buy on price. He gives no numbers, so read the shape: high and steady or rising = good; "
+               "big swings = a cycle or unstable pricing, not a moat. Compare with the closest competitors in the peer table.",
+    "pricing_power_through_inflation": "Pricing power = it can raise prices without losing customers (wide moat). Test: did the margin hold "
+                                       "through the 2021-23 cost inflation compared with the years before. Held = evidence for pricing power.",
+    "recurring_revenue": "Switching costs are one of Adam's five moat sources: customers locked in by contracts, data or habit. Deferred "
+                         "revenue or backlog that is large and growing against sales hints at it.",
+    "reinvestment_intensity": "Economies of scale (another of the five sources): R&D, SG&A and capex shrinking as a share of sales while revenue "
+                              "grows means the company spreads fixed costs better than rivals.",
+    "scale": "Adam wants the TOP DOG of its industry, not a minor player. Compare revenue and market cap with the closest competitors in "
+             "the peer table below; if there is no clear leader, he says forget it.",
+}
+
+
+def _margin_reading(series: dict) -> str:
+    """One factual sentence about the shape of a margin history (no invented thresholds)."""
+    vals = [series[y] for y in sorted(series)][-6:]
+    if len(vals) < 3:
+        return ""
+    lo, hi, last = min(vals), max(vals), vals[-1]
+    swing = (hi - lo) * 100
+    shape = ("swung widely (a cycle or unstable pricing, hard to call a moat)" if swing > 20 else
+             "moved moderately" if swing > 8 else "stayed steady")
+    trend_word = "rising" if vals[-1] > vals[0] + 0.02 else "falling" if vals[-1] < vals[0] - 0.02 else "about flat"
+    return f"Reading: ranged {lo:.0%} to {hi:.0%} over {len(vals)} years ({swing:.0f} points), {shape}; overall {trend_word}, latest {last:.0%}."
 
 
 def _ratio_vals(f: Fundamentals, name: str, n: int = 6) -> list[float]:
@@ -212,32 +247,34 @@ def step3_moat(f: Fundamentals, est: Estimates, ten_year_uptrend: bool | None, b
     pricing = ME.pricing_power(f, rules)
     checks = [
         Check("industry_structure", not no_moat_ind, est.industry or f.industry or f.sic_description,
-              "not a structurally no-moat industry (Adam's list)"),
+              "not a structurally no-moat industry (Adam's list)", "", MOAT_HELP["industry_structure"]),
         Check("ten_year_chart", ten_year_uptrend, None if ten_year_return is None else round(ten_year_return, 3),
               "clear 10-year uptrend = moat present; downtrend = no competitive advantage (Adam)",
               "value = 10-year price return" + ("" if ten_year_angle is None else
-                  f"; the straight line through the log chart slopes {ten_year_angle:.1f} degrees (needs {rules.moat.ten_year_min_degrees:g}+)")),
+                  f"; the straight line through the log chart slopes {ten_year_angle:.1f} degrees (needs {rules.moat.ten_year_min_degrees:g}+)"),
+              MOAT_HELP["ten_year_chart"]),
     ]
     for label, series in history.items():  # information: Adam gives no numbers for 'very high' vs 'average' margins
         values = [series[y] for y in sorted(series)]
         checks.append(Check(label.replace(" ", "_").replace("-", "_"), None, round(values[-1], 3),
                             "wide: very high margins · narrow: average · none: low (Adam, no figures)",
-                            ", ".join(f"{y}: {v:.1%}" for y, v in list(series.items())[-6:])))
+                            ", ".join(f"{y}: {v:.1%}" for y, v in list(series.items())[-6:]),
+                            (_margin_reading(series) + " " if _margin_reading(series) else "") + MOAT_HELP["margins"]))
     checks += [
         Check("pricing_power_through_inflation", pricing["held"], pricing["stress_min"],
               f"{pricing['measure']} in {rules.moat.pricing_stress_years[0]}–{rules.moat.pricing_stress_years[-1]} within "
               f"{rules.moat.pricing_tolerance:.0%} of the years before (evidence; Adam's pricing-power test has no numbers)",
               "" if pricing["baseline"] is None else f"baseline {pricing['baseline']:.1%} → worst stress year "
-              f"{pricing['stress_min']:.1%}, latest {pricing['latest']:.1%}"),
+              f"{pricing['stress_min']:.1%}, latest {pricing['latest']:.1%}", MOAT_HELP["pricing_power_through_inflation"]),
         Check("recurring_revenue", None, switching["deferred_revenue_pct"][-1:] or None,
               "deferred revenue / backlog relative to sales (switching costs)",
               f"deferred {switching['deferred_trend'] or 'n/a'}, backlog {switching['rpo_trend'] or 'n/a'}"
-              if switching["available"] else "not reported"),
+              if switching["available"] else "not reported", MOAT_HELP["recurring_revenue"]),
         Check("reinvestment_intensity", None, {k: v["latest"] for k, v in intens.items()},
               "R&D, SG&A and capex as a share of sales (economies of scale)",
-              ", ".join(f"{k} {v['trend']}" for k, v in intens.items() if v["trend"])),
+              ", ".join(f"{k} {v['trend']}" for k, v in intens.items() if v["trend"]), MOAT_HELP["reinvestment_intensity"]),
         Check("scale", None, {"revenue": f.last("revenue"), "market_cap": mcap}, "size vs the closest competitors",
-              "see the peer comparison"),
+              "see the peer comparison", MOAT_HELP["scale"]),
     ]
     verdict = moat_verdict(review, rules)
     review_info = ME.review_status((review or {}).get("moat_reviewed_on"), f, rules, reviewed=verdict is not None)
