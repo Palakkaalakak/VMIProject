@@ -53,6 +53,15 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - BUG: doomsday value above the base value for fast growers
+
+- Owner spotted SNDK: base 3,742, conservative 3,502, doomsday 4,139. Cause: the doomsday years 6-10 rate was the UNcapped lowest
+  growth halved (40% -> 20%) while the base case caps years 6-10 at 15%, so "doomsday" was more optimistic than base for any company
+  with growth above 30%. Fix (`methods.py`): halve the base case's capped rate (min(growth, 15%) x 0.5 = 7.5%). Regression test
+  checks doomsday <= conservative <= base for growth 4/10/25/40% (fails on the old code). Applies to every DCF/DNI scenario table.
+- Also found while researching the "too high" scanner rows (not changed, owner to decide): ROIC shown is the provider's, which nets all
+  cash against capital (PLTR 387%, AMP 549%); SNDK's IV rests on one boom year of FCF after three negative years.
+
 ### 2026-11-16 - Five more scanner presets (all from Adam's document)
 
 - Added: Adam predictable (l.2822), large growth 20%+ (l.2846), dividend (l.2789), turnaround (l.2898; steps 2, 4, 5 required, not 1),

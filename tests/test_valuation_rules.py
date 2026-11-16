@@ -262,3 +262,15 @@ def test_roe_hidden_for_negative_buyback_equity_and_growth_is_the_lowest_source(
     assert displayed_growth(est, c, None, none_val, f) == 0.152                      # lowest source, outlier ignored
     assert displayed_growth(est, c, 0.07, none_val, f) == 0.07                       # human input wins
     assert displayed_growth(est, GrowthControls(exclude=("zacks",)), None, none_val, f) == 0.159  # excluded source skipped
+
+
+def test_scenarios_are_ordered_base_conservative_doomsday_even_for_fast_growers(fund_factory):
+    """Regression: with 40% growth the doomsday years 6-10 rate was 20% (uncapped half), above the base case's 15% cap."""
+    from vmi.analysis.valuation.methods import REGISTRY
+    for g in (0.04, 0.10, 0.25, 0.40):
+        f = fund_factory(revenue=[100 * 1.1 ** i for i in range(10)], net_income=[10 * 1.1 ** i for i in range(10)],
+                      cfo=[12 * 1.1 ** i for i in range(10)], capex=[2] * 10, fcf=[10 * 1.1 ** i for i in range(10)],
+                      shares_diluted=[100] * 10, ttm={"fcf": 25.0, "cfo": 27.0, "net_income": 24.0}, latest={"cash": 100.0})
+        res = REGISTRY["dcf_fcf"](_ctx(f, growth=g))
+        base, cons, doom = (next(sc.value for sc in res.scenarios if sc.name == n) for n in ("base", "conservative", "doomsday"))
+        assert doom <= cons <= base, (g, base, cons, doom)

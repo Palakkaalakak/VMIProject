@@ -176,7 +176,9 @@ def _dcf_family(ctx: ValuationContext, method: str, label: str, base: float | No
     low = min(gc.low if gc.low is not None else g, g)
     cons_path = growth_path(low, g6_10=min(low, ctx.rules.growth.cap_years_6_10) * 0.85)
     cons = discounted_value(base, cons_path, rate, ctx.debt, ctx.cash, shares)
-    doom_path = growth_path(low, g6_10=low * ctx.rules.valuation.doomsday_growth_factor,
+    # doomsday = the base case's years 6-10 rate (already capped at 15%) halved; halving the UNcapped rate (40% -> 20%) made
+    # the doomsday value higher than the base case for fast growers
+    doom_path = growth_path(low, g6_10=min(low, ctx.rules.growth.cap_years_6_10) * ctx.rules.valuation.doomsday_growth_factor,
                             g11_20=ctx.rules.growth.conservative_years_11_20)
     doom = discounted_value(base, doom_path, rate, ctx.debt, ctx.cash, shares)
     hc = 1.0 - ctx.haircut
