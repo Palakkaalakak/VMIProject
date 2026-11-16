@@ -53,6 +53,15 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-16 - Footer showed the new version but the scanner page was still the old one: stale cached JS module
+
+- Evidence (owner screenshot): footer "version 62067e8", Review-mode button present (new app.js), yet the scanner form was the
+  pre-preset one ("Min ROE", no preset, no "+ Review"). The served `static/js/views/scanner.js` is the new file (checked), so the
+  browser used a cached copy made before the no-cache header existed (heuristic freshness ~10% of file age, so up to about a day).
+  UNVERIFIED but the only explanation that fits (server code new, one module stale).
+- Fix: `/` sends `Clear-Site-Data: "cache"` once per code version (cookie `vmi_ui`); static files already `no-cache`. Immediate
+  workaround for the owner: hard reload (Ctrl+Shift+R) or restart the app and reload once.
+
 ### 2026-11-16 - Root cause of "Update VMI.bat then still the old screen": an old server kept the port
 
 - The owner's Update printed commit 62067e8 (pull fine) yet the page stayed old: an OLD copy of the app was still running on port 8000

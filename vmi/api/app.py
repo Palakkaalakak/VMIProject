@@ -11,7 +11,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI, HTTPException, Query
+from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -827,7 +827,15 @@ if STATIC.exists():
 
 
 @app.get("/")
-def index():
+def index(request: Request):
+    """The page itself. Once per code version the browser is told to drop its cached copy of this site's files
+    (Clear-Site-Data), because modules cached before the no-cache header existed would otherwise stay stale for hours."""
     if (STATIC / "index.html").exists():
-        return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
+        ver = version().split()[0]
+        headers = {"Cache-Control": "no-cache"}
+        resp = FileResponse(STATIC / "index.html", headers=headers)
+        if request.cookies.get("vmi_ui") != ver:
+            resp.headers["Clear-Site-Data"] = '"cache"'
+            resp.set_cookie("vmi_ui", ver, max_age=365 * 86400, samesite="lax")
+        return resp
     return {"app": "VMI Toolkit", "docs": "/docs"}

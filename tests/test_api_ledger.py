@@ -77,3 +77,10 @@ def test_review_export_and_optionbook(client):
     assert rc["result"]["pnl_now"] < snap["result"]["pnl_now"]
     assert client.get("/api/optionbook/snapshots", params={"symbol": "AAA"}).json()[0]["id"] == snap["id"]
     assert client.post("/api/optionbook/snapshots", json={"symbol": "AAA"}).status_code == 400
+
+
+def test_index_clears_the_browser_cache_once_per_version(client):
+    first = client.get("/")
+    assert first.headers.get("clear-site-data") == '"cache"' and "vmi_ui" in first.headers.get("set-cookie", "")
+    again = client.get("/")                                 # the test client keeps the cookie
+    assert "clear-site-data" not in again.headers
