@@ -34,7 +34,8 @@ async function createPortfolio() {
 
 async function detail(box, id) {
   box.innerHTML = loading("Marking positions to market…");
-  const [p, trades] = await Promise.all([api.portfolio(id), api.trades(id)]);
+  const [p, trades, lists] = await Promise.all([api.portfolio(id), api.trades(id), api.watchlists().catch(() => [])]);
+  const wl = lists.find((w) => w.id === p.settings?.watchlist_id);   // the watchlist this portfolio is sized from
   box.innerHTML = `
     <section class="card">
       <div class="kpis">
@@ -48,6 +49,7 @@ async function detail(box, id) {
         <div class="kpi"><span>Full allocation</span><b>${fmt.money(p.full_allocation, 0)}</b><small>${p.target_positions} positions · ${esc(p.style)}</small></div>
       </div>
       <div class="inline">
+        ${wl ? `<a class="button" href="#/watchlists/${wl.id}" title="The watchlist this portfolio is sized from">Watchlist: ${esc(wl.name)} (${wl.count})</a>` : ""}
         <a class="button" href="#/plans/${id}">Plans &amp; sizing</a> <a class="button" href="#/ledger/${id}">Ledger (edit orders)</a>
         <a class="button" href="#/review/${id}">Review &amp; what-ifs</a> <a class="button" href="#/optionbook/${id}">Option book</a>
         <button id="pf-reset" class="secondary">Reset</button>
