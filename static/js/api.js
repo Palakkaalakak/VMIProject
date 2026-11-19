@@ -27,7 +27,7 @@ export const api = {
   startIbSync: () => request("POST", "/api/ib/sync"),
   quote: (s) => request("GET", `/api/quote/${s}`),
   // analysis
-  analyse: (s, technicals = true) => request("GET", `/api/analysis/${s}${qs({ technicals })}`),
+  analyse: (s, technicals = true, mode = {}) => request("GET", `/api/analysis/${s}${qs({ technicals, ...mode })}`),
   override: (s) => request("GET", `/api/analysis/${s}/override`),
   setOverride: (s, body) => request("PUT", `/api/analysis/${s}/override`, body),
   clearOverride: (s, commit = false) => request("DELETE", `/api/analysis/${s}/override${qs({ commit })}`),

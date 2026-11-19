@@ -389,7 +389,7 @@ def compact(rep: dict, c: Candidate | None = None) -> dict:
         "method": (rep.get("valuation") or {}).get("selected"), "margin_of_safety": m.get("margin_of_safety"),
         "growth": m.get("growth"), "growth_low": (m.get("growth_sources") or {}).get("low"),
         "growth_avg": (m.get("growth_sources") or {}).get("avg"), "growth_high": (m.get("growth_sources") or {}).get("high"),
-        "growth_n_sources": (m.get("growth_sources") or {}).get("n"), "growth_sources": (m.get("growth_sources") or {}).get("sources"), "roe": m.get("roe"), "roic": m.get("roic"), "net_margin": m.get("net_margin"),
+        "growth_n_sources": (m.get("growth_sources") or {}).get("n"), "growth_sources": (m.get("growth_sources") or {}).get("sources"), "roe": m.get("roe"), "roe_avg5": m.get("roe_avg5"), "roe_loss_years": m.get("roe_loss_years"), "roic": m.get("roic"), "net_margin": m.get("net_margin"),
         "pe": m.get("pe"), "peg": m.get("peg"), "dividend_yield": m.get("dividend_yield"), "beta": m.get("beta"),
         "market_cap": m.get("market_cap") or (c.market_cap if c else None), "category": rep.get("category"),
         "style": rep.get("style"), "biz_type": rep.get("biz_type"), "moat": rep.get("moat"), "moat_reviewed": rep.get("moat_reviewed"),

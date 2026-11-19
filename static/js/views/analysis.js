@@ -20,6 +20,8 @@ export function render(root, params = {}) {
       <form id="analysis-form" class="inline">
         <input id="analysis-symbol" placeholder="Ticker (e.g. MSFT)" value="${esc(params.symbol || "")}" autocomplete="off" required>
         <label class="check"><input type="checkbox" id="analysis-tech" checked> technicals</label>
+        <label class="check" title="Judge this stock on a 10-year record only (instead of allowing 5 or 10). Only this analysis; Settings are untouched."><input type="checkbox" id="analysis-ten"> 10-year record only</label>
+        <label class="check" title="Use multi-year averages (see Settings → Normalise for the years) for this stock only, even if Settings has it off"><input type="checkbox" id="analysis-norm"> normalised (this stock)</label>
         <button class="primary">Analyse</button>
       </form>
     </section>
@@ -29,14 +31,34 @@ export function render(root, params = {}) {
     const s = $("#analysis-symbol", root).value.trim().toUpperCase();
     if (s) location.hash = `#/analysis/${s}`;
   });
-  if (params.symbol) load(root, params.symbol.toUpperCase());
+  if (params.symbol) {
+    const m = loadMode(params.symbol.toUpperCase());       // the two switches are remembered per stock in this browser
+    $("#analysis-ten", root).checked = m.ten_year_only;
+    $("#analysis-norm", root).checked = m.normalise === true;
+    load(root, params.symbol.toUpperCase());
+  }
+  for (const id of ["analysis-ten", "analysis-norm"]) {
+    $(`#${id}`, root).addEventListener("change", () => {
+      const s = $("#analysis-symbol", root).value.trim().toUpperCase();
+      if (!s) return;
+      saveMode(s, readMode(root));
+      load(root, s);
+    });
+  }
 }
+
+const MODE_KEY = (s) => `vmi.analysis.mode.${s}`;
+const loadMode = (s) => { try { return { ten_year_only: false, normalise: null, ...JSON.parse(localStorage.getItem(MODE_KEY(s)) || "{}") }; } catch { return { ten_year_only: false, normalise: null }; } };
+const saveMode = (s, m) => { try { localStorage.setItem(MODE_KEY(s), JSON.stringify(m)); } catch { /* private window */ } };
+/** normalise is sent only when ticked (null = whatever Settings says), so an unticked box never switches Settings' normalise off. */
+const readMode = (root) => ({ ten_year_only: $("#analysis-ten", root).checked, normalise: $("#analysis-norm", root).checked ? true : null });
 
 async function load(root, symbol) {
   const out = $("#analysis-out", root);
   out.innerHTML = loading(`Analysing ${symbol} (fundamentals, estimates, 10y chart)…`);
   try {
-    const r = await api.analyse(symbol, $("#analysis-tech", root).checked);
+    const mode = readMode(root);
+    const r = await api.analyse(symbol, $("#analysis-tech", root).checked, { ten_year_only: mode.ten_year_only, normalise: mode.normalise ?? undefined });
     out.innerHTML = view(r);
     bind(out, r);
   } catch (e) {
@@ -53,7 +75,7 @@ function header(r) {
   const v = r.valuation || {};
   return `<div class="card head">
     <div><h2>${esc(r.ticker)} <small>${esc(r.name || "")}</small></h2>
-      <p class="muted">${esc(r.sector || "")} · ${esc(r.industry || "")} · type <b>${esc(r.biz_type)}</b> · ${esc(r.category || "")} · ${esc(r.style || "")} · moat <b>${esc(r.moat)}</b>${r.moat_reviewed ? "" : ' <span class="muted">(unreviewed)</span>'} · <a href="#/settings" class="small" title="Settings → normalise">normalise: ${r.normalised?.enabled ? `<b>ON (${r.normalised.years}y)</b>` : "off"}</a></p></div>
+      <p class="muted">${esc(r.sector || "")} · ${esc(r.industry || "")} · type <b>${esc(r.biz_type)}</b> · ${esc(r.category || "")} · ${esc(r.style || "")} · moat <b>${esc(r.moat)}</b>${r.moat_reviewed ? "" : ' <span class="muted">(unreviewed)</span>'} · <a href="#/settings" class="small" title="Settings → normalise">normalise: ${r.normalised?.enabled ? `<b>ON (${r.normalised.years}y)</b>` : "off"}</a>${r.mode?.ten_year_only ? ' · <b class="badge na" title="Track record judged on a 10-year record only">10-YEAR ONLY</b>' : ""}</p></div>
     <div class="kpis">
       <div class="kpi"><span>Price</span><b>${fmt.money(r.price)}</b></div>
       <div class="kpi"><span>Intrinsic value</span><b>${fmt.money(r.intrinsic_value)}</b></div>

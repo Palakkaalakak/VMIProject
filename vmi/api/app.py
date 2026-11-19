@@ -185,9 +185,19 @@ ar = APIRouter(prefix="/api/analysis", tags=["analysis"], route_class=SafeRoute)
 
 
 @ar.get("/{symbol}")
-def analyse(symbol: str, technicals: bool = True):
+def analyse(symbol: str, technicals: bool = True, ten_year_only: bool = False, normalise: bool | None = None):
+    """Per-stock modes (set on the Analysis tab, nothing is saved to Settings): `ten_year_only` demands a 10-year record
+    instead of 5-or-10; `normalise` True/False forces multi-year averages on/off for this one analysis (None = Settings)."""
     from vmi.analysis.pipeline import analyse_ticker
-    return analyse_ticker(symbol, with_technicals=technicals, overrides=store.get_override(symbol))
+    from vmi.rules import RULES
+    changes: dict = {}
+    if ten_year_only:
+        changes["track"] = {"min_years": 10}
+    if normalise is not None:
+        changes["normalise"] = {"enabled": normalise}
+    rep = analyse_ticker(symbol, with_technicals=technicals, overrides=store.get_override(symbol), rules=RULES.with_overrides(changes))
+    rep["mode"] = {"ten_year_only": ten_year_only, "normalise": normalise}
+    return rep
 
 
 class OverrideIn(BaseModel):

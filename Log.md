@@ -53,6 +53,12 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-19 — Analysis tab: per-stock "10-year record only" and "normalised"; RDDT mismatch explained (phase 4)
+- Two tick boxes in the Analysis tab toolbar (not Settings), remembered per ticker in the browser: **10-year record only** (`track.min_years` 10 for this analysis) and **normalised (this stock)**. `/api/analysis/{symbol}?ten_year_only=&normalise=` builds a per-request rules copy (`RULES.with_overrides`), Settings are never touched (test asserts it). The header shows "10-YEAR ONLY" / normalise state.
+- **RDDT:** the scanner row showed the LATEST ROE (32%) and its scan ran un-normalised, while the analysis page ran normalised: the 5-year ROE average includes loss years (-13, -10, -6, -27, +21 => -7%). Scan rows now show "N loss yr · avg X%" under ROE when any of the last 5 years was negative, so a flattering latest value can no longer hide it.
+- Evidence: tests/test_api_ledger.py::test_analysis_modes_become_per_request_rules; 196 tests pass. Browser look UNVERIFIED until the deep pass.
+
+
 ### 2026-11-19 — Scanner: size floors everywhere, cheaper layers, cache, saved scans, runner-ups (phase 3)
 - **Size:** `min_market_cap` / `min_price` were ignored for the S&P 500 and custom-list universes; now enforced for every universe (sizes from the same cached NASDAQ screener; a ticker it does not list is kept). The preset note shows the size line for every preset (Adam's ≥$10B is his stated preference, l.235).
 - **Cheaper layers, cheapest first:** universe + size -> NEW no-moat industries (Adam's list, local, on in the Adam presets) -> SEC frames track record, now also rejecting 4+ falling net-margin years in a row (Adam's REJECT rule) -> ROE proxy -> 10-year chart -> deep. Inside the deep stage, steps 1, 2, 4, 5 are judged first (`analyse_ticker(quick_reject=...)`) and a stock that misses the required steps skips the price, chart and valuation work. Stocks with a judgement override always get the full analysis.

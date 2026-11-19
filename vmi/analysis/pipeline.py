@@ -170,10 +170,13 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
     if ov.get("allocation_multiplier") is not None:
         alloc = ov["allocation_multiplier"]
     roe, roe_note = displayed_roe(f)
+    roe_hist = [x.value for x in f.ratios.get("roe", [])][-5:]       # what a normalised Step 4 averages over
     roic = f.ratios.get("roic", [])
     metrics = {
         "growth": g, "growth_sources": _growth_spread(est, ctx.growth_controls), "eps_growth_5y": est.eps_growth_5y, "revenue_cagr": s1.checks[0].value,
-        "roe": roe, "roe_note": roe_note, "roic": roic[-1].value if roic else None,
+        "roe": roe, "roe_note": roe_note,
+        "roe_avg5": (sum(roe_hist) / len(roe_hist)) if len(roe_hist) >= 3 else None,
+        "roe_loss_years": sum(1 for v in roe_hist if v < 0), "roic": roic[-1].value if roic else None,
         "pe": est.pe, "peg": est.peg, "dividend_yield": est.dividend_yield, "beta": est.beta,
         "margin_of_safety": (iv - price) / iv if iv and price else None,
         "net_margin": (f.last("net_income") / f.last("revenue")) if f.last("revenue") else None,

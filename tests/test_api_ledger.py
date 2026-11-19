@@ -84,3 +84,21 @@ def test_index_clears_the_browser_cache_once_per_version(client):
     assert first.headers.get("clear-site-data") == '"cache"' and "vmi_ui" in first.headers.get("set-cookie", "")
     again = client.get("/")                                 # the test client keeps the cookie
     assert "clear-site-data" not in again.headers
+
+
+def test_analysis_modes_become_per_request_rules(client, monkeypatch):
+    import vmi.analysis.pipeline as pl
+
+    seen = {}
+
+    def fake(sym, with_technicals=True, overrides=None, rules=None, **_):
+        seen["rules"] = rules
+        return {"ticker": sym}
+    monkeypatch.setattr(pl, "analyse_ticker", fake)
+    assert client.get("/api/analysis/AAA").json()["mode"] == {"ten_year_only": False, "normalise": None}
+    assert seen["rules"].track.min_years == 5 and seen["rules"].normalise.enabled is False
+    r = client.get("/api/analysis/AAA?ten_year_only=true&normalise=true").json()
+    assert r["mode"] == {"ten_year_only": True, "normalise": True}
+    assert seen["rules"].track.min_years == 10 and seen["rules"].normalise.enabled is True
+    from vmi.rules import RULES
+    assert RULES.track.min_years == 5 and RULES.normalise.enabled is False      # nothing leaks into Settings
