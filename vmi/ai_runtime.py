@@ -27,7 +27,7 @@ from vmi.config import get_settings
 
 log = logging.getLogger("vmi.ai")
 
-RELEASES_API = "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
+RELEASES_API = "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=10"
 MODEL_FILE = "Qwen3-14B-Q4_K_M.gguf"
 MODEL_URL = f"https://huggingface.co/Qwen/Qwen3-14B-GGUF/resolve/main/{MODEL_FILE}"
 MODEL_MIN_BYTES = 8_000_000_000                       # a finished file is about 9 GB; anything smaller is a partial download
@@ -96,9 +96,11 @@ def _install_runtime() -> None:
     if server_exe() is not None:
         return
     with urllib.request.urlopen(urllib.request.Request(RELEASES_API, headers={"User-Agent": "vmi-toolkit"}), timeout=30) as r:
-        picked = pick_assets(json.loads(r.read()))
+        releases = json.loads(r.read())
+    # GitHub's "latest" can point at a tag with no binaries (v1.0.0 did), so take the newest release that has a Windows build.
+    picked = next((p for p in map(pick_assets, releases) if p), None)
     if picked is None:
-        raise RuntimeError("no Windows llama.cpp build found in the latest release (install Ollama instead)")
+        raise RuntimeError("no Windows llama.cpp build found in the recent releases (install Ollama instead)")
     for url in [u for u in picked if u]:
         zp = ai_dir() / url.rsplit("/", 1)[-1]
         _download(url, zp, f"runtime {zp.name}")
