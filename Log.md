@@ -53,6 +53,12 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-19 — One number one meaning (scanner vs analysis); chart indicators
+- **Parity audit (MSFT, RDDT):** MOS, IV, growth, steps were already identical; ROE/ROIC differed under normalise (row = latest year, Step 4 = average) and **net margin differed even un-normalised** (row 41.2% / RDDT 32.1% = latest TTM-style NI/revenue; Step 1 judged 40.3% / 24.1% = fiscal-year). Fix in `analyse_ticker`: `metrics.roe`, `roic`, `net_margin` now ARE the values the steps judged (average when normalise is on, else latest fiscal year), `metrics.basis` names which, `roe_latest` / `roic_latest` keep the other number. Scanner columns and the Analysis header show the basis in parentheses ("(FY)" / "(avg)", "latest FY 4%" underneath when they differ).
+- Evidence: tests/test_parity.py (2, full pipeline with faked data); 209 tests pass.
+- **Chart:** Bollinger (SMA 20, 2 sigma) ON by default; new Stochastic (5, 3, 3) pane with 80/20 lines and an overbought/oversold readout (not in either course document: tagged owner); 20/40 EMAs can be ticked on any timeframe, with the note that Adam means them for weekly and monthly. Verified in Chromium on MSFT. Tests: tests/js/chart.mjs stochastic cases.
+
+
 ### 2026-11-19 — Deep pass in a real browser (phase 8)
 - Server run in the container, Chromium sweep of every route (scanner, settings, watchlists, portfolios, alerts, options, analysis, moat): no console errors, no failed requests (IB offline, Yahoo fallback).
 - Checked live: moat page (at-first-sight table, 5/5 guided questions and final screen, chart with weekly EMAs, horizontal-line drawing), analysis page (per-stock normalised and 10-year switches change the header and Step labels for RDDT, chart inside Technicals, the valuation now shows rate 10.0%), scanner (size line in the preset note, operator condition "ROE between 25 and 40" filtered 4 rows to 3, runner-ups toggle, save and reopen a scan, readable titles with (?) in Settings).

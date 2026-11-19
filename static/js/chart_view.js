@@ -47,6 +47,21 @@ export function bollinger(values, n = 20, mult = 2) {
     return { mid: mid[i], up: mid[i] + mult * sd, lo: mid[i] - mult * sd };
   });
 }
+/** Stochastic oscillator (owner spec, not Adam): raw %K over `k` bars, %K smoothed by `smoothK`, %D = SMA of %K over `d`. Returns [{k, d}|null]. */
+export function stochastic(highs, lows, closes, k = 5, smoothK = 3, d = 3) {
+  const raw = closes.map((c, i) => {
+    if (i < k - 1) return null;
+    const hi = Math.max(...highs.slice(i - k + 1, i + 1)), lo = Math.min(...lows.slice(i - k + 1, i + 1));
+    return hi === lo ? 50 : ((c - lo) / (hi - lo)) * 100;
+  });
+  const smooth = (xs, n) => xs.map((_, i) => {
+    const w = xs.slice(i - n + 1, i + 1);
+    return i < n - 1 || w.some((v) => v == null) ? null : w.reduce((a, b) => a + b, 0) / n;
+  });
+  const kk = smooth(raw, smoothK), dd = smooth(kk, d);
+  return kk.map((v, i) => (v == null ? null : { k: v, d: dd[i] }));
+}
+const STOCH_HIGH = 80, STOCH_LOW = 20;
 const pairs = (bars, vals) => bars.map((b, i) => (vals[i] == null ? null : { time: b.time, value: vals[i] })).filter(Boolean);
 
 // ---- the widget ---------------------------------------------------------------------------------------------------
@@ -55,7 +70,7 @@ export async function mountChart(box, symbol, { interval = "1d" } = {}) {
   box.innerHTML = `<p class="small muted">Loading the chart …</p>`;
   try { await ensureLib(); } catch (e) { box.innerHTML = `<p class="small neg">${esc(e.message)}</p>`; return { destroy() {} }; }
   const L = window.LightweightCharts;
-  const st = { interval, tool: null, pending: null, indicators: { sma: new Set([50, 100, 150, 200]), ema: new Set(), bb: false, vol: true }, lines: [] };
+  const st = { interval, tool: null, pending: null, indicators: { sma: new Set([50, 100, 150, 200]), ema: new Set(), bb: true, vol: true, stoch: true }, lines: [] };
   const KEY = () => `vmi.chart.draw.${symbol}.${st.interval}`;
 
   box.innerHTML = `<div class="chart-bar inline">
@@ -68,11 +83,15 @@ export async function mountChart(box, symbol, { interval = "1d" } = {}) {
     <div class="chart-ind small inline">
       ${SMAS.map(([n, c]) => `<label><input type="checkbox" data-sma="${n}" ${st.indicators.sma.has(n) ? "checked" : ""}> <b style="color:${c}">SMA ${n}</b></label>`).join(" ")}
       ${EMAS.map(([n, c]) => `<label><input type="checkbox" data-ema="${n}"> <b style="color:${c}">EMA ${n}</b></label>`).join(" ")}
-      <label title="Not from Adam (neither course document mentions Bollinger bands): an owner extra"><input type="checkbox" id="ch-bb"> Bollinger 20,2 <span class="muted">(owner)</span></label>
+      <label title="Not from Adam (neither course document mentions Bollinger bands): an owner extra. SMA basis, length 20, 2 standard deviations"><input type="checkbox" id="ch-bb" checked> Bollinger (SMA 20, 2σ) <span class="muted">(owner)</span></label>
+      <label title="Not from Adam: an owner extra. Period 5, %K smoothing 3, %D 3, overbought 80, oversold 20"><input type="checkbox" id="ch-stoch" checked> Stochastic (5, 3, 3) <span class="muted">(owner)</span></label>
       <label><input type="checkbox" id="ch-vol" checked> Volume</label>
-      <span class="muted" id="ch-hint" title="Adam: daily = SMA 50/100/150/200 only; the 20 and 40 EMAs only on weekly and monthly"></span></div>
+      </div>
+    <div class="small muted">Adam: the 50/100/150/200 SMAs are his daily set; the 20 and 40 EMAs are meant for weekly and monthly charts only (they are allowed here on every timeframe).</div>
     <div class="chart-read small" id="ch-read">&nbsp;</div>
-    <div id="ch-canvas" style="height:420px;position:relative"></div>`;
+    <div id="ch-canvas" style="height:420px;position:relative"></div>
+    <div class="small" id="ch-stoch-read">&nbsp;</div>
+    <div id="ch-stoch-box" style="height:130px;position:relative"></div>`;
   const canvas = box.querySelector("#ch-canvas");
   const chart = L.createChart(canvas, { autoSize: true, layout: { background: { color: "transparent" }, textColor: getComputedStyle(document.body).color },
     grid: { vertLines: { color: "rgba(128,128,128,.15)" }, horzLines: { color: "rgba(128,128,128,.15)" } }, crosshair: { mode: 0 }, rightPriceScale: { borderVisible: false },
@@ -80,6 +99,23 @@ export async function mountChart(box, symbol, { interval = "1d" } = {}) {
   const candles = chart.addCandlestickSeries({ upColor: "#22c55e", downColor: "#ef4444", wickUpColor: "#22c55e", wickDownColor: "#ef4444", borderVisible: false });
   const volume = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol", color: "rgba(128,128,128,.4)" });
   chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+  const sbox = box.querySelector("#ch-stoch-box");
+  const sc = L.createChart(sbox, { autoSize: true, layout: { background: { color: "transparent" }, textColor: getComputedStyle(document.body).color },
+    grid: { vertLines: { color: "rgba(128,128,128,.15)" }, horzLines: { visible: false } }, rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.08, bottom: 0.08 } },
+    timeScale: { visible: false }, crosshair: { mode: 0 } });
+  const kLine = sc.addLineSeries({ color: "#38bdf8", lineWidth: 2, priceLineVisible: false, lastValueVisible: true, title: "%K",
+    autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }) });
+  const dLine = sc.addLineSeries({ color: "#f59e0b", lineWidth: 1, priceLineVisible: false, lastValueVisible: true, title: "%D",
+    autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }) });
+  kLine.createPriceLine({ price: STOCH_HIGH, color: "#ef4444", lineWidth: 1, lineStyle: 2, title: "80" });
+  kLine.createPriceLine({ price: STOCH_LOW, color: "#22c55e", lineWidth: 1, lineStyle: 2, title: "20" });
+  let syncing = false;                                   // keep the two charts on the same time window
+  const link = (from, to) => from.timeScale().subscribeVisibleLogicalRangeChange((r) => { if (!r || syncing) return; syncing = true; to.timeScale().setVisibleLogicalRange(r); syncing = false; });
+  link(chart, sc); link(sc, chart);
+  let stochData = [];
+  const stochWord = (v) => (v == null ? "" : v >= STOCH_HIGH ? "overbought" : v <= STOCH_LOW ? "oversold" : "neutral");
+  const stochRead = (i) => { const x = stochData[i]; box.querySelector("#ch-stoch-read").innerHTML = x ? `Stochastic (5,3,3) · %K <b>${x.k.toFixed(1)}</b> · %D <b>${x.d == null ? "—" : x.d.toFixed(1)}</b> · ${stochWord(x.k)}` : "Stochastic (5,3,3)"; };
+  sc.subscribeCrosshairMove((p) => { if (p.time) { const i = bars.findIndex((b) => b.time === p.time); if (i >= 0) stochRead(i); } });
   let bars = [], overlays = [], drawn = [];
 
   const readout = (b, prev) => {
@@ -105,6 +141,11 @@ export async function mountChart(box, symbol, { interval = "1d" } = {}) {
       add(bb.map((x) => x && x.up), "#a78bfa", 1, "BB up"); add(bb.map((x) => x && x.mid), "#a78bfa80", 1, "BB mid"); add(bb.map((x) => x && x.lo), "#a78bfa", 1, "BB low");
     }
     volume.applyOptions({ visible: st.indicators.vol });
+    stochData = stochastic(bars.map((b) => b.high), bars.map((b) => b.low), closes);
+    kLine.setData(stochData.map((x, i) => (x ? { time: bars[i].time, value: x.k } : null)).filter(Boolean));
+    dLine.setData(stochData.map((x, i) => (x && x.d != null ? { time: bars[i].time, value: x.d } : null)).filter(Boolean));
+    sbox.parentElement.querySelector("#ch-stoch-read").hidden = sbox.hidden = !st.indicators.stoch;
+    stochRead(bars.length - 1);
   }
 
   // ---- drawings: kept per symbol and timeframe in this browser -----------------------------------------------------
@@ -139,11 +180,10 @@ export async function mountChart(box, symbol, { interval = "1d" } = {}) {
     box.querySelector("#ch-src").textContent = `${res.source} · ${bars.length} bars`;
     candles.setData(bars.map(({ time, open, high, low, close }) => ({ time, open, high, low, close })));
     volume.setData(bars.map((b) => ({ time: b.time, value: b.volume, color: b.close >= b.open ? "rgba(34,197,94,.35)" : "rgba(239,68,68,.35)" })));
-    // Adam: EMAs only matter on weekly/monthly; start them on there and off on daily and intraday
+    // Adam: the 20/40 EMAs are for weekly and monthly. They start ON there (and off elsewhere) but can be switched on for any timeframe.
     const higher = st.interval === "1wk" || st.interval === "1mo";
     st.indicators.ema = new Set(higher ? [20, 40] : []);
     box.querySelectorAll("[data-ema]").forEach((c) => { c.checked = st.indicators.ema.has(+c.dataset.ema); });
-    box.querySelector("#ch-hint").textContent = higher ? "weekly/monthly: 20 and 40 EMA in service" : "daily: Adam uses the SMAs only";
     st.lines = loadDrawings();
     drawIndicators(); renderDrawings(); lastBar();
     setRange(365);
@@ -162,11 +202,12 @@ export async function mountChart(box, symbol, { interval = "1d" } = {}) {
   box.querySelectorAll("[data-sma]").forEach((c) => c.addEventListener("change", () => { c.checked ? st.indicators.sma.add(+c.dataset.sma) : st.indicators.sma.delete(+c.dataset.sma); drawIndicators(); }));
   box.querySelectorAll("[data-ema]").forEach((c) => c.addEventListener("change", () => { c.checked ? st.indicators.ema.add(+c.dataset.ema) : st.indicators.ema.delete(+c.dataset.ema); drawIndicators(); }));
   box.querySelector("#ch-bb").addEventListener("change", (e) => { st.indicators.bb = e.target.checked; drawIndicators(); });
+  box.querySelector("#ch-stoch").addEventListener("change", (e) => { st.indicators.stoch = e.target.checked; drawIndicators(); });
   box.querySelector("#ch-vol").addEventListener("change", (e) => { st.indicators.vol = e.target.checked; drawIndicators(); });
   box.querySelectorAll("[data-tool]").forEach((b) => b.addEventListener("click", () => {
     if (b.dataset.tool === "clear") { st.lines = []; st.pending = null; st.tool = null; saveDrawings(); renderDrawings(); markTool(); return; }
     st.tool = st.tool === b.dataset.tool ? null : b.dataset.tool; st.pending = null; markTool();
   }));
   await load();
-  return { destroy() { chart.remove(); } };
+  return { destroy() { chart.remove(); sc.remove(); } };
 }

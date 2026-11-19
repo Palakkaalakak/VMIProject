@@ -170,16 +170,28 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
     if ov.get("allocation_multiplier") is not None:
         alloc = ov["allocation_multiplier"]
     roe, roe_note = displayed_roe(f)
+    # One number, one meaning: the scanner row and the analysis page show the SAME value the steps judged (the multi-year average when
+    # normalise is on, else the latest fiscal year), with its basis named in `metrics["basis"]`.
+    def judged(step, name):
+        return next((c.value for c in step.checks if c.name == name and isinstance(c.value, (int, float))), None)
+    basis = "avg" if rules.normalise.enabled else "latest"
+    roe_latest = roe
+    if (j := judged(s4, "roe")) is not None:
+        roe = j
+    roic_latest = (f.ratios.get("roic") or [None])[-1]
+    roic_latest = roic_latest.value if roic_latest else None
+    net_margin_judged = judged(s1, "net_margin_stable")
     roe_hist = [x.value for x in f.ratios.get("roe", [])][-5:]       # what a normalised Step 4 averages over
     roic = f.ratios.get("roic", [])
     metrics = {
         "growth": g, "growth_sources": _growth_spread(est, ctx.growth_controls), "eps_growth_5y": est.eps_growth_5y, "revenue_cagr": s1.checks[0].value,
-        "roe": roe, "roe_note": roe_note,
+        "roe": roe, "roe_latest": roe_latest, "roe_note": roe_note,
+        "basis": {"label": f"{rules.normalise.years}-year average" if basis == "avg" else "latest fiscal year", "kind": basis},
         "roe_avg5": (sum(roe_hist) / len(roe_hist)) if len(roe_hist) >= 3 else None,
-        "roe_loss_years": sum(1 for v in roe_hist if v < 0), "roic": roic[-1].value if roic else None,
+        "roe_loss_years": sum(1 for v in roe_hist if v < 0), "roic": judged(s4, "roic") if judged(s4, "roic") is not None else (roic[-1].value if roic else None), "roic_latest": roic_latest,
         "pe": est.pe, "peg": est.peg, "dividend_yield": est.dividend_yield, "beta": est.beta,
         "margin_of_safety": (iv - price) / iv if iv and price else None,
-        "net_margin": (f.last("net_income") / f.last("revenue")) if f.last("revenue") else None,
+        "net_margin": net_margin_judged if net_margin_judged is not None else ((f.last("net_income") / f.last("revenue")) if f.last("revenue") else None),
         "market_cap": (est.extra.get("yahoo") or {}).get("market_cap"),
     }
     return {

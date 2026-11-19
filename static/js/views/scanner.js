@@ -350,6 +350,9 @@ function addToReview(root, r, btn) {
   });
 }
 
+/** The same wording the Analysis page uses for what a figure is based on (Step 1 and 4 values). */
+const basisTag = (r) => (r.basis ? ` <span class="small muted" title="Same value the analysis page judges in Steps 1 and 4: ${esc(r.basis)}">(${r.basis_kind === "avg" ? "avg" : "FY"})</span>` : "");
+
 const COLUMNS = [
   { key: "symbol", label: "Ticker", render: (r) => `<b>${esc(r.symbol)}</b>${r.pinned ? ` <span class="badge na" title="${esc(r.pinned)}">judged</span>` : ""}${r.runner_up ? ` <span class="badge" title="Missed: ${esc(r.missed)}">runner-up</span>` : ""}<div class="small muted">${esc(r.name || "")}${r.runner_up ? ` · missed ${esc(r.missed)}` : ""}</div>` },
   { key: "sector", label: "Sector" },
@@ -358,9 +361,9 @@ const COLUMNS = [
   { key: "intrinsic_value", label: "IV", cls: "num", render: (r) => `${fmt.money(r.intrinsic_value)}${r.iv_low_confidence ? ` <span class="badge na" title="${esc(r.iv_note)}">IV may be high</span>` : ""}` },
   { key: "margin_of_safety", label: "MOS", cls: "num", render: (r) => `<span class="${signClass(r.margin_of_safety)}">${fmt.pct(r.margin_of_safety)}</span>` },
   { key: "growth", label: "Growth (low / avg / high)", cls: "num", render: (r) => `${fmt.pct(r.growth)}<div class="small muted" title="${esc(Object.entries(r.growth_sources || {}).map(([k, v]) => `${k} ${fmt.pct(v)}`).join(", "))}">${r.growth_low != null ? `${fmt.pct(r.growth_low, 0)} / ${fmt.pct(r.growth_avg, 0)} / ${fmt.pct(r.growth_high, 0)}` : ""}</div>` },
-  { key: "roe", label: "ROE", cls: "num", render: (r) => `${fmt.pct(r.roe)}${r.roe_loss_years ? `<div class="small neg" title="ROE was negative in ${r.roe_loss_years} of the last 5 years: a normalised (multi-year average) Step 4 uses the 5-year average ${fmt.pct(r.roe_avg5)}, not this latest value">${r.roe_loss_years} loss yr · avg ${fmt.pct(r.roe_avg5, 0)}</div>` : ""}` },
-  { key: "roic", label: "ROIC", cls: "num", render: (r) => fmt.pct(r.roic) },
-  { key: "net_margin", label: "Net margin", cls: "num", render: (r) => fmt.pct(r.net_margin) },
+  { key: "roe", label: "ROE", cls: "num", render: (r) => `${fmt.pct(r.roe)}${basisTag(r)}${r.basis_kind === "avg" && r.roe_latest != null ? `<div class="small muted">latest FY ${fmt.pct(r.roe_latest)}</div>` : ""}${r.roe_loss_years ? `<div class="small neg" title="ROE was negative in ${r.roe_loss_years} of the last 5 years: a normalised (multi-year average) Step 4 uses the 5-year average ${fmt.pct(r.roe_avg5)}, not this latest value">${r.roe_loss_years} loss yr · avg ${fmt.pct(r.roe_avg5, 0)}</div>` : ""}` },
+  { key: "roic", label: "ROIC", cls: "num", render: (r) => `${fmt.pct(r.roic)}${basisTag(r)}${r.basis_kind === "avg" && r.roic_latest != null ? `<div class="small muted">latest FY ${fmt.pct(r.roic_latest)}</div>` : ""}` },
+  { key: "net_margin", label: "Net margin", cls: "num", render: (r) => `${fmt.pct(r.net_margin)}${basisTag(r)}` },
   { key: "peg", label: "PEG", cls: "num", render: (r) => fmt.num(r.peg) },
   { key: "market_cap", label: "Mkt cap", cls: "num", render: (r) => fmt.big(r.market_cap) },
   { key: "method", label: "Method" },

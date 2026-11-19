@@ -76,7 +76,7 @@ function header(r) {
   const v = r.valuation || {};
   return `<div class="card head">
     <div><h2>${esc(r.ticker)} <small>${esc(r.name || "")}</small></h2>
-      <p class="muted">${esc(r.sector || "")} · ${esc(r.industry || "")} · type <b>${esc(r.biz_type)}</b> · ${esc(r.category || "")} · ${esc(r.style || "")} · moat <b>${esc(r.moat)}</b>${r.moat_reviewed ? "" : ' <span class="muted">(unreviewed)</span>'} · <a href="#/settings" class="small" title="Settings → normalise">normalise: ${r.normalised?.enabled ? `<b>ON (${r.normalised.years}y)</b>` : "off"}</a>${r.mode?.ten_year_only ? ' · <b class="badge na" title="Track record judged on a 10-year record only">10-YEAR ONLY</b>' : ""}</p></div>
+      <p class="muted">${esc(r.sector || "")} · ${esc(r.industry || "")} · type <b>${esc(r.biz_type)}</b> · ${esc(r.category || "")} · ${esc(r.style || "")} · moat <b>${esc(r.moat)}</b>${r.moat_reviewed ? "" : ' <span class="muted">(unreviewed)</span>'} · <a href="#/settings" class="small" title="Settings → normalise">normalise: ${r.normalised?.enabled ? `<b>ON (${r.normalised.years}y)</b>` : "off"}</a> · ROE, ROIC and margins judged on the <b>${esc(r.metrics?.basis?.label || "latest fiscal year")}</b>${r.mode?.ten_year_only ? ' · <b class="badge na" title="Track record judged on a 10-year record only">10-YEAR ONLY</b>' : ""}</p></div>
     <div class="kpis">
       <div class="kpi"><span>Price</span><b>${fmt.money(r.price)}</b></div>
       <div class="kpi"><span>Intrinsic value</span><b>${fmt.money(r.intrinsic_value)}</b></div>
