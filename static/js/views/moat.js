@@ -43,6 +43,9 @@ function testsAndEvidence(step) {
       <li><b>Look for trouble signs:</b> customers concentrated in a few buyers (for example 80% from 3 customers), margins falling for years, losing market share.</li>
       <li><b>Cross-check:</b> the 10-year chart (uptrend = sign of a moat) and, if you have Stock Oracle, its moat grade and AI moat score (he wants 7 to 9 out of 10; 6 is not strong enough).</li></ol></div>
     <div class="card" id="moat-first"><h3>At first sight</h3><p class="small muted">Loading the quick read …</p></div>
+    <div class="card" id="moat-ai" hidden><h3>AI second opinion <span class="badge na">minor help</span></h3>
+      <p class="small muted">A local model (runs on this PC, nothing leaves it) reads Adam's rules plus the evidence above. It can be wrong: treat it as a prompt to check, not a verdict. Not saved.</p>
+      <button type="button" id="moat-ai-go">Ask the local AI</button><div id="moat-ai-out" class="small"></div></div>
     <div class="card"><h3>Evidence <span class="muted small">(no pass/fail: Adam gives no numbers, you judge)</span></h3>
     <table class="compact"><tbody>${evidence.map(row).join("")}</tbody></table></div>`;
 }
@@ -106,6 +109,15 @@ export async function render(root, params) {
     </div><div>${verdictForm(step, ov)}<div class="card"><h3>Chart</h3><div id="moat-chart"></div></div></div></div>`;
   mountChart($("#moat-chart", root), sym).catch(() => {});
 
+  api.aiStatus().then((a) => {
+    if (!a.available || !document.body.contains(root)) return;
+    const card = $("#moat-ai", root); card.hidden = false;
+    $("#moat-ai-go", root).addEventListener("click", (e) => run(e.target, async () => {
+      $("#moat-ai-out", root).textContent = `Thinking (${a.model}) … this can take a minute`;
+      try { const res = await api.aiOpinion(sym); $("#moat-ai-out", root).innerHTML = `<p>${esc(res.opinion).replaceAll("\n", "<br>")}</p><p class="muted">AI opinion from ${esc(res.model)}</p>`; }
+      catch (err) { $("#moat-ai-out", root).innerHTML = `<span class="neg">${esc(err.message)}</span>`; }
+    }));
+  }).catch(() => {});
   const gctx = { sym, name: r.name, ov, evidence: null, onDone: () => render(root, params) };
   let guide = null;
   $("#moat-guide-start", root).addEventListener("click", () => { guide = startGuide($("#moat-guide", root), gctx); window.scrollTo({ top: 0, behavior: "smooth" }); });

@@ -53,6 +53,11 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-19 — Optional local AI second opinion on the moat page (phase 5b)
+- `vmi/ai_helper.py` talks to a local Ollama server (default `http://127.0.0.1:11434`, model `qwen3:14b`, change with `VMI_AI_URL` / `VMI_AI_MODEL` in `.env`). The card on the moat page appears ONLY when that server answers; it sends Adam's moat rules (his words) plus this company's at-first-sight signals, peers and annual-report passages, and shows a 150-word opinion labelled "minor help", never saved, nothing leaves the PC. The paragraph under "At first sight" works without it.
+- UNVERIFIED on the owner's PC: no Ollama here, so only the prompt, the reply parsing and the "unavailable" path are tested (tests/test_ai_helper.py).
+
+
 ### 2026-11-19 — Chart view and the second document (phases 6 and 7)
 - **Chart** (`static/js/chart_view.js`, vendored TradingView lightweight-charts 4.2.3, Apache 2.0, in `static/vendor/`): candles, O/H/L/C + change + volume readout on hover, timeframes 5m / 15m / 1h / Daily / Weekly / Monthly, ranges 3M-All, volume, Adam's set (SMA 50 blue, 100 orange, 150 green, 200 red thick; EMA 20 red, 40 blue thin; doc 1 section 6.2), the 20/40 EMAs start ON only on weekly and monthly (his timeframe rule, 6.4), Bollinger 20,2 marked "owner" (in neither document), trend-line and horizontal-line drawing kept per ticker and timeframe in the browser. Shown under "Your verdict" on the moat page and inside Technicals on the Analysis page. Daily bars come from IB when connected (label "IB (live)"), everything else from Yahoo; `/api/bars/{symbol}?interval=`.
 - **Second document** `docs/VMI_VERBATIM_MASTER_DOCUMENT.md` added and listed in README. Read for: technicals (50/150 crossover plus slope on DAILY candles only; 200 SMA alone; MAs as support: matches doc 1), pricing power (raise prices every year without losing share; used in the new brand-or-pricing-power source).

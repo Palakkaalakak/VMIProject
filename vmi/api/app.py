@@ -254,6 +254,28 @@ def moat_evidence(symbol: str):
     return out
 
 
+@sysr.get("/ai/status")
+def ai_status():
+    from vmi import ai_helper
+    return ai_helper.status()
+
+
+@ar.post("/{symbol}/ai-opinion")
+def ai_opinion(symbol: str):
+    """Optional second opinion from the local model (never saved): built from the moat evidence the page already shows."""
+    from vmi import ai_helper
+    ev = moat_evidence(symbol)
+    if not ev.get("first_sight"):
+        raise HTTPException(404, "no fundamentals for this ticker")
+    from vmi.analysis.pipeline import analyse_ticker
+    rep = analyse_ticker(symbol, with_technicals=False, overrides=store.get_override(symbol))
+    prompt = ai_helper.prompt_for(symbol.upper(), rep.get("name", ""), rep.get("industry", ""), ev["first_sight"], ev.get("peers"), ev.get("filing"))
+    try:
+        return {"opinion": ai_helper.opinion(prompt), "model": ai_helper.get_settings().ai_model}
+    except Exception as exc:
+        raise HTTPException(503, f"The local AI model did not answer ({exc}). Is Ollama running with the model pulled?")
+
+
 @ar.get("/{symbol}/fundamentals")
 def fundamentals(symbol: str):
     from vmi.data.fundamentals import resolve

@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     ib_portal_workers: int = 8  # parallel tickers in `sync` (only in fast mode; the browser fallback is serial)
     capture_trade_context: bool = True  # store a trimmed VMI analysis on every paper trade (vmi/paper/context.py)
 
+    # Optional local AI helper (Ollama). Off unless the Ollama server answers; nothing is ever sent outside this PC.
+    # A reasoning model that fits 12 GB of VRAM, e.g. `ollama pull qwen3:14b`. Set VMI_AI_MODEL in .env to change it.
+    ai_url: str = "http://127.0.0.1:11434"
+    ai_model: str = "qwen3:14b"
+    ai_timeout: float = 240.0
+
     # Cache TTLs (seconds)
     ttl_quote: int = 15
     ttl_history: int = 6 * 3600
