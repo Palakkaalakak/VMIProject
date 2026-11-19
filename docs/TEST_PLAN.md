@@ -3,6 +3,28 @@
 For a Claude session testing the running app in the built-in browser. The owner started the app; do not start, stop or
 restart it unless a step says so. Work top to bottom, record every result, fix nothing silently.
 
+## Work fast and cheap (read first)
+- **Numbers from the API, not from screenshots.** Get them with `fetch` in the browser console or with `curl` from a terminal:
+  `/api/health`, `/api/analysis/{T}?technicals=false` (add `&normalise=true` / `&ten_year_only=true`), `/api/scan/status`,
+  `/api/scan/results`, `/api/scan/dropped`, `/api/scan/saved`, `/api/bars/{T}?interval=1d`, `/api/ai/status`, `/api/settings`.
+  Pick out only the fields you need (e.g. `r.metrics.roe, r.metrics.basis`); never paste whole reports into the conversation.
+- **Screenshots only for visual checks** (layout, chart, tooltips, badges), one per check, viewport ≈1400×900, scale 1, no full-page
+  shots. Do not re-screenshot a page to confirm something the DOM text already showed.
+- **Batch:** one script per section where possible (one `fetch` loop over all tickers, one DOM read per page). Don't wait with fixed
+  sleeps longer than needed; wait for a selector or poll `/api/scan/status` every 5 s.
+- **Long scans run while you test other sections** (start 3a.2 and 3a.6, then do sections 1, 2, 4, 5, and come back for results).
+- **Skip section 6** (AI download) unless the owner says yes in the conversation. Don't debug or fix code: report and move on.
+- Stop a section after 2 failed attempts at the same step and report it as a bug with what you saw.
+
+## What to report (useful to the developer session)
+Keep it compact, but include the raw facts needed to fix things without re-running:
+- version (`/api/health`), IB connected yes/no, Windows/GPU if relevant;
+- per bug: the request URL or click path, the exact JSON fields or DOM text that are wrong (short excerpt, expected vs actual),
+  console errors verbatim (first line + file:line), and the screenshot file name if one was taken;
+- scan funnels as the JSON array from `/api/scan/status` (`stage, in, out, secs`) and total elapsed, for each timed scan;
+- the scanner-vs-analysis comparison as a small table: ticker × field × row value × analysis value;
+- anything surprising even if not clearly a bug (odd number, slow step > 30 s, a label that reads wrong), marked "observation".
+
 ## Ground rules
 - **Paper only. IB is read-only:** never place orders, never call `/iserver` trading routes, never submit a paper trade unless a step
   asks for one (then use a throwaway paper portfolio named `TEST`, and delete it at the end).
