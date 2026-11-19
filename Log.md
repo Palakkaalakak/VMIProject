@@ -53,6 +53,12 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-19 — Ultra excellent returned nothing: cause found and fixed
+- Cause (reproduced on MSFT, AZO, COST, ODFL, FAST): `track.min_years = 10` was compared with the 6-point recent window in `analysis/consistency.py::series_trend`, so a 10-year record could never be satisfied ("only 6 years of data (<10)") and Step 1 failed for every company.
+- Fix: a min_years above the recent window now means the WHOLE record (default 10 points) must be that long, the last 5 years still judged on their own, and the full record gets the scaled down-year allowance (10 points: 3). Also what the analysis tab's coming "10-year only" switch uses.
+- Evidence: tests/test_ten_year_record.py (3 cases); live re-check: COST and FAST now pass Step 1 under ultra; they fail on other strict rules (receivables growth, gross margin tolerance 0), which is the preset working as designed. 188 tests pass.
+
+
 ### 2026-11-19 — Filter operators (phase 2)
 - Results Filters panel: new "Conditions" builder: any numeric column (steps, MOS, growth low/avg/high, ROE, ROIC, margin, PEG, yield, cap, price, IV, beta, industry rank/share) with above, at least, below, at most, equals, between. Saved with the other filters; the "Add a filter" picker has a "Condition on any column" entry that opens it.
 - Old min/max fields stay as they are (presets still use them).

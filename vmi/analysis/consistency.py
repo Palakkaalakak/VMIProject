@@ -34,10 +34,18 @@ def series_trend(f: Fundamentals, concept: str, rules: VMIRules = RULES) -> Tren
     r = rules.track
     full = history_with_ttm(f, concept, r.preferred_years)
     recent = full[-RECENT_POINTS:]
-    rt = trend(recent, r.max_down_years_5y, r.min_years, r.min_trend_r2)
+    # min_years above the recent window (e.g. 10) is a rule about the WHOLE record: the recent window is judged on its own
+    # and the record must be that long and uptrending over its full length (before this, 10 could never be met -> ultra scan empty)
+    strict = r.min_years > RECENT_POINTS
+    rt = trend(recent, r.max_down_years_5y, min(r.min_years, RECENT_POINTS), r.min_trend_r2)
+    if strict and len(full) < r.min_years:
+        return replace(rt, consistent=False, reason=f"only {len(full)} years of data (<{r.min_years})")
     if not rt.consistent or len(full) < 8:
         return rt
-    lt = trend(full, max_down_years=len(full), min_years=r.min_years)  # direction only, no decline cap
+    # direction only, no decline cap — except under a strict record length, where the full record gets the scaled decline allowance
+    lt = trend(full, r.max_down_years_5y, r.min_years) if strict else trend(full, max_down_years=len(full), min_years=r.min_years)
+    if strict and not lt.consistent:
+        return replace(rt, consistent=False, reason=f"recent 5y ok but the {len(full)}-year record is not consistent ({lt.reason})")
     if not (lt.slope_positive and (lt.last or 0) > (lt.first or 0)):
         return replace(rt, consistent=False, reason=f"recent 5y ok but 10y trend broken ({lt.reason})")
     return replace(rt, reason=f"consistent uptrend (5y: {rt.declines} down yrs; 10y trend up)")
