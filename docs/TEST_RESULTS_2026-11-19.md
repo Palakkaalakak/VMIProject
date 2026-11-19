@@ -5,14 +5,14 @@ IB: paused / not connected, Yahoo fallback. Model: Sonnet 5.5, medium effort. Br
 Owner state: unchanged (no settings changed, TEST scan saved then removed, MSFT verdict untouched, no condition filters left).
 
 ## Bugs
-0. **AI download fails: "no Windows llama.cpp build found in the latest release (install Ollama instead)"** (blocker for the built-in AI).
+0. **FIXED in 8b84ac6 (download completed, 9.0 GB model + CUDA 13.5 runtime; AI answered MSFT in ~34 s on the GPU, 11.5 GB VRAM). AI download fails: "no Windows llama.cpp build found in the latest release (install Ollama instead)"** (blocker for the built-in AI).
    Steps: Settings → "Download the built-in AI". `/api/ai/status` → `builtin.download.error` = that text, nothing downloaded.
    Root cause: `vmi/ai_runtime.py:30` `RELEASES_API` = `.../ggml-org/llama.cpp/releases/latest`; GitHub's "latest" is currently tag `v1.0.0`
    with no Windows assets, while the real builds are `b12541` etc. (38 assets each incl. `llama-b12541-bin-win-cuda-12.4-x64.zip`,
    `cudart-llama-bin-win-cuda-13.5-x64.zip`). `pick_assets` therefore returns None. Suggested fix: query `/releases?per_page=10` and use the
    first release for which `pick_assets` is not None. PC: RTX 5070 Ti Laptop 12227 MiB, 75 GB free, so requirements are met. Model/steps 2-3
    of section 6 could not run.
-1. **MSFT moat "At first sight" = weak.** `#/moat/MSFT`: "weak (more warning signs than strengths)". Against: margin fell 2 years
+1. **FIXED in 4a60f0e (now "narrow-looking"; DAL still weak, V wide-looking, COST narrow-looking). MSFT moat "At first sight" = weak.** Cause: `first_sight.assess` used `bad >= 2` so 2 warnings beat 4 strengths; now weak needs bad >= good. `#/moat/MSFT`: "weak (more warning signs than strengths)". Against: margin fell 2 years
    in a row; Step 1 fails (earnings or margins not consistently rising). For: gross margin 68%, op-margin rank 1 of 7, industry leader,
    pricing power held. Plan expects MSFT not weak. Saved verdict: wide, score 9, sources brand/switching_costs/network_effect/scale,
    reviewed 2026-11-05. (DAL = weak via no-moat industry list: correct.) Severity: wrong label.
