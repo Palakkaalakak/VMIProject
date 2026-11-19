@@ -17,6 +17,9 @@ export const fmt = {
   expiry: (v) => (v && v.length === 8 ? `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6)}` : v || "—"),
 };
 
+/** A "(?)" that shows `text` on hover (empty text -> nothing). */
+export const tip = (text) => (text ? `<span class="q" tabindex="0" title="${esc(text)}">?</span>` : "");
+
 export const signClass = (v) => (v == null ? "" : v > 0 ? "pos" : v < 0 ? "neg" : "");
 export const badge = (ok, yes = "PASS", no = "FAIL", na = "N/A") =>
   ok === null || ok === undefined ? `<span class="badge na">${na}</span>` : ok ? `<span class="badge ok">${yes}</span>` : `<span class="badge bad">${no}</span>`;

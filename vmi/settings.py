@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from vmi import rules as R
-from vmi import rules_sources
+from vmi import labels, rules_sources
 
 SETTINGS_FILE = Path(__file__).resolve().parents[1] / "config" / "rules_settings.json"
 _DEFAULTS = R.VMIRules()  # pristine defaults (RULES itself gets updated in place)
@@ -65,6 +65,7 @@ def schema() -> list[dict]:
             value, default = getattr(cur, f.name), getattr(dft, f.name)
             kind, basis = rules_sources.source(sec.name, f.name)
             out.append({"section": sec.name, "section_help": _section_doc(sec.name), "key": f.name,
+                        "title": labels.title(f"{sec.name}.{f.name}"), "section_title": labels.title(sec.name),
                         "source_kind": kind, "source_note": basis,
                         "type": "choice" if (sec.name, f.name) in CHOICES else _kind(default),
                         "choices": list(CHOICES.get((sec.name, f.name), ())), "value": value, "default": default, "changed": value != default,

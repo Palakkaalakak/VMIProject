@@ -3,7 +3,7 @@
 import { api } from "../api.js";
 import { $, esc, loading, run, toast } from "../ui.js";
 
-import { badgeFor, ruleInput as input, show } from "../rule_fields.js";
+import { ruleInput as input, ruleTitle, show } from "../rule_fields.js";
 
 function rulesCard(schema) {
   const sections = [...new Set(schema.map((s) => s.section))];
@@ -17,9 +17,9 @@ function rulesCard(schema) {
     <form id="st-form">${sections.map((sec) => {
       const rows = schema.filter((s) => s.section === sec);
       const n = rows.filter((s) => s.changed).length;
-      return `<details ${n ? "open" : ""}><summary><b>${esc(sec)}</b> <span class="muted small">${esc(rows[0].section_help)}</span>${n ? ` <span class="badge">${n} changed</span>` : ""}</summary>
+      return `<details ${n ? "open" : ""}><summary><b>${esc(rows[0].section_title || sec)}</b> <span class="muted small">${esc(rows[0].section_help)}</span>${n ? ` <span class="badge">${n} changed</span>` : ""}</summary>
         <table class="compact"><tbody>${rows.map((s) => `<tr class="${s.changed ? "selected" : ""}">
-          <td title="${esc(s.help)}"><b>${esc(s.key)}</b> ${badgeFor(s)}<div class="small muted">${esc(s.source_note)}${s.help && s.help !== s.source_note ? ` — ${esc(s.help)}` : ""}</div></td>
+          <td>${ruleTitle(s)}</td>
           <td>${input(s)}</td>
           <td class="small muted">${s.changed ? `default ${esc(show(s.default))} <button type="button" class="link" data-reset="${esc(s.section)}.${esc(s.key)}">reset</button>` : ""}</td></tr>`).join("")}
         </tbody></table></details>`;

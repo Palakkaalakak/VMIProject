@@ -1,6 +1,6 @@
 // Superscanner view: start a funnel run (broad/cheap filters first), live funnel progress, sortable results.
 import { api } from "../api.js";
-import { $, esc, fmt, badge, loading, run, table, toast, signClass } from "../ui.js";
+import { $, esc, fmt, badge, loading, run, table, toast, signClass, tip } from "../ui.js";
 import { badgeFor, ruleInput } from "../rule_fields.js";
 import { addIndustryStats, applyFilters, filterPanel, loadSaved, readFilters, save, setForm } from "./scanner_filters.js";
 
@@ -104,7 +104,7 @@ function drawAdded(root) {
     const o = VIEW_OPTIONS[k] || SCAN_OPTIONS[k], r = o ? null : presetData.schema.find((x) => `${x.section}.${x.key}` === k);
     const cur = added[k].touched ? added[k].value : defOf(k, preset);
     const nice = (SIMPLE.find((x) => x[1] === k) || [])[0];
-    return `<tr data-key="${esc(k)}"><td><b>${esc(o ? o.label : nice || k)}</b> ${r ? badgeFor(r) : ""}${isView(k) ? ` <span class="badge na" title="Only changes which results are shown; the scan still saves everything">display</span>` : ""}<div class="small muted">${esc(o ? o.help : r.help || r.source_note)}</div></td>
+    return `<tr data-key="${esc(k)}"><td><b>${esc(o ? o.label : nice || r.title || k)}</b>${tip(o ? o.help : [r.help, r.source_note].filter(Boolean).join(" — "))} ${r ? badgeFor(r) : ""}${isView(k) ? ` <span class="badge na" title="Only changes which results are shown; the scan still saves everything">display</span>` : ""}</td>
       <td>${input(k, cur)}</td><td class="small muted">${isView(k) ? "" : "preset: " + esc(String(defOf(k, preset)))}</td><td><button type="button" class="small danger" data-remove="${esc(k)}" title="Back to the preset's value">✕</button></td></tr>`;
   }).join("")}</tbody></table>` : `<p class="small muted">No filters added: this scan uses the preset's values.</p>`;
   box.querySelectorAll("[name]").forEach((el) => el.addEventListener("input", () => {
@@ -129,17 +129,22 @@ function drawPreset(root, id, apply = false) {
 
 function pickerOptions(simple) {
   if (simple) return SIMPLE.map(([label, key]) => `<option value="${esc(label)}"></option>`).join("");
-  const ruleOpts = presetData.schema.map((r) => `<option value="${esc(r.section)}.${esc(r.key)}" label="${esc((r.help || r.source_note || "").slice(0, 110))}"></option>`);
-  const scanOpts = Object.entries(SCAN_OPTIONS).map(([k, o]) => `<option value="${esc(k)}" label="${esc(o.label)}"></option>`);
-  const viewOpts = Object.entries(VIEW_OPTIONS).map(([k, o]) => `<option value="${esc(k)}" label="${esc(o.label)}"></option>`);
+  const ruleOpts = presetData.schema.map((r) => `<option value="${esc(ruleText(r))}" label="${esc((r.help || r.source_note || "").slice(0, 110))}"></option>`);
+  const scanOpts = Object.entries(SCAN_OPTIONS).map(([k, o]) => `<option value="${esc(o.label)}"></option>`);
+  const viewOpts = Object.entries(VIEW_OPTIONS).map(([k, o]) => `<option value="${esc(o.label)}"></option>`);
   return viewOpts.join("") + scanOpts.join("") + ruleOpts.join("");
 }
+
+const ruleText = (r) => `${r.title} · ${r.section_title || r.section}`;   // what the "every filter" list shows and accepts
 
 function resolveKey(text) {
   const t = text.trim();
   const byLabel = SIMPLE.find(([label]) => label.toLowerCase() === t.toLowerCase());
   if (byLabel) return byLabel[1];
-  return VIEW_OPTIONS[t] || SCAN_OPTIONS[t] || presetData.schema.some((r) => `${r.section}.${r.key}` === t) ? t : null;
+  const rule = presetData.schema.find((r) => ruleText(r).toLowerCase() === t.toLowerCase() || `${r.section}.${r.key}` === t);
+  if (rule) return `${rule.section}.${rule.key}`;
+  const opt = Object.entries({ ...VIEW_OPTIONS, ...SCAN_OPTIONS }).find(([k, o]) => k === t || o.label.toLowerCase() === t.toLowerCase());
+  return opt ? opt[0] : null;
 }
 
 export async function render(root) {

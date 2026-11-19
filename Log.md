@@ -53,6 +53,12 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-19 — Readable parameter names with (?) help (phase 1 of the big request)
+- New `vmi/labels.py` turns technical keys (`valuation.reit_pnav_max`) into titles ("REIT maximum price / NAV"); `settings.schema()` now carries `title` and `section_title`.
+- Settings, the scanner's Custom rule editor and the "every filter" picker show the title plus a (?) hover with the help and source; the technical key stays in small print.
+- Evidence: tests/test_labels.py; 184 tests pass. Browser look UNVERIFIED until the deep pass.
+
+
 ### 2026-11-16 - "Adam: ULTRA excellent" preset and three strict-mode rules
 
 - Preset `adam_ultra` (course defaults + every step-up bar he mentions): ROE and ROIC >= 15% (l.1237); ALL 3 core debt ratios

@@ -102,3 +102,9 @@ button.link { background: none; border: none; color: var(--accent, #3b82f6); pad
 
 /* failing check rows in the 7-step card */
 table.compact tr.fail td { background: rgba(220, 38, 38, .10); }
+
+/* (?) hover help next to readable parameter titles */
+.q { display: inline-flex; align-items: center; justify-content: center; width: 1.05em; height: 1.05em; margin-left: .3em; border-radius: 50%;
+  font-size: .7rem; font-weight: 700; color: var(--muted); border: 1px solid var(--muted); cursor: help; vertical-align: middle; }
+.q:hover, .q:focus { color: var(--fg, #fff); border-color: var(--fg, #fff); }
+.techkey { font-family: monospace; font-size: .7rem; color: var(--muted); }
