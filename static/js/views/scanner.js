@@ -169,8 +169,8 @@ export async function render(root) {
           <div id="scan-added"></div>
         </div>
         <div class="wide inline" style="grid-column:1/-1">
-          <label class="inline"><input type="checkbox" name="runner_ups"> Show runner-ups (the closest misses, marked and ranked after the real results)</label>
-          <label class="inline"><input type="checkbox" name="fresh"> Ignore cached analyses (slower; default reuses ones under 8 hours old)</label>
+          <label class="check"><input type="checkbox" name="runner_ups"> Show runner-ups (the closest misses, marked and ranked after the real results)</label>
+          <label class="check"><input type="checkbox" name="fresh"> Ignore cached analyses (slower; default reuses ones under 8 hours old)</label>
         </div>
         <button class="primary">Start scan</button>
       </form>
@@ -183,7 +183,7 @@ export async function render(root) {
         <button id="scan-save" class="secondary">Save shown list as a watchlist</button>
         <button id="scan-keep" class="secondary" title="Keep this scan's full results under a name so you can reopen it later">Save this scan…</button>
         <select id="scan-saved" title="Saved scans"></select><button id="scan-load" class="secondary">Open</button><button id="scan-forget" class="small danger" title="Remove from saved scans">✕</button>
-        <label class="small inline"><input type="checkbox" id="scan-runners" checked> show runner-ups</label>
+        <label class="small check"><input type="checkbox" id="scan-runners" checked> show runner-ups</label>
         <span class="spacer"></span>
         <label class="small">Add to review queue of <select id="scan-review-wl"></select></label>
       </div>

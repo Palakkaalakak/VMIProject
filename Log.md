@@ -53,6 +53,14 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-19 — Deep pass in a real browser (phase 8)
+- Server run in the container, Chromium sweep of every route (scanner, settings, watchlists, portfolios, alerts, options, analysis, moat): no console errors, no failed requests (IB offline, Yahoo fallback).
+- Checked live: moat page (at-first-sight table, 5/5 guided questions and final screen, chart with weekly EMAs, horizontal-line drawing), analysis page (per-stock normalised and 10-year switches change the header and Step labels for RDDT, chart inside Technicals, the valuation now shows rate 10.0%), scanner (size line in the preset note, operator condition "ROE between 25 and 40" filtered 4 rows to 3, runner-ups toggle, save and reopen a scan, readable titles with (?) in Settings).
+- Live scan of 10 names with the ULTRA preset and runner-ups: 8 reached the deep stage, 0 pass every bar (the preset is meant to be that strict), 4 runner-ups listed with what each missed (MSFT, AAPL, FAST, COST); WST dropped cheaply on "net margin fell 4 years in a row", ODFL on 3 down revenue years. Deep stage of 8 names took about 7 s.
+- Layout fixes found: runner-up / fresh tick boxes stacked above their text (now `label.check`), conditions builder moved to the top of the filters panel.
+- NOT verified: IB live data (IB was offline here), Ollama AI opinion, a full S&P 500 / full-market scan timing.
+
+
 ### 2026-11-19 — Optional local AI second opinion on the moat page (phase 5b)
 - `vmi/ai_helper.py` talks to a local Ollama server (default `http://127.0.0.1:11434`, model `qwen3:14b`, change with `VMI_AI_URL` / `VMI_AI_MODEL` in `.env`). The card on the moat page appears ONLY when that server answers; it sends Adam's moat rules (his words) plus this company's at-first-sight signals, peers and annual-report passages, and shows a 150-word opinion labelled "minor help", never saved, nothing leaves the PC. The paragraph under "At first sight" works without it.
 - UNVERIFIED on the owner's PC: no Ollama here, so only the prompt, the reply parsing and the "unavailable" path are tested (tests/test_ai_helper.py).

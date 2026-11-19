@@ -144,9 +144,7 @@ export function filterPanel(rows) {
   const profile = `<label class="wide">Growth profile <select name="profile"><option value="">any</option>${Object.entries(PROFILES).map(([k, v]) => `<option value="${k}">${esc(v[0])}</option>`).join("")}</select></label>
     <label>Threshold % p.a. <input name="profile_threshold" type="number" step="any" value="15" style="width:6rem"></label>`;
   return `<details id="scan-filters" class="card"><summary><b>Filters</b> <span class="muted small" id="scan-count"></span></summary>
-    <form class="grid">${profile}${steps.join("")}${parts.join("")}<div class="wide" style="grid-column:1/-1"><b>Conditions</b> <span class="muted small">any column: above, at least, below, at most, equals, between</span>
-      <input type="hidden" name="conds"><div class="conds"></div><button type="button" class="small secondary conds-add">+ Add condition</button></div>
-      <button type="button" class="secondary" id="scan-reset">Reset</button></form></details>`;
+    <form class="grid">${profile}<div class="wide" style="grid-column:1/-1"><b>Conditions</b> <span class="muted small">any column: above, at least, below, at most, equals, between</span><input type="hidden" name="conds"><div class="conds"></div><button type="button" class="small secondary conds-add">+ Add condition</button></div>${steps.join("")}${parts.join("")}<button type="button" class="secondary" id="scan-reset">Reset</button></form></details>`;
 }
 
 export function readFilters(form) {
