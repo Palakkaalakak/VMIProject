@@ -128,17 +128,20 @@ function drawPreset(root, id, apply = false) {
 }
 
 function pickerOptions(simple) {
-  if (simple) return SIMPLE.map(([label, key]) => `<option value="${esc(label)}"></option>`).join("");
+  const cond = `<option value="${esc(COND_LABEL)}"></option>`;
+  if (simple) return cond + SIMPLE.map(([label, key]) => `<option value="${esc(label)}"></option>`).join("");
   const ruleOpts = presetData.schema.map((r) => `<option value="${esc(ruleText(r))}" label="${esc((r.help || r.source_note || "").slice(0, 110))}"></option>`);
   const scanOpts = Object.entries(SCAN_OPTIONS).map(([k, o]) => `<option value="${esc(o.label)}"></option>`);
   const viewOpts = Object.entries(VIEW_OPTIONS).map(([k, o]) => `<option value="${esc(o.label)}"></option>`);
-  return viewOpts.join("") + scanOpts.join("") + ruleOpts.join("");
+  return cond + viewOpts.join("") + scanOpts.join("") + ruleOpts.join("");
 }
 
+const COND = "__condition__", COND_LABEL = "Condition on any column (above, below, between, equals…)";
 const ruleText = (r) => `${r.title} · ${r.section_title || r.section}`;   // what the "every filter" list shows and accepts
 
 function resolveKey(text) {
   const t = text.trim();
+  if (t.toLowerCase() === COND_LABEL.toLowerCase()) return COND;
   const byLabel = SIMPLE.find(([label]) => label.toLowerCase() === t.toLowerCase());
   if (byLabel) return byLabel[1];
   const rule = presetData.schema.find((r) => ruleText(r).toLowerCase() === t.toLowerCase() || `${r.section}.${r.key}` === t);
@@ -188,6 +191,12 @@ export async function render(root) {
   sel.addEventListener("change", () => drawPreset(root, sel.value, true));
   $("#scan-pick", root).addEventListener("change", (e) => {
     const key = resolveKey(e.target.value);
+    if (key === COND) {                       // opens the Filters panel with a new above/below/between condition
+      e.target.value = "";
+      const d = $("#scan-filter-box details", root), add = $("#scan-filter-box .conds-add", root);
+      if (d && add) { d.open = true; add.click(); }
+      return;
+    }
     if (!key) { if (e.target.value.trim()) toast(`No filter called “${e.target.value.trim()}”: pick one from the list`, "error"); return; }
     added[key] ||= { touched: false, value: null };
     e.target.value = "";

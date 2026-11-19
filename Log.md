@@ -53,6 +53,12 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-19 — Filter operators (phase 2)
+- Results Filters panel: new "Conditions" builder: any numeric column (steps, MOS, growth low/avg/high, ROE, ROIC, margin, PEG, yield, cap, price, IV, beta, industry rank/share) with above, at least, below, at most, equals, between. Saved with the other filters; the "Add a filter" picker has a "Condition on any column" entry that opens it.
+- Old min/max fields stay as they are (presets still use them).
+- Evidence: tests/js/filters.mjs (run by tests/test_js.py). Browser look UNVERIFIED until the deep pass.
+
+
 ### 2026-11-19 — Readable parameter names with (?) help (phase 1 of the big request)
 - New `vmi/labels.py` turns technical keys (`valuation.reit_pnav_max`) into titles ("REIT maximum price / NAV"); `settings.schema()` now carries `title` and `section_title`.
 - Settings, the scanner's Custom rule editor and the "every filter" picker show the title plus a (?) hover with the help and source; the technical key stays in small print.

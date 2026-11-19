@@ -47,6 +47,77 @@ const FIELDS = [
   { id: "judged", label: "Has a judgement override", kind: "flag", field: "pinned", truthy: true },
 ];
 
+// Free-form conditions: any numeric column with an operator (above, at least, below, at most, equals, between). Kept in the
+// hidden field "conds" as JSON [{f: metric id, op, a, b}] so it is saved and restored like every other filter.
+const cap = (v) => (num(v) == null ? null : num(v) * 1e9);
+export const METRICS = [
+  { id: "steps", label: "Steps passed (of 7)", field: "steps_passed", parse: num },
+  { id: "mos", label: "Margin of safety %", field: "margin_of_safety", parse: pctOf },
+  { id: "growth", label: "Growth (valuation blend) %", field: "growth", parse: pctOf },
+  { id: "growth_low", label: "Growth: lowest estimate %", field: "growth_low", parse: pctOf },
+  { id: "growth_avg", label: "Growth: average estimate %", field: "growth_avg", parse: pctOf },
+  { id: "growth_high", label: "Growth: highest estimate %", field: "growth_high", parse: pctOf },
+  { id: "roe", label: "ROE %", field: "roe", parse: pctOf },
+  { id: "roic", label: "ROIC %", field: "roic", parse: pctOf },
+  { id: "net_margin", label: "Net margin %", field: "net_margin", parse: pctOf },
+  { id: "peg", label: "PEG", field: "peg", parse: num },
+  { id: "yield", label: "Dividend yield %", field: "dividend_yield", parse: pctOf },
+  { id: "cap", label: "Market cap ($B)", field: "market_cap", parse: cap },
+  { id: "price", label: "Price ($)", field: "price", parse: num },
+  { id: "iv", label: "Intrinsic value ($)", field: "intrinsic_value", parse: num },
+  { id: "beta", label: "Beta", field: "beta", parse: num },
+  { id: "industry_rank", label: "Rank by market cap in its industry", field: "industry_rank", parse: num },
+  { id: "industry_share", label: "Share of its industry's market cap %", field: "industry_share", parse: pctOf },
+];
+export const OPS = [[">", "above"], [">=", "at least"], ["<", "below"], ["<=", "at most"], ["=", "equals"], ["between", "between"]];
+
+/** True when value v satisfies one condition c (the metric's parse turns the typed number into the row's unit). */
+export function matches(c, v) {
+  const m = METRICS.find((x) => x.id === c.f);
+  if (!m || v == null) return !m;                       // unknown metric: ignore the condition; missing data never passes
+  const a = m.parse(String(c.a ?? "")), b = m.parse(String(c.b ?? ""));
+  if (a == null) return true;                           // not filled in yet
+  const tol = Math.abs(m.parse("1")) * 0.05;
+  switch (c.op) {
+    case ">": return v > a;
+    case ">=": return v >= a;
+    case "<": return v < a;
+    case "<=": return v <= a;
+    case "=": return Math.abs(v - a) <= tol;
+    case "between": return b == null ? v >= a : v >= Math.min(a, b) && v <= Math.max(a, b);
+    default: return true;
+  }
+}
+
+const readConds = (form) => { try { return JSON.parse(form.elements.conds?.value || "[]"); } catch { return []; } };
+
+/** (Re)draw the condition rows from the hidden field; edits write back and fire "input" so the list refilters. */
+export function drawConds(form) {
+  const box = form.querySelector(".conds");
+  if (!box) return;
+  const conds = readConds(form);
+  const write = () => { form.elements.conds.value = conds.length ? JSON.stringify(conds) : ""; form.dispatchEvent(new Event("input", { bubbles: true })); };
+  box.innerHTML = conds.map((c, i) => `<div class="inline" data-i="${i}">
+      <select data-k="f">${METRICS.map((m) => `<option value="${m.id}" ${m.id === c.f ? "selected" : ""}>${esc(m.label)}</option>`).join("")}</select>
+      <select data-k="op">${OPS.map(([o, l]) => `<option value="${o}" ${o === c.op ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <input data-k="a" type="number" step="any" value="${esc(c.a ?? "")}" style="width:6rem">
+      ${c.op === "between" ? `and <input data-k="b" type="number" step="any" value="${esc(c.b ?? "")}" style="width:6rem">` : ""}
+      <button type="button" class="small danger" data-del="${i}" title="Remove this condition">✕</button></div>`).join("");
+  box.querySelectorAll("[data-k]").forEach((el) => el.addEventListener("input", (e) => {
+    e.stopPropagation();
+    const i = +el.closest("[data-i]").dataset.i;
+    conds[i][el.dataset.k] = el.value;
+    write();
+    if (el.dataset.k === "op") drawConds(form);
+  }));
+  box.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => { conds.splice(+b.dataset.del, 1); write(); drawConds(form); }));
+  const add = form.querySelector(".conds-add");
+  if (add && !add.dataset.bound) {
+    add.dataset.bound = "1";
+    add.addEventListener("click", () => { const c = readConds(form); c.push({ f: "roe", op: ">=", a: "", b: "" }); form.elements.conds.value = JSON.stringify(c); drawConds(form); });
+  }
+}
+
 const uniq = (rows, f) => [...new Set(rows.map((r) => r[f]).filter((x) => x != null && x !== ""))].sort();
 const tri = (id, label) => `<label>${esc(label)} <select name="${id}"><option value="">any</option><option value="yes">yes</option><option value="no">no</option></select></label>`;
 
@@ -73,7 +144,9 @@ export function filterPanel(rows) {
   const profile = `<label class="wide">Growth profile <select name="profile"><option value="">any</option>${Object.entries(PROFILES).map(([k, v]) => `<option value="${k}">${esc(v[0])}</option>`).join("")}</select></label>
     <label>Threshold % p.a. <input name="profile_threshold" type="number" step="any" value="15" style="width:6rem"></label>`;
   return `<details id="scan-filters" class="card"><summary><b>Filters</b> <span class="muted small" id="scan-count"></span></summary>
-    <form class="grid">${profile}${steps.join("")}${parts.join("")}<button type="button" class="secondary" id="scan-reset">Reset</button></form></details>`;
+    <form class="grid">${profile}${steps.join("")}${parts.join("")}<div class="wide" style="grid-column:1/-1"><b>Conditions</b> <span class="muted small">any column: above, at least, below, at most, equals, between</span>
+      <input type="hidden" name="conds"><div class="conds"></div><button type="button" class="small secondary conds-add">+ Add condition</button></div>
+      <button type="button" class="secondary" id="scan-reset">Reset</button></form></details>`;
 }
 
 export function readFilters(form) {
@@ -92,6 +165,9 @@ export function applyFilters(rows, f) {
       const want = f[`step${i}`];
       if (want && Boolean((r.steps || {})[i]) !== (want === "pass")) return false;
     }
+    let conds = [];
+    try { conds = JSON.parse(f.conds || "[]"); } catch { /* ignore a damaged saved value */ }
+    for (const c of conds) { const m = METRICS.find((x) => x.id === c.f); if (m && !matches(c, r[m.field])) return false; }
     for (const d of FIELDS) {
       const raw = f[d.id];
       if (raw === undefined) continue;
@@ -114,6 +190,7 @@ export const save = (f) => { try { localStorage.setItem(STORE, JSON.stringify(f)
 
 export function setForm(form, f) {
   for (const el of form.elements) if (el.name) el.value = f[el.name] ?? "";
+  drawConds(form);
 }
 
 /** Industry leadership among ALL saved results (call once after loading, before filtering): industry_rank by market cap,

@@ -1,0 +1,12 @@
+import { matches, applyFilters } from "../../static/js/views/scanner_filters.js";
+globalThis.localStorage = {};
+const t = (c, v) => matches(c, v);
+const eq = (a, b, m) => { if (a !== b) { console.log("FAIL", m); process.exitCode = 1; } };
+eq(t({f:"roe",op:">",a:"15"},0.16),true,"gt"); eq(t({f:"roe",op:">",a:"15"},0.15),false,"gt eq");
+eq(t({f:"roe",op:">=",a:"15"},0.15),true,"ge"); eq(t({f:"roe",op:"<",a:"15"},0.15),false,"lt");
+eq(t({f:"roe",op:"<=",a:"15"},0.15),true,"le"); eq(t({f:"roe",op:"=",a:"15"},0.1503),true,"eq");
+eq(t({f:"roe",op:"between",a:"10",b:"20"},0.15),true,"btw"); eq(t({f:"roe",op:"between",a:"20",b:"10"},0.25),false,"btw rev");
+eq(t({f:"roe",op:">",a:"15"},null),false,"null"); eq(t({f:"cap",op:">=",a:"10"},12e9),true,"cap");
+const rows=[{symbol:"A",roe:.2},{symbol:"B",roe:.1}];
+eq(applyFilters(rows,{conds:JSON.stringify([{f:"roe",op:"between",a:"15",b:"25"}])}).length,1,"apply");
+console.log("done");
