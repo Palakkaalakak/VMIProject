@@ -53,6 +53,12 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-19 — Update VMI.bat no longer stops on local changes
+- The owner's PC folder had local modifications they did not make, so the old script refused to pull. Now it sets any changes aside with `git stash push --include-untracked`, pulls (fast-forward only), and puts them back with `git stash pop`; if the pull or the pop fails it says the changes are safe in the stash. New `.gitattributes` (`* text=auto`, `*.bat` CRLF) so Windows line-ending rewrites stop showing up as changes.
+- Evidence: the exact git sequence tested in a temp repo (modified tracked file + untracked file: pulled, both restored, stash empty). The .bat itself UNVERIFIED on Windows (cannot run here); the file keeps CRLF endings (checked).
+- I cannot reach the owner's folder from here (no computer attached), so they need to run the update once themselves.
+
+
 ### 2026-11-19 — Built-in AI (no Ollama / LM Studio needed)
 - `vmi/ai_runtime.py`: Settings > "AI helper" > Download fetches, into `data/ai/`, the newest Windows CUDA build of llama.cpp's `llama-server` (Vulkan fallback; asset chosen from the latest GitHub release at run time) with its CUDA runtime, plus the GGUF model Qwen3-14B Q4_K_M (about 9 GB, Hugging Face). Resumable. The server starts only when an opinion is requested (all layers on the GPU) and stops after 10 idle minutes. An already-running Ollama is used first if it has the model.
 - `vmi/ai_helper.py` picks the backend; `/api/ai/status|download`, `DELETE /api/ai/model`; the moat-page AI card appears when either backend is ready.
