@@ -9,6 +9,7 @@ logs/
 data/*.db
 data/*.db-*
 data/cache/
+data/ai/
 .pytest_cache/
 *.egg-info/
 data/ib_portal_samples/

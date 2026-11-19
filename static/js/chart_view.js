@@ -79,7 +79,8 @@ export async function mountChart(box, symbol, { interval = "1d" } = {}) {
       <span class="seg"><button type="button" class="small secondary" data-tool="trend" title="Click two points on the chart">Trend line</button>
         <button type="button" class="small secondary" data-tool="hline" title="Click a price level">Horizontal line</button>
         <button type="button" class="small secondary" data-tool="clear">Clear drawings</button></span>
-      <span class="spacer"></span><span class="small muted" id="ch-src"></span></div>
+      <span class="spacer"></span><span class="small muted" id="ch-src"></span>
+      <button type="button" class="small secondary" id="ch-full" title="Fill the whole screen (Esc to leave)">⛶ Fullscreen</button></div>
     <div class="chart-ind small inline">
       ${SMAS.map(([n, c]) => `<label><input type="checkbox" data-sma="${n}" ${st.indicators.sma.has(n) ? "checked" : ""}> <b style="color:${c}">SMA ${n}</b></label>`).join(" ")}
       ${EMAS.map(([n, c]) => `<label><input type="checkbox" data-ema="${n}"> <b style="color:${c}">EMA ${n}</b></label>`).join(" ")}
@@ -197,6 +198,12 @@ export async function mountChart(box, symbol, { interval = "1d" } = {}) {
     chart.timeScale().setVisibleRange({ from: first.time, to: bars[bars.length - 1].time });
   }
 
+  // Fullscreen: the chart box becomes a fixed full-window layer (CSS .chart-full); both charts autoSize, so they refill by themselves.
+  const fullBtn = box.querySelector("#ch-full");
+  const setFull = (on) => { box.classList.toggle("chart-full", on); fullBtn.textContent = on ? "✕ Exit fullscreen" : "⛶ Fullscreen"; document.body.classList.toggle("chart-full-open", on); };
+  const onEsc = (e) => { if (e.key === "Escape" && box.classList.contains("chart-full")) setFull(false); };
+  fullBtn.addEventListener("click", () => setFull(!box.classList.contains("chart-full")));
+  document.addEventListener("keydown", onEsc);
   box.querySelectorAll("[data-tf]").forEach((b) => b.addEventListener("click", () => { st.interval = b.dataset.tf; load(); }));
   box.querySelectorAll("[data-rg]").forEach((b) => b.addEventListener("click", () => setRange(+b.dataset.rg)));
   box.querySelectorAll("[data-sma]").forEach((c) => c.addEventListener("change", () => { c.checked ? st.indicators.sma.add(+c.dataset.sma) : st.indicators.sma.delete(+c.dataset.sma); drawIndicators(); }));
@@ -209,5 +216,5 @@ export async function mountChart(box, symbol, { interval = "1d" } = {}) {
     st.tool = st.tool === b.dataset.tool ? null : b.dataset.tool; st.pending = null; markTool();
   }));
   await load();
-  return { destroy() { chart.remove(); sc.remove(); } };
+  return { destroy() { document.removeEventListener("keydown", onEsc); document.body.classList.remove("chart-full-open"); chart.remove(); sc.remove(); } };
 }

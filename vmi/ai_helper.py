@@ -7,6 +7,7 @@ with an "AI opinion, minor help" label and is not saved anywhere. Everything sta
 from __future__ import annotations
 
 import json
+import re
 import urllib.request
 
 from vmi import ai_runtime
@@ -53,7 +54,22 @@ def prompt_for(symbol: str, name: str, industry: str, first_sight: dict, peers: 
             "(3) the two things the investor should check by hand before deciding. Plain language, no hype.")
 
 
+def plain(text: str) -> str:
+    """Strip markdown the page does not render (**bold**, *italic*, `code`, # headings, '* ' bullets)."""
+    text = re.sub(r"```[a-z]*\n?|```", "", text)
+    text = re.sub(r"^\s{0,3}#{1,6}\s*", "", text, flags=re.M)
+    text = re.sub(r"(\*\*|__)(.+?)\1", r"\2", text, flags=re.S)
+    text = re.sub(r"(?<![\w*])\*(?!\s)([^*\n]+?)\*(?![\w*])", r"\1", text)
+    text = re.sub(r"`([^`\n]+)`", r"\1", text)
+    text = re.sub(r"^(\s*)[*•]\s+", r"\1- ", text, flags=re.M)
+    return text.strip()
+
+
 def opinion(prompt: str) -> str:
+    return plain(_opinion(prompt))
+
+
+def _opinion(prompt: str) -> str:
     if status()["backend"] == "builtin":
         return ai_runtime.chat(prompt)
     s = get_settings()
