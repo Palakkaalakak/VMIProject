@@ -141,6 +141,9 @@ class ValuationRules:  # Lesson 5
     bank_min_yield: float = 0.045
     psg_undervalued: float = 0.2
     psg_fair: float = 0.3
+    # Which discount rate the DCF/DNI valuations use: "fixed" (one rate for every stock) or "beta" (Adam's table below).
+    discount_mode: str = "fixed"
+    fixed_discount_rate: float = 0.10      # owner 2026-11-19: default 10% for every stock
     # Adam's beta → discount-rate lookup (observed rows; interpolated in between).
     beta_table: tuple[tuple[float, float], ...] = (
         (0.28, 0.058), (0.83, 0.061), (1.10, 0.066), (1.40, 0.074), (1.49, 0.077),

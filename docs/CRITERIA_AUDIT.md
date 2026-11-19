@@ -89,6 +89,8 @@ earlier values I changed without being asked; they are restored and marked for t
 | `valuation.bank_min_yield` | 0.045 | Adam states it | Singapore banks: dividend yield ≥4.5–5% (l.5211) |
 | `valuation.psg_undervalued` | 0.2 | Adam states it | PSG 0.2–0.3 fair; below 0.2 cheaper (checklist 17) |
 | `valuation.psg_fair` | 0.3 | Adam states it | PSG >0.3 overvalued (checklist 17) |
+| `valuation.discount_mode` | fixed | owner's rule/spec | owner 2026-11-19: 'fixed' (default) uses one rate for every stock; 'beta' uses Adam's beta table |
+| `valuation.fixed_discount_rate` | 0.1 | owner's rule/spec | owner 2026-11-19: default discount rate 10% (the beta table gave 5.8%–11%) |
 | `valuation.beta_table` | ((0.28, 0.058), (0.83, 0.061), (1.1, 0.066), (1.4, 0.074), (1.49, 0.077)) | Adam states it | Adam's beta → discount rate rows (l.4391) |
 | `valuation.min_discount_rate` | 0.058 | Adam states it | 5.8% is the lowest rate in the table (l.4391) |
 | `valuation.max_discount_rate` | 0.11 | software guard | guard against extrapolating the table for very high betas |

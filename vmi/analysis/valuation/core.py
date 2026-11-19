@@ -8,11 +8,13 @@ from vmi.rules import RULES, ValuationRules
 
 
 def discount_rate(beta: float | None, rules: ValuationRules = RULES.valuation) -> float:
-    """Discount rate = rf + β × MRP, read from Adam's beta table (Lesson 5 §4.7).
+    """Discount rate: one fixed rate (default 10%, owner) or, with discount_mode="beta", rf + β × MRP read from Adam's beta table (Lesson 5 §4.7).
 
     Linear interpolation between observed rows; linear extrapolation above the top row using the
     slope of the last segment, clamped to [min_discount_rate, max_discount_rate].
     """
+    if rules.discount_mode == "fixed":
+        return rules.fixed_discount_rate
     table = sorted(rules.beta_table)
     if beta is None or beta != beta:
         beta = 1.0

@@ -1,7 +1,12 @@
 """Adam's DCF engine against the worked examples in the master document."""
 import pytest
 
+from dataclasses import replace
+
+from vmi.rules import RULES
 from vmi.analysis.valuation.core import discount_rate, discounted_value, growth_path
+
+BETA = replace(RULES.valuation, discount_mode="beta")   # Adam's beta table (the default is now a fixed 10%)
 
 
 def test_apple_cfo_worked_example():
@@ -24,14 +29,18 @@ def test_growth_path_caps():
 
 @pytest.mark.parametrize("beta,rate", [(0.28, 0.058), (0.83, 0.061), (1.10, 0.066), (1.40, 0.074), (1.49, 0.077)])
 def test_discount_rate_table_rows(beta, rate):
-    assert discount_rate(beta) == pytest.approx(rate)
+    assert discount_rate(beta, BETA) == pytest.approx(rate)
 
 
 def test_discount_rate_interpolates_and_floors():
-    assert 0.061 < discount_rate(1.0) < 0.066
-    assert discount_rate(0.1) == 0.058
-    assert discount_rate(None) == discount_rate(1.0)
+    assert 0.061 < discount_rate(1.0, BETA) < 0.066
+    assert discount_rate(0.1, BETA) == 0.058
+    assert discount_rate(None, BETA) == discount_rate(1.0, BETA)
 
 
 def test_zero_shares_returns_none():
     assert discounted_value(1e9, growth_path(0.1), 0.06, 0, 0, 0) is None
+
+
+def test_default_discount_rate_is_a_fixed_ten_percent():
+    assert discount_rate(0.3) == discount_rate(1.5) == discount_rate(None) == 0.10

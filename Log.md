@@ -53,6 +53,12 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-19 — Default discount rate is now a fixed 10%
+- Before: Adam's beta table, interpolated: beta 0.28 → 5.8%, 0.83 → 6.1%, 1.10 → 6.6%, 1.40 → 7.4%, 1.49 → 7.7%, minimum 5.8%, extrapolated upward to a maximum of 11%.
+- Now: `valuation.discount_mode` = "fixed" (default) uses `valuation.fixed_discount_rate` = 10% for every stock; set the mode to "beta" in Settings to get Adam's table back. Both are owner rules in rules_sources.py; CRITERIA_AUDIT.md regenerated.
+- Intrinsic values of DCF/DNI valuations therefore drop for low-beta stocks. Evidence: tests/test_dcf.py (fixed 10%; the table tests now run in beta mode); 189 tests pass.
+
+
 ### 2026-11-19 — Ultra excellent returned nothing: cause found and fixed
 - Cause (reproduced on MSFT, AZO, COST, ODFL, FAST): `track.min_years = 10` was compared with the 6-point recent window in `analysis/consistency.py::series_trend`, so a 10-year record could never be satisfied ("only 6 years of data (<10)") and Step 1 failed for every company.
 - Fix: a min_years above the recent window now means the WHOLE record (default 10 points) must be that long, the last 5 years still judged on their own, and the full record gets the scaled down-year allowance (10 points: 3). Also what the analysis tab's coming "10-year only" switch uses.

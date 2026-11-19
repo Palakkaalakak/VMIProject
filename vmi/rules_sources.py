@@ -93,6 +93,8 @@ SOURCES: dict[str, tuple[str, str]] = {
     "valuation.bank_min_yield": (ADAM, "Singapore banks: dividend yield ≥4.5–5% (l.5211)"),
     "valuation.psg_undervalued": (ADAM, "PSG 0.2–0.3 fair; below 0.2 cheaper (checklist 17)"),
     "valuation.psg_fair": (ADAM, "PSG >0.3 overvalued (checklist 17)"),
+    "valuation.discount_mode": (OWNER, "owner 2026-11-19: 'fixed' (default) uses one rate for every stock; 'beta' uses Adam's beta table"),
+    "valuation.fixed_discount_rate": (OWNER, "owner 2026-11-19: default discount rate 10% (the beta table gave 5.8%–11%)"),
     "valuation.beta_table": (ADAM, "Adam's beta → discount rate rows (l.4391)"),
     "valuation.min_discount_rate": (ADAM, "5.8% is the lowest rate in the table (l.4391)"),
     "valuation.max_discount_rate": (MODEL, "guard against extrapolating the table for very high betas"),

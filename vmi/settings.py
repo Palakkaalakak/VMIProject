@@ -26,7 +26,8 @@ SETTINGS_FILE = Path(__file__).resolve().parents[1] / "config" / "rules_settings
 _DEFAULTS = R.VMIRules()  # pristine defaults (RULES itself gets updated in place)
 BLEND_CHOICES = ("lowest", "second_lowest", "median", "average", "highest")
 CHOICES = {("growth", "blend"): BLEND_CHOICES, ("growth", "blend_defensive"): BLEND_CHOICES,
-           ("growth", "blend_when_disagree"): BLEND_CHOICES}
+           ("growth", "blend_when_disagree"): BLEND_CHOICES,
+           ("valuation", "discount_mode"): ("fixed", "beta")}
 _lock = threading.Lock()
 
 
