@@ -5,6 +5,10 @@ A local investing workstation built from the VMI Master Document (`docs/VMI_MAST
 intrinsic values, buy levels and alerts, multi-portfolio **paper trading** (stocks plus covered calls and
 cash-secured puts), and an options chain.
 
+**Source documents** (both in `docs/`): `VMI_MASTER_DOCUMENT.pdf` / `.txt` (the structured master document the rules cite by
+line number) and `VMI_VERBATIM_MASTER_DOCUMENT.md` (a lecture-order, near-verbatim record of 55 course videos, added 2026-11-19;
+Adam's wording, examples and qualifiers; neither document mentions Bollinger bands, so the chart's Bollinger option is marked as an owner extra).
+
 > **Paper trading only.** No order is ever sent to IBKR. IB is used for market data only.
 
 ## Run it

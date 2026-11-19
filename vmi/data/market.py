@@ -154,3 +154,41 @@ def _yahoo_quote(symbol: str) -> Quote:
 def last_price(symbol: str) -> float | None:
     q = quote(symbol)
     return q.mid or q.last or q.close
+
+
+# ------------------------------------------------------------------------------------------ chart bars
+CHART_INTERVALS = {            # interval -> (yfinance period, is intraday). Yahoo limits: 5m/15m 60 days, 1h 730 days.
+    "5m": ("60d", True), "15m": ("60d", True), "1h": ("730d", True),
+    "1d": ("10y", False), "1wk": ("20y", False), "1mo": ("max", False),
+}
+
+
+def bars(symbol: str, interval: str = "1d") -> dict:
+    """OHLCV bars for the chart: {"source", "interval", "bars": [{time, open, high, low, close, volume}]}.
+    time = "YYYY-MM-DD" for daily and above, unix seconds for intraday. Daily comes from IB when connected, everything else from Yahoo."""
+    if interval not in CHART_INTERVALS:
+        raise ValueError(f"interval must be one of {sorted(CHART_INTERVALS)}")
+    period, intraday = CHART_INTERVALS[interval]
+    if interval == "1d":
+        df = history(symbol, period, "1d")
+        source = "IB (live)" if gateway().connected else "Yahoo"
+        rows = [{"time": i.strftime("%Y-%m-%d"), **{k: float(r[k]) for k in ("open", "high", "low", "close", "volume")}}
+                for i, r in df.iterrows()]
+        return {"source": source, "interval": interval, "bars": rows}
+
+    def fetch():
+        import yfinance as yf
+
+        df = yf.Ticker(_yf_symbol(symbol)).history(period=period, interval=interval, auto_adjust=False, actions=False)
+        if df is None or df.empty:
+            return []
+        out = []
+        for ts, r in df.iterrows():
+            t = int(ts.timestamp()) if intraday else ts.strftime("%Y-%m-%d")
+            out.append({"time": t, "open": float(r["Open"]), "high": float(r["High"]), "low": float(r["Low"]),
+                        "close": float(r["Close"]), "volume": float(r["Volume"])})
+        return out
+
+    ttl = 120 if intraday else get_settings().ttl_history
+    rows = get_cache().get_or_set(f"bars:{symbol.upper()}:{interval}", ttl, fetch) or []
+    return {"source": "Yahoo", "interval": interval, "bars": rows}

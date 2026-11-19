@@ -5,6 +5,7 @@ import { $, esc, fmt, badge, loading, run, toast, signClass } from "../ui.js";
 import { sizeSelect } from "../sizes.js";
 import { stepsCard } from "../steps_view.js";
 import { state } from "../state.js";
+import { mountChart } from "../chart_view.js";
 
 let SCHEMA = null; // override fields, from GET /api/overrides/schema (declared once in vmi/overrides.py)
 
@@ -130,6 +131,7 @@ function technicals(r) {
       <div class="kpi" title="The moving average this stock bounces off most often (Lesson 6)"><span>Personality</span><b>${esc(personality(t.personality))}</b></div></div>
     <p class="small">${esc(t.scenario || "")} — ${esc(t.entry_reason || "")}</p>
     <table class="compact"><thead><tr><th>Tranche</th><th>Buy level</th><th>Source</th><th>Touches</th><th></th></tr></thead><tbody>${lv || `<tr><td colspan="5" class="muted">no levels</td></tr>`}</tbody></table>
+    <details id="an-chart-box"><summary><b>Chart</b> <span class="muted small">candles, Adam's moving averages, Bollinger, drawing, any timeframe</span></summary><div id="an-chart"></div></details>
   </div>`;
 }
 
@@ -220,6 +222,8 @@ async function bindOverrides(out, r) {
 const view = (r) => `${header(r)}<div class="cols"><div>${valuation(r)}${technicals(r)}</div><div>${trade(r)}${overrides()}</div></div>${steps(r)}`;
 
 function bind(out, r) {
+  const cb = $("#an-chart-box", out);
+  if (cb) cb.addEventListener("toggle", () => { if (cb.open && !cb.dataset.done) { cb.dataset.done = "1"; mountChart($("#an-chart", out), r.ticker).catch(() => {}); } });
   const pf = $("#trade-pf", out);
   const chosen = () => { const v = $("#trade-mult", out)?.value; return v ? parseFloat(v) : (r.allocation_multiplier || 1); };
   const showSize = async () => {

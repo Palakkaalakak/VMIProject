@@ -53,6 +53,12 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-19 — Chart view and the second document (phases 6 and 7)
+- **Chart** (`static/js/chart_view.js`, vendored TradingView lightweight-charts 4.2.3, Apache 2.0, in `static/vendor/`): candles, O/H/L/C + change + volume readout on hover, timeframes 5m / 15m / 1h / Daily / Weekly / Monthly, ranges 3M-All, volume, Adam's set (SMA 50 blue, 100 orange, 150 green, 200 red thick; EMA 20 red, 40 blue thin; doc 1 section 6.2), the 20/40 EMAs start ON only on weekly and monthly (his timeframe rule, 6.4), Bollinger 20,2 marked "owner" (in neither document), trend-line and horizontal-line drawing kept per ticker and timeframe in the browser. Shown under "Your verdict" on the moat page and inside Technicals on the Analysis page. Daily bars come from IB when connected (label "IB (live)"), everything else from Yahoo; `/api/bars/{symbol}?interval=`.
+- **Second document** `docs/VMI_VERBATIM_MASTER_DOCUMENT.md` added and listed in README. Read for: technicals (50/150 crossover plus slope on DAILY candles only; 200 SMA alone; MAs as support: matches doc 1), pricing power (raise prices every year without losing share; used in the new brand-or-pricing-power source).
+- Evidence: tests/js/chart.mjs (SMA/EMA/Bollinger maths), tests/test_api_ledger.py bars endpoint; 204 tests pass. Chart look UNVERIFIED until the browser pass.
+
+
 ### 2026-11-19 — Moat page: brand OR pricing power, Guided evaluation, "At first sight" (phase 5)
 - **Brand OR pricing power:** new source `pricing_power` shares the first slot with `brand`; ticking both counts once (`moat_verdict`), so the 3-of-5 rule is unchanged. Verdict form labels them 1a / 1b.
 - **Guided evaluation** (button on the moat page; `static/js/moat_guide.js`): seven questions in Adam's order (brand or pricing power, switching costs, network effect, barriers, scale, competitors, how long the advantage lasts), each with Adam's words, search links for the company, the app's own evidence where it has some, your yes/partly/no and a note; ends with the sources count, the verdict, score and an optional overall comment, saved like the manual form (`moat_grade` / `moat_sources` / `moat_score` + note).

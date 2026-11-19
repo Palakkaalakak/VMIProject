@@ -102,3 +102,12 @@ def test_analysis_modes_become_per_request_rules(client, monkeypatch):
     assert seen["rules"].track.min_years == 10 and seen["rules"].normalise.enabled is True
     from vmi.rules import RULES
     assert RULES.track.min_years == 5 and RULES.normalise.enabled is False      # nothing leaks into Settings
+
+
+def test_chart_bars_endpoint_validates_the_interval(client, monkeypatch):
+    from vmi.data import market
+    monkeypatch.setattr(market, "history", lambda *a, **k: __import__("pandas").DataFrame(
+        {"open": [1.0], "high": [2.0], "low": [0.5], "close": [1.5], "volume": [10.0]}, index=__import__("pandas").to_datetime(["2026-01-02"])))
+    r = client.get("/api/bars/AAA?interval=1d").json()
+    assert r["bars"][0] == {"time": "2026-01-02", "open": 1.0, "high": 2.0, "low": 0.5, "close": 1.5, "volume": 10.0}
+    assert client.get("/api/bars/AAA?interval=3d").status_code == 400

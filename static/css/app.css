@@ -108,3 +108,8 @@ table.compact tr.fail td { background: rgba(220, 38, 38, .10); }
   font-size: .7rem; font-weight: 700; color: var(--muted); border: 1px solid var(--muted); cursor: help; vertical-align: middle; }
 .q:hover, .q:focus { color: var(--fg, #fff); border-color: var(--fg, #fff); }
 .techkey { font-family: monospace; font-size: .7rem; color: var(--muted); }
+
+/* chart view */
+.chart-bar, .chart-ind { flex-wrap: wrap; gap: .5rem .9rem; margin-bottom: .4rem; }
+.chart-bar .seg { display: inline-flex; gap: .2rem; }
+.chart-read { min-height: 1.4em; margin: .2rem 0; }

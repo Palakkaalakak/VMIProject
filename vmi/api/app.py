@@ -180,6 +180,15 @@ def history(symbol: str, period: str = "2y", interval: str = "1d"):
     return {"symbol": symbol.upper(), "rows": d.astype(object).where(d.notna(), None).to_dict(orient="records")}
 
 
+@sysr.get("/bars/{symbol}")
+def chart_bars(symbol: str, interval: str = "1d"):
+    """Candles for the chart view (5m, 15m, 1h, 1d, 1wk, 1mo)."""
+    try:
+        return market.bars(symbol, interval)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
 # ======================================================================================== analysis
 ar = APIRouter(prefix="/api/analysis", tags=["analysis"], route_class=SafeRoute)
 

@@ -44,6 +44,7 @@ export const api = {
   scanStart: (body) => request("POST", "/api/scan/start", body),
   scanStatus: () => request("GET", "/api/scan/status"),
   scanResults: (params) => request("GET", `/api/scan/results${qs(params)}`),
+  bars: (s, interval = "1d") => request("GET", `/api/bars/${s}${qs({ interval })}`),
   scanSaved: () => request("GET", "/api/scan/saved"),
   scanSave: (id, name) => request("POST", `/api/scan/runs/${id}/save`, { name }),
   scanUnsave: (id) => request("DELETE", `/api/scan/runs/${id}/save`),

@@ -4,6 +4,7 @@
 import { api } from "../api.js";
 import { $, badge, esc, fmt, loading, run, toast } from "../ui.js";
 import { startGuide } from "../moat_guide.js";
+import { mountChart } from "../chart_view.js";
 
 const pctOrDash = (v) => (v == null ? "—" : fmt.pct(v, 1));
 const SOURCE_NAMES = { brand: "1a. Brand", pricing_power: "1b. Pricing power (instead of brand)", switching_costs: "2. Switching costs",
@@ -102,7 +103,8 @@ export async function render(root, params) {
   root.innerHTML = `${header(sym, r, step)}<div id="moat-guide"></div><div class="cols"><div>${testsAndEvidence(step)}
       <div class="card"><h3>Competitors</h3><div id="moat-peers">${loading("Loading peers …")}</div></div>
       <div class="card"><h3>Annual report</h3><div id="moat-filing">${loading("Loading the latest annual report …")}</div></div>
-    </div><div>${verdictForm(step, ov)}</div></div>`;
+    </div><div>${verdictForm(step, ov)}<div class="card"><h3>Chart</h3><div id="moat-chart"></div></div></div></div>`;
+  mountChart($("#moat-chart", root), sym).catch(() => {});
 
   const gctx = { sym, name: r.name, ov, evidence: null, onDone: () => render(root, params) };
   let guide = null;
