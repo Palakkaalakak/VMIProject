@@ -260,6 +260,35 @@ class ScanIn(BaseModel):
     require_steps: list[int] | None = None   # drop stocks failing these steps (1, 2, 4, 5 are fully data-checkable)
     preset: str = "current"                  # see vmi/scanner/presets.py
     rules: dict = Field(default_factory=dict)  # scan-only rule overrides {section: {key: value}}
+    skip_no_moat_industries: bool | None = None
+    runner_ups: bool | None = None           # also keep the closest misses, marked "runner-up"
+    use_cache: bool | None = None            # False = analyse every stock afresh
+
+
+class SaveScanIn(BaseModel):
+    name: str
+
+
+@sr.get("/saved")
+def scan_saved():
+    from vmi.scanner import funnel
+    return funnel.list_saved()
+
+
+@sr.post("/runs/{run_id}/save")
+def scan_save(run_id: int, body: SaveScanIn):
+    from vmi.scanner import funnel
+    try:
+        return funnel.save_run(run_id, body.name)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
+
+
+@sr.delete("/runs/{run_id}/save")
+def scan_unsave(run_id: int):
+    from vmi.scanner import funnel
+    funnel.unsave_run(run_id)
+    return {"ok": True}
 
 
 @sr.get("/presets")

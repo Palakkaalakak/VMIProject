@@ -84,22 +84,37 @@ def category(biz: BizType, growth: float | None, f, rules: VMIRules = RULES) -> 
     return "predictable"
 
 
+def failed_checks(step: dict) -> list[str]:
+    """Names of the checks that failed in one step dict ([] when the step passed)."""
+    return [c["name"] for c in step.get("checks", []) if c.get("passed") is False] or ([] if step.get("passed") else ["failed"])
+
+
 def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict | None = None,
-                   rules: VMIRules = RULES) -> dict[str, Any]:
+                   rules: VMIRules = RULES, quick_reject: tuple[list[int], int] | None = None) -> dict[str, Any]:
+    """The full 7-step report. `quick_reject=(required_steps, allowed_misses)` is the scanner's speed-up: the steps that need only
+    the statements and estimates (1, 2, 4, 5) are judged first and, when the required ones miss by more than `allowed_misses`
+    checks, a short {"quick_rejected": True, "steps": [...]} is returned before any price, chart or valuation work is done.
+    Never used for a stock with a judgement override (those always get the full analysis)."""
     ticker = ticker.upper().strip()
     ov = overrides or {}
     f = resolve(ticker)
     if f is None:
         raise ValueError(f"No fundamentals found for {ticker} from any source")
     est = get_estimates(ticker)
-    price = market.last_price(ticker) or 0.0
-    hist = market.history(ticker, "10y")  # always: historical P/B, P/S valuations need it (cached)
-
     rev = f.series("revenue")
     rg = (rev[-1] / rev[-2] - 1) if len(rev) >= 2 and rev[-2] > 0 else None
     prof = sum(1 for v in f.series("net_income")[-5:] if v > 0)
     biz = classify(f.sic, f.sic_description, est.sector or f.sector, est.industry or f.industry, rg, prof,
                    override=ov.get("biz_type"))
+    if quick_reject and not ov:
+        required, allowed = quick_reject
+        early = {1: S.step1_track_record(f, biz, rules), 2: S.step2_growth(est, f, rules),
+                 4: S.step4_profitability(f, biz, rules), 5: S.step5_debt(f, biz, est, rules)}
+        judged = [early[n].to_dict() for n in sorted(early) if n in [int(x) for x in required]]
+        if sum(len(failed_checks(d)) for d in judged if not d["passed"]) > allowed:
+            return {"ticker": ticker, "quick_rejected": True, "steps": judged}
+    price = market.last_price(ticker) or 0.0
+    hist = market.history(ticker, "10y")  # always: historical P/B, P/S valuations need it (cached)
 
     ten_up = T.ten_year_uptrend(hist) if hist is not None and not hist.empty else None
 

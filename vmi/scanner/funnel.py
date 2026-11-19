@@ -27,7 +27,7 @@ from datetime import date
 from typing import Any, Callable
 
 from vmi import store
-from vmi.analysis.trends import trend
+from vmi.analysis.trends import falling_streak, trend
 from vmi.data import sec, universe
 from vmi.rules import RULES
 
@@ -48,6 +48,12 @@ class ScanParams:
     deep_limit: int = 400                # safety cap on deep analyses per run
     workers: int = 4
     include_speculative: bool = True     # keep 50%+ revenue growers even if NI not yet consistent
+    skip_no_moat_industries: bool = False  # drop Adam's no-moat industries (airlines, oil & gas, autos ...) before any data is fetched
+    runner_ups: bool = False             # also keep the closest misses (they are marked "runner-up", ranked after the real results)
+    runner_up_count: int = 15            # how many runner-ups to keep
+    runner_up_misses: int = 2            # a runner-up misses at most this many checks of the required steps
+    use_cache: bool = True               # reuse a ticker's deep analysis from an earlier scan with the same rules
+    cache_hours: float = 8.0             # how old a cached deep analysis may be
 
     @classmethod
     def from_dict(cls, d: dict | None) -> "ScanParams":
@@ -85,15 +91,41 @@ _lock = threading.Lock()
 
 
 # ------------------------------------------------------------------------------------------ stages
+def _apply_size(cands: list[Candidate], p: ScanParams) -> list[Candidate]:
+    """Market-cap and price floors for the S&P 500 and custom-list universes (the full-market list applies them itself).
+    Sizes come from the same NASDAQ screener list (one cached request); a ticker it does not know is kept, it cannot be judged."""
+    if not cands or (p.min_market_cap <= 0 and p.min_price <= 0):
+        return cands
+    try:
+        known = {r["symbol"].upper(): r for r in universe.us_market()}
+    except Exception as exc:                                  # screener down: keep everything rather than scan nothing
+        log.warning("size lookup failed (%s): size floors not applied", exc)
+        return cands
+    out = []
+    for c in cands:
+        r = known.get(c.symbol.upper()) or known.get(c.symbol.upper().replace("-", "."))
+        if r is None:
+            out.append(c)
+            continue
+        c.market_cap = c.market_cap or r.get("market_cap") or 0.0
+        if (r.get("market_cap") or 0) < p.min_market_cap:
+            STATE.dropped[c.symbol] = f"Size: market cap ${(r.get('market_cap') or 0) / 1e9:.1f}B < ${p.min_market_cap / 1e9:g}B"
+        elif (r.get("price") or 0) < p.min_price:
+            STATE.dropped[c.symbol] = f"Size: price ${r.get('price') or 0:.2f} < ${p.min_price:g}"
+        else:
+            out.append(c)
+    return out
+
+
 def stage_universe(cands: list[Candidate], p: ScanParams) -> list[Candidate]:
     if p.universe == "list":
         tm = sec.ticker_map()
-        return [Candidate(s.upper(), (tm.get(s.upper()) or {}).get("name", ""), (tm.get(s.upper()) or {}).get("cik"))
-                for s in p.symbols]
+        return _apply_size([Candidate(s.upper(), (tm.get(s.upper()) or {}).get("name", ""), (tm.get(s.upper()) or {}).get("cik"))
+                            for s in p.symbols], p)
     tm = sec.ticker_map()
     if p.universe == "sp500":
-        return [Candidate(r["symbol"], r["name"], r.get("cik") or (tm.get(r["symbol"]) or {}).get("cik"),
-                          0.0, r.get("sector", ""), r.get("sub_industry", "")) for r in universe.sp500()]
+        return _apply_size([Candidate(r["symbol"], r["name"], r.get("cik") or (tm.get(r["symbol"]) or {}).get("cik"),
+                                      0.0, r.get("sector", ""), r.get("sub_industry", "")) for r in universe.sp500()], p)
     out = []
     for r in universe.us_market():
         if not universe.is_common_stock(r):
@@ -106,6 +138,21 @@ def stage_universe(cands: list[Candidate], p: ScanParams) -> list[Candidate]:
             STATE.dropped[r["symbol"]] = "no SEC filer record (foreign/OTC) — use universe=list to force"
             continue
         out.append(Candidate(r["symbol"], r["name"], rec["cik"], r["market_cap"], r["sector"], r["industry"]))
+    return out
+
+
+def stage_no_moat_industry(cands: list[Candidate], p: ScanParams) -> list[Candidate]:
+    """Adam: commodity, airline, auto, shipping, oil & gas ... businesses have no moat. Free and local: runs before any request."""
+    if not p.skip_no_moat_industries:
+        return cands
+    from vmi.analysis.classify import is_no_moat_industry
+
+    out = []
+    for c in cands:
+        if c.industry and is_no_moat_industry(c.sector, c.industry):
+            STATE.dropped[c.symbol] = f"Industry: no moat ({c.industry})"
+        else:
+            out.append(c)
     return out
 
 
@@ -157,6 +204,10 @@ def stage_track_record(cands: list[Candidate], p: ScanParams) -> list[Candidate]
             elif len(nv) >= 4 or len(ov) >= 4:
                 STATE.dropped[c.symbol] = "Step 1: net income / operating income not consistently increasing"
                 continue
+        margins = [n / r_ for r_, n in zip(rev.get(c.cik, []), ni.get(c.cik, [])) if r_ and n is not None and r_ > 0]
+        if len(margins) >= 5 and falling_streak(margins) >= r.reject_if_margin_falls_n_years - 1:   # Adam: REJECT if margins fell 5 straight years
+            STATE.dropped[c.symbol] = f"Step 1: net margin fell {falling_streak(margins)} years in a row"
+            continue
         c.notes["revenue_cagr"] = rt.cagr
         cv = [v for v in cfo.get(c.cik, []) if v is not None]
         c.notes["cfo_consistent"] = len(cv) >= 4 and trend(cv, r.max_down_years_5y, 4).consistent
@@ -236,25 +287,57 @@ def failed_required_steps(rep: dict, required: list) -> str | None:
     Steps the scan can check 100% from data are 1, 2, 4 and 5 (3 is a judgement, 6 and 7 are price and chart)."""
     if not required:
         return None
-    bad = []
-    for st in rep.get("steps", []):
-        if st["step"] in [int(x) for x in required] and not st["passed"]:
-            names = [c["name"] for c in st.get("checks", []) if c.get("passed") is False]
-            bad.append(f"Step {st['step']}: " + (", ".join(names) or "failed"))
+    from vmi.analysis.pipeline import failed_checks
+
+    bad = [f"Step {st['step']}: " + ", ".join(failed_checks(st)) for st in rep.get("steps", [])
+           if st["step"] in [int(x) for x in required] and not st["passed"]]
     return "; ".join(bad) or None
 
 
-def stage_deep(cands: list[Candidate], p: ScanParams) -> list[Candidate]:
-    from vmi.analysis.pipeline import analyse_ticker
+def misses(rep: dict, required: list) -> int:
+    """How many checks of the required steps failed (the runner-up distance: 0 = passes)."""
+    from vmi.analysis.pipeline import failed_checks
 
+    return sum(len(failed_checks(st)) for st in rep.get("steps", []) if st["step"] in [int(x) for x in required] and not st["passed"])
+
+
+def _deep_report(c: Candidate, ov: dict | None, p: ScanParams) -> tuple[dict, bool]:
+    """(report, from_cache). The cache key holds everything that changes the answer: ticker, the rules in force, the
+    judgement override, which steps are required and how many misses may still get the full analysis."""
+    import hashlib
+    import json
+
+    from vmi.analysis.pipeline import analyse_ticker
+    from vmi.data.cache import get_cache
+
+    allowed = p.runner_up_misses if p.runner_ups else 0
+    quick = (list(p.require_steps), allowed) if p.require_steps else None
+    key = "scan:deep:" + hashlib.sha1(f"{c.symbol}|{RULES!r}|{json.dumps(ov, sort_keys=True, default=str)}|{quick}".encode()).hexdigest()
+    cache = get_cache()
+    if p.use_cache:
+        hit = cache.get(key, p.cache_hours * 3600)
+        if hit:
+            return hit, True
+    rep = analyse_ticker(c.symbol, with_technicals=True, overrides=ov, quick_reject=quick)
+    if p.use_cache:
+        try:
+            cache.set(key, rep)
+        except Exception as exc:                       # an unserialisable report is simply not cached
+            log.debug("deep report for %s not cached: %s", c.symbol, exc)
+    return rep, False
+
+
+def stage_deep(cands: list[Candidate], p: ScanParams) -> list[Candidate]:
     overrides = store.all_overrides()
-    todo = [c for c in cands if _scan_flag(overrides, c.symbol) != "exclude"][: p.deep_limit]
-    done = 0
+    todo = [c for c in cands if _scan_flag(overrides, c.symbol) != "exclude"]
+    todo.sort(key=lambda c: -(c.market_cap or 0))     # the deep_limit cut keeps the biggest companies
+    todo = todo[: p.deep_limit]
+    done = hits = 0
     results: list[dict] = []
+    near: list[tuple[int, dict, str]] = []
 
     def work(c: Candidate):
-        ov = (overrides.get(c.symbol) or {}).get("data")
-        return c, analyse_ticker(c.symbol, with_technicals=True, overrides=ov)
+        return c, *_deep_report(c, (overrides.get(c.symbol) or {}).get("data"), p)
 
     with ThreadPoolExecutor(max_workers=p.workers) as ex:
         futs = [ex.submit(work, c) for c in todo]
@@ -262,24 +345,31 @@ def stage_deep(cands: list[Candidate], p: ScanParams) -> list[Candidate]:
             done += 1
             STATE.progress = 0.6 + 0.4 * done / max(1, len(todo))
             try:
-                c, rep = fut.result()
+                c, rep, cached = fut.result()
             except Exception as exc:
                 STATE.message = f"deep analysis error: {exc}"
                 continue
-            STATE.message = f"deep analysis {done}/{len(todo)} — {c.symbol}"
+            hits += cached
+            STATE.message = f"deep analysis {done}/{len(todo)} — {c.symbol}" + (f" ({hits} from cache)" if hits else "")
             why = failed_required_steps(rep, p.require_steps)
             if why:
                 STATE.dropped[c.symbol] = why
+                if p.runner_ups and not rep.get("quick_rejected") and misses(rep, p.require_steps) <= p.runner_up_misses:
+                    row = compact(rep, c)
+                    row.update(runner_up=True, missed=why, misses=misses(rep, p.require_steps))
+                    near.append((row["misses"], row, c.symbol))
                 continue
             results.append(compact(rep, c))
     results.sort(key=lambda r: (not r["great_business"], -(r.get("margin_of_safety") or -9)))
-    STATE.results = results
-    kept = {r['symbol'] for r in results}
+    kept = {r["symbol"] for r in results}
+    near.sort(key=lambda t: (t[0], -t[1]["steps_passed"], -(t[1].get("margin_of_safety") or -9)))
+    STATE.results = results + [row for _, row, _ in near[: p.runner_up_count]]
     return [c for c in todo if c.symbol in kept]
 
 
 STAGES: list[tuple[str, Callable[[list[Candidate], ScanParams], list[Candidate]]]] = [
     ("universe", stage_universe),
+    ("no_moat_industry", stage_no_moat_industry),
     ("track_record", stage_track_record),
     ("profitability", stage_profitability),
     ("long_term_chart", stage_long_term_chart),
@@ -417,6 +507,37 @@ def latest_results(run_id: int | None = None) -> dict:
             return {"run_id": None, "results": [], "funnel": []}
         return {"run_id": row.id, "results": row.results, "funnel": (row.funnel or {}).get("stages", []),
                 "params": row.params, "status": row.status}
+
+
+# ------------------------------------------------------------------------------------------ saved scans
+def save_run(run_id: int, name: str) -> dict:
+    """Keep a finished scan under a name (its results stay loadable from the scanner page). The name rides in the run's params."""
+    with store.session() as s:
+        row = s.get(store.ScanRun, run_id)
+        if row is None:
+            raise ValueError(f"no scan run {run_id}")
+        row.params = {**(row.params or {}), "saved_name": name.strip() or f"Scan {run_id}"}
+        s.commit()
+        return {"run_id": run_id, "name": row.params["saved_name"]}
+
+
+def unsave_run(run_id: int) -> None:
+    with store.session() as s:
+        row = s.get(store.ScanRun, run_id)
+        if row is not None:
+            row.params = {k: v for k, v in (row.params or {}).items() if k != "saved_name"}
+            s.commit()
+
+
+def list_saved() -> list[dict]:
+    with store.session() as s:
+        from sqlalchemy import select
+        rows = s.scalars(select(store.ScanRun).order_by(store.ScanRun.id.desc())).all()
+        return [{"run_id": r.id, "name": r.params["saved_name"], "preset": r.params.get("preset"), "universe": r.universe,
+                 "finished_at": r.finished_at.isoformat() if r.finished_at else None,
+                 "n_results": sum(1 for x in (r.results or []) if not x.get("runner_up")),
+                 "n_runner_ups": sum(1 for x in (r.results or []) if x.get("runner_up"))}
+                for r in rows if (r.params or {}).get("saved_name")]
 
 
 def dropped_reasons(limit: int = 2000) -> dict[str, str]:

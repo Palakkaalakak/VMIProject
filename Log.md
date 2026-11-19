@@ -53,6 +53,15 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-19 — Scanner: size floors everywhere, cheaper layers, cache, saved scans, runner-ups (phase 3)
+- **Size:** `min_market_cap` / `min_price` were ignored for the S&P 500 and custom-list universes; now enforced for every universe (sizes from the same cached NASDAQ screener; a ticker it does not list is kept). The preset note shows the size line for every preset (Adam's ≥$10B is his stated preference, l.235).
+- **Cheaper layers, cheapest first:** universe + size -> NEW no-moat industries (Adam's list, local, on in the Adam presets) -> SEC frames track record, now also rejecting 4+ falling net-margin years in a row (Adam's REJECT rule) -> ROE proxy -> 10-year chart -> deep. Inside the deep stage, steps 1, 2, 4, 5 are judged first (`analyse_ticker(quick_reject=...)`) and a stock that misses the required steps skips the price, chart and valuation work. Stocks with a judgement override always get the full analysis.
+- **Cache:** a ticker's deep analysis is reused for 8 hours when the rules, override and required steps are the same ("Ignore cached analyses" tick box forces fresh). Biggest companies are analysed first so the deep limit keeps them.
+- **Saved scans:** "Save this scan…", a Saved scans list with Open and remove (names ride in the run's params; nothing is deleted).
+- **Runner-ups:** a tick box in the scanner tab (not Settings): the closest misses (at most 2 failed checks in the required steps, best 15) are kept, marked "runner-up" with what they missed, never counted as results; a "show runner-ups" tick hides them again.
+- Evidence: tests/test_scan_layers.py (6 cases), 195 tests pass. Real-data timing and the browser look UNVERIFIED until the deep pass.
+
+
 ### 2026-11-19 — Default discount rate is now a fixed 10%
 - Before: Adam's beta table, interpolated: beta 0.28 → 5.8%, 0.83 → 6.1%, 1.10 → 6.6%, 1.40 → 7.4%, 1.49 → 7.7%, minimum 5.8%, extrapolated upward to a maximum of 11%.
 - Now: `valuation.discount_mode` = "fixed" (default) uses `valuation.fixed_discount_rate` = 10% for every stock; set the mode to "beta" in Settings to get Adam's table back. Both are owner rules in rules_sources.py; CRITERIA_AUDIT.md regenerated.

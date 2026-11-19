@@ -118,7 +118,9 @@ function drawAdded(root) {
 
 function drawPreset(root, id, apply = false) {
   const preset = presetData.presets[id];
-  $("#scan-preset-note", root).textContent = preset.note;
+  const pr = { min_market_cap: 2e9, min_price: 5, ...(preset.params || {}) };
+  const cap = pr.min_market_cap / 1e9;
+  $("#scan-preset-note", root).textContent = `${preset.note}  Size: market cap ≥ $${Number.isInteger(cap) ? cap : cap.toFixed(1)}B, price ≥ $${pr.min_price} (applies to every universe).`;
   if (apply) {            // the preset's results filters (growth profile, yield, category ...) replace the saved ones
     save(preset.filters || {});
     const form = $("#scan-filter-box form", root);
@@ -166,6 +168,10 @@ export async function render(root) {
           <datalist id="scan-pick-list"></datalist>
           <div id="scan-added"></div>
         </div>
+        <div class="wide inline" style="grid-column:1/-1">
+          <label class="inline"><input type="checkbox" name="runner_ups"> Show runner-ups (the closest misses, marked and ranked after the real results)</label>
+          <label class="inline"><input type="checkbox" name="fresh"> Ignore cached analyses (slower; default reuses ones under 8 hours old)</label>
+        </div>
         <button class="primary">Start scan</button>
       </form>
     </section>
@@ -175,6 +181,9 @@ export async function render(root) {
         <h3>Results</h3>
         <button id="scan-dropped" class="secondary">Why dropped?</button>
         <button id="scan-save" class="secondary">Save shown list as a watchlist</button>
+        <button id="scan-keep" class="secondary" title="Keep this scan's full results under a name so you can reopen it later">Save this scan…</button>
+        <select id="scan-saved" title="Saved scans"></select><button id="scan-load" class="secondary">Open</button><button id="scan-forget" class="small danger" title="Remove from saved scans">✕</button>
+        <label class="small inline"><input type="checkbox" id="scan-runners" checked> show runner-ups</label>
         <span class="spacer"></span>
         <label class="small">Add to review queue of <select id="scan-review-wl"></select></label>
       </div>
@@ -216,6 +225,8 @@ export async function render(root) {
       if (SCAN_OPTIONS[key]) body[SCAN_OPTIONS[key].param] = SCAN_OPTIONS[key].send(el.value);
       else { const [sec, k] = key.split("."); (body.rules[sec] ||= {})[k] = el.value; }
     }
+    body.runner_ups = f.get("runner_ups") === "on";
+    body.use_cache = f.get("fresh") !== "on";
     const n = Object.keys(added).length;
     run(e.submitter, async () => { await api.scanStart(body); toast(`Scan started (${preset.label}${n ? `, ${n} filter${n > 1 ? "s" : ""} set by you` : ""})`, "ok"); startPolling(root); });
   });
@@ -229,9 +240,37 @@ export async function render(root) {
     toast(`Saved ${rows.length} stocks to “${name}”`, "ok");
   }));
   $("#scan-dropped", root).addEventListener("click", (e) => run(e.target, () => showDropped(root)));
+  $("#scan-runners", root).addEventListener("change", () => drawRows(root));
+  $("#scan-keep", root).addEventListener("click", (e) => run(e.target, async () => {
+    if (!shownRun) return toast("Run or open a scan first", "error");
+    const name = prompt("Name for this scan", `Scan ${new Date().toISOString().slice(0, 10)}`);
+    if (!name) return;
+    await api.scanSave(shownRun, name);
+    toast(`Saved as “${name}”`, "ok");
+    fillSaved(root);
+  }));
+  $("#scan-load", root).addEventListener("click", (e) => run(e.target, async () => {
+    const id = $("#scan-saved", root).value;
+    if (!id) return toast("No saved scan selected", "error");
+    await loadResults(root, +id);
+  }));
+  $("#scan-forget", root).addEventListener("click", (e) => run(e.target, async () => {
+    const id = $("#scan-saved", root).value;
+    if (!id || !confirm("Remove this scan from the saved list? (the scan itself is not deleted)")) return;
+    await api.scanUnsave(id);
+    fillSaved(root);
+  }));
+  fillSaved(root);
   startPolling(root);
   loadResults(root);
   fillReviewTargets(root);
+}
+
+async function fillSaved(root) {
+  const list = await api.scanSaved().catch(() => []);
+  $("#scan-saved", root).innerHTML = list.length
+    ? list.map((x) => `<option value="${x.run_id}">${esc(x.name)} · ${x.n_results} results${x.n_runner_ups ? ` +${x.n_runner_ups} runner-ups` : ""}</option>`).join("")
+    : `<option value="">(no saved scans)</option>`;
 }
 
 async function fillReviewTargets(root) {
@@ -265,10 +304,14 @@ const statusHtml = (st) => `
 
 let allRows = [];
 
-async function loadResults(root) {
+let shownRun = null;                              // run id of the scan whose rows are on screen
+
+async function loadResults(root, runId = null) {
   const box = $("#scan-results", root);
   try {
-    allRows = addIndustryStats((await api.scanResults({})).results || []);
+    const res = await api.scanResults(runId ? { run_id: runId } : {});
+    shownRun = res.run_id ?? runId;
+    allRows = addIndustryStats(res.results || []);
     const fb = $("#scan-filter-box", root);
     const wasOpen = fb.querySelector("details")?.open;
     fb.innerHTML = filterPanel(allRows);
@@ -284,8 +327,9 @@ async function loadResults(root) {
 
 function drawRows(root) {
   const box = $("#scan-results", root);
-  const rows = applyFilters(allRows, readFilters($("#scan-filter-box form", root)));
-  $("#scan-count", root).textContent = `${rows.length} of ${allRows.length} shown`;
+  const runners = $("#scan-runners", root).checked;
+  const rows = applyFilters(allRows, readFilters($("#scan-filter-box form", root))).filter((r) => runners || !r.runner_up);
+  $("#scan-count", root).textContent = `${rows.length} of ${allRows.length} shown${shownRun ? ` · scan #${shownRun}` : ""}`;
   box.innerHTML = "";
   box.appendChild(table(COLUMNS, rows, {
     empty: allRows.length ? "No stock matches these filters." : "No results yet — start a scan.",
@@ -307,7 +351,7 @@ function addToReview(root, r, btn) {
 }
 
 const COLUMNS = [
-  { key: "symbol", label: "Ticker", render: (r) => `<b>${esc(r.symbol)}</b>${r.pinned ? ` <span class="badge na" title="${esc(r.pinned)}">judged</span>` : ""}<div class="small muted">${esc(r.name || "")}</div>` },
+  { key: "symbol", label: "Ticker", render: (r) => `<b>${esc(r.symbol)}</b>${r.pinned ? ` <span class="badge na" title="${esc(r.pinned)}">judged</span>` : ""}${r.runner_up ? ` <span class="badge" title="Missed: ${esc(r.missed)}">runner-up</span>` : ""}<div class="small muted">${esc(r.name || "")}${r.runner_up ? ` · missed ${esc(r.missed)}` : ""}</div>` },
   { key: "sector", label: "Sector" },
   { key: "industry", label: "Industry", render: (r) => `${esc(r.industry || "")}<div class="small muted">#${r.industry_rank ?? "—"} of ${r.industry_n ?? "—"} · ${fmt.pct(r.industry_share, 0)} of its cap</div>` },
   { key: "price", label: "Price", cls: "num", render: (r) => fmt.money(r.price) },

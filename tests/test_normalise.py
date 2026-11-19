@@ -60,7 +60,7 @@ def test_failed_required_steps_text_and_scan_drop():
 def test_stage_deep_drops_failures_of_required_steps(monkeypatch):
     from vmi.scanner import funnel
 
-    def fake(sym, with_technicals=True, overrides=None):
+    def fake(sym, with_technicals=True, overrides=None, **_):
         ok = sym != "BAD"
         steps = [{"step": k, "passed": ok or k != 1, "checks": [{"name": "earnings_consistent", "passed": ok or k != 1}]} for k in range(1, 8)]
         return {"ticker": sym, "name": sym, "steps": steps, "metrics": {}, "great_business": ok, "valuation": {}}
