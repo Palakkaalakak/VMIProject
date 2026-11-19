@@ -53,6 +53,13 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-19 — Moat page: brand OR pricing power, Guided evaluation, "At first sight" (phase 5)
+- **Brand OR pricing power:** new source `pricing_power` shares the first slot with `brand`; ticking both counts once (`moat_verdict`), so the 3-of-5 rule is unchanged. Verdict form labels them 1a / 1b.
+- **Guided evaluation** (button on the moat page; `static/js/moat_guide.js`): seven questions in Adam's order (brand or pricing power, switching costs, network effect, barriers, scale, competitors, how long the advantage lasts), each with Adam's words, search links for the company, the app's own evidence where it has some, your yes/partly/no and a note; ends with the sources count, the verdict, score and an optional overall comment, saved like the manual form (`moat_grade` / `moat_sources` / `moat_score` + note).
+- **At first sight** (`vmi/analysis/first_sight.py`, shown above Evidence): margin level, 5-year margin trend, versus competitors, industry position, pricing power, track record, and one paragraph. Each signal says `adam` (a test he states) or `inferred` (he gives no bar; bands read off his examples: Visa 78% / Microsoft 68% gross = very high, Singapore Airlines 16% = low; the constants are at the top of the file). UNVERIFIED as a judge: the bands are inference, the paragraph is a screen, not the verdict.
+- Evidence: tests/test_first_sight.py (5), moat source test; 202 tests pass. Browser look UNVERIFIED until the deep pass.
+
+
 ### 2026-11-19 — Analysis tab: per-stock "10-year record only" and "normalised"; RDDT mismatch explained (phase 4)
 - Two tick boxes in the Analysis tab toolbar (not Settings), remembered per ticker in the browser: **10-year record only** (`track.min_years` 10 for this analysis) and **normalised (this stock)**. `/api/analysis/{symbol}?ten_year_only=&normalise=` builds a per-request rules copy (`RULES.with_overrides`), Settings are never touched (test asserts it). The header shows "10-YEAR ONLY" / normalise state.
 - **RDDT:** the scanner row showed the LATEST ROE (32%) and its scan ran un-normalised, while the analysis page ran normalised: the 5-year ROE average includes loss years (-13, -10, -6, -27, +21 => -7%). Scan rows now show "N loss yr · avg X%" under ROE when any of the last 5 years was negative, so a flattering latest value can no longer hide it.

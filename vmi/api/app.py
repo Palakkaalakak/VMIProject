@@ -234,8 +234,15 @@ def moat_evidence(symbol: str):
     ov = store.get_override(symbol)
     f = resolve(symbol)
     cik = f.cik if f else None
-    return {"peers": moat_peers.compare(symbol, ov.get("peers")),
-            "filing": filings.excerpts(cik) if cik else {}}
+    peers = moat_peers.compare(symbol, ov.get("peers"))
+    out = {"peers": peers, "filing": filings.excerpts(cik) if cik else {}}
+    if f is not None:
+        from vmi.analysis import first_sight
+        from vmi.analysis.classify import is_no_moat_industry
+        from vmi.analysis.pipeline import analyse_ticker
+        rep = analyse_ticker(symbol, with_technicals=False, overrides=ov)
+        out["first_sight"] = first_sight.assess(f, rep["steps"], peers, is_no_moat_industry(rep.get("sector", ""), rep.get("industry", "")))
+    return out
 
 
 @ar.get("/{symbol}/fundamentals")

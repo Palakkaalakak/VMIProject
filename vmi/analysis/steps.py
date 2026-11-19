@@ -200,6 +200,7 @@ def step2_growth(est: Estimates, f: Fundamentals, rules: VMIRules = RULES) -> St
 # ------------------------------------------------------------------------------------------ STEP 3
 MOAT_SOURCES = {
     "brand": "Strong brand / brand monopoly: first name people think of; loyal even when pricier",
+    "pricing_power": "Pricing power (use this instead of brand when 'brand' does not fit the company): can raise prices every year without losing customers or share. Counts as the SAME first source as brand",
     "switching_costs": "High switching costs: costly or risky to leave (ecosystems, embedded enterprise software)",
     "network_effect": "Network effect: more users make it better for every user (marketplaces, social, payments)",
     "barriers": "High barriers to entry: regulation, licences, patents, security clearances",
@@ -227,8 +228,9 @@ def moat_verdict(review: dict | None, rules: VMIRules = RULES) -> dict | None:
     if not (grade or sources or score is not None):
         return None
     m = rules.moat
+    slots = {"brand" if x == "pricing_power" else x for x in sources}     # brand OR pricing power is ONE source (owner 2026-11-19)
     tests = [t for t in (grade in ("wide", "narrow") if grade else None,
-                         len(sources) >= m.min_sources if sources else None,
+                         len(slots) >= m.min_sources if sources else None,
                          score >= m.min_ai_score if score is not None else None) if t is not None]
     return {"grade": grade, "sources": sources, "score": score, "passes": all(tests)}
 

@@ -3,8 +3,11 @@
 // decides. Saved as the overrides moat_grade / moat_sources / moat_score (+ date), which Step 3 reads.
 import { api } from "../api.js";
 import { $, badge, esc, fmt, loading, run, toast } from "../ui.js";
+import { startGuide } from "../moat_guide.js";
 
 const pctOrDash = (v) => (v == null ? "—" : fmt.pct(v, 1));
+const SOURCE_NAMES = { brand: "1a. Brand", pricing_power: "1b. Pricing power (instead of brand)", switching_costs: "2. Switching costs",
+  network_effect: "3. Network effect", barriers: "4. Barriers to entry", scale: "5. Economies of scale" };
 const GRADES = ["", "wide", "narrow", "none"];
 
 function showValue(v) {
@@ -17,7 +20,8 @@ function showValue(v) {
 function header(sym, r, step) {
   const x = step.extra || {}, v = x.verdict, due = x.review?.due;
   return `<div class="card"><div class="inline"><h2>Moat evaluation — ${esc(sym)}</h2>
-      <a href="#/analysis/${esc(sym)}">← back to the analysis</a></div>
+      <a href="#/analysis/${esc(sym)}">← back to the analysis</a><span class="spacer"></span>
+      <button type="button" class="primary" id="moat-guide-start" title="Walk through Adam's Step 3 one question at a time, with what to search for">Guided evaluation</button></div>
     <p class="muted">${esc(r.name || "")} · ${esc(r.sector || "")} · ${esc(r.industry || "")}</p>
     <p>Step 3 result: ${badge(step.passed)} · current verdict: ${v ? `<b>${esc(v.grade)}</b>${v.score != null ? ` · score ${esc(v.score)}/10` : ""}${v.sources?.length ? ` · ${esc(v.sources.join(", "))}` : ""}`
       : "<b>not reviewed</b> (provisional result from Adam's two shortcuts: industry list and 10-year chart)"}${x.review?.reviewed_on ? ` · reviewed ${esc(x.review.reviewed_on)}` : ""}</p>
@@ -37,8 +41,18 @@ function testsAndEvidence(step) {
       <li><b>Be the customer.</b> Would you pick a competitor if it were cheaper? Compare the closest competitors (peer table below): they should be weaker, and the company should be the top dog of its niche. No clear leader = forget it.</li>
       <li><b>Look for trouble signs:</b> customers concentrated in a few buyers (for example 80% from 3 customers), margins falling for years, losing market share.</li>
       <li><b>Cross-check:</b> the 10-year chart (uptrend = sign of a moat) and, if you have Stock Oracle, its moat grade and AI moat score (he wants 7 to 9 out of 10; 6 is not strong enough).</li></ol></div>
+    <div class="card" id="moat-first"><h3>At first sight</h3><p class="small muted">Loading the quick read …</p></div>
     <div class="card"><h3>Evidence <span class="muted small">(no pass/fail: Adam gives no numbers, you judge)</span></h3>
     <table class="compact"><tbody>${evidence.map(row).join("")}</tbody></table></div>`;
+}
+
+const READ = { good: "ok", bad: "bad", unknown: "na" };
+function firstSight(fs) {
+  if (!fs) return `<h3>At first sight</h3><p class="small muted">Not available (no fundamentals).</p>`;
+  return `<h3>At first sight <span class="badge ${fs.leaning === "wide-looking" ? "ok" : fs.leaning === "weak" ? "bad" : "na"}">${esc(fs.leaning)}</span></h3>
+    <p>${esc(fs.paragraph)}</p>
+    <table class="compact"><tbody>${fs.signals.map((s) => `<tr><td><span class="badge ${READ[s.reading]}">${esc(s.reading)}</span></td><td><b>${esc(s.label)}</b></td><td class="small">${esc(s.text)}</td>
+      <td class="small muted" title="adam = a test or comparison Adam states; inferred = Adam gives no bar, read off his own examples">${esc(s.source)}</td></tr>`).join("")}</tbody></table>`;
 }
 
 function peersTable(p) {
@@ -63,7 +77,8 @@ function verdictForm(step, ov) {
     <form id="moat-form">
       <p class="small"><b>Moat sources present</b> (Adam: at least 3 of 5 to invest; 4+ suggests wide)</p>
       ${Object.entries(x.sources || {}).map(([k, d]) => `<label class="small" style="display:block"><input type="checkbox" name="src" value="${esc(k)}" ${have.has(k) ? "checked" : ""}>
-        <b>${esc(k.replace("_", " "))}</b> — ${esc(d)}</label>`).join("")}
+        <b>${esc(SOURCE_NAMES[k] || k.replace("_", " "))}</b> — ${esc(d)}</label>`).join("")}
+      <p class="small muted">Brand and pricing power are the same, first source: tick whichever fits (ticking both still counts once).</p>
       <p class="small"><b>Questions to answer</b></p>
       <ul class="small muted">${(x.questions || []).map((q) => `<li>${esc(q)}</li>`).join("")}</ul>
       <div class="inline">
@@ -84,17 +99,23 @@ export async function render(root, params) {
   const step = (r.steps || []).find((s) => s.step === 3);
   if (!step) { root.innerHTML = `<div class="card">No Step 3 result for ${esc(sym)}.</div>`; return; }
   const ov = ovBox?.data || ovBox || {};
-  root.innerHTML = `${header(sym, r, step)}<div class="cols"><div>${testsAndEvidence(step)}
+  root.innerHTML = `${header(sym, r, step)}<div id="moat-guide"></div><div class="cols"><div>${testsAndEvidence(step)}
       <div class="card"><h3>Competitors</h3><div id="moat-peers">${loading("Loading peers …")}</div></div>
       <div class="card"><h3>Annual report</h3><div id="moat-filing">${loading("Loading the latest annual report …")}</div></div>
     </div><div>${verdictForm(step, ov)}</div></div>`;
 
+  const gctx = { sym, name: r.name, ov, evidence: null, onDone: () => render(root, params) };
+  let guide = null;
+  $("#moat-guide-start", root).addEventListener("click", () => { guide = startGuide($("#moat-guide", root), gctx); window.scrollTo({ top: 0, behavior: "smooth" }); });
   api.moatEvidence(sym).then((e) => {
     if (!document.body.contains(root)) return;
+    gctx.evidence = e;
+    $("#moat-first", root).innerHTML = firstSight(e.first_sight);
+    if (guide && $("#moat-guide", root).innerHTML) guide.refresh();
     $("#moat-peers", root).innerHTML = peersTable(e.peers);
     $("#moat-filing", root).innerHTML = filingBlock(e.filing);
   }).catch((err) => {
-    $("#moat-peers", root).innerHTML = $("#moat-filing", root).innerHTML = `<p class="small muted">Could not load: ${esc(err.message || err)}</p>`;
+    $("#moat-peers", root).innerHTML = $("#moat-filing", root).innerHTML = $("#moat-first", root).innerHTML = `<p class="small muted">Could not load: ${esc(err.message || err)}</p>`;
   });
 
   $("#moat-form", root).addEventListener("submit", (e) => {
