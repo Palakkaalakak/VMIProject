@@ -1,7 +1,9 @@
 from vmi import ai_helper
 
 
-def test_status_is_unavailable_without_a_server():
+def test_status_is_unavailable_without_a_server(monkeypatch):
+    # hermetic: the owner's PC may really have the built-in AI downloaded
+    monkeypatch.setattr(ai_helper.ai_runtime, "status", lambda: {"ready": False, "model": "x"})
     assert ai_helper.status()["available"] is False       # nothing listens on the Ollama port in tests
 
 
@@ -15,5 +17,6 @@ def test_opinion_strips_reasoning_preamble(monkeypatch):
     import io
     import json
     import urllib.request
+    monkeypatch.setattr(ai_helper, "status", lambda: {"backend": "ollama", "model": "x"})     # hermetic: never start the real built-in server
     monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: io.BytesIO(json.dumps({"response": "<think>hmm</think>Narrow moat."}).encode()))
     assert ai_helper.opinion("x") == "Narrow moat."
