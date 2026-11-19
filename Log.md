@@ -53,6 +53,13 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-19 — Built-in AI (no Ollama / LM Studio needed)
+- `vmi/ai_runtime.py`: Settings > "AI helper" > Download fetches, into `data/ai/`, the newest Windows CUDA build of llama.cpp's `llama-server` (Vulkan fallback; asset chosen from the latest GitHub release at run time) with its CUDA runtime, plus the GGUF model Qwen3-14B Q4_K_M (about 9 GB, Hugging Face). Resumable. The server starts only when an opinion is requested (all layers on the GPU) and stops after 10 idle minutes. An already-running Ollama is used first if it has the model.
+- `vmi/ai_helper.py` picks the backend; `/api/ai/status|download`, `DELETE /api/ai/model`; the moat-page AI card appears when either backend is ready.
+- Verified here: asset selection, resumable download, status, Settings card (shows "Windows + NVIDIA only" on this Linux container). UNVERIFIED (no GPU/Windows here): the actual download from GitHub (the API is blocked in this container), server start-up on the RTX 5070 Ti (Blackwell needs a CUDA 12.8+ build; the newest is picked), answer quality and speed. Use Settings to try it and report what it says.
+- Tests: tests/test_ai_runtime.py (4); 213 tests pass.
+
+
 ### 2026-11-19 — One number one meaning (scanner vs analysis); chart indicators
 - **Parity audit (MSFT, RDDT):** MOS, IV, growth, steps were already identical; ROE/ROIC differed under normalise (row = latest year, Step 4 = average) and **net margin differed even un-normalised** (row 41.2% / RDDT 32.1% = latest TTM-style NI/revenue; Step 1 judged 40.3% / 24.1% = fiscal-year). Fix in `analyse_ticker`: `metrics.roe`, `roic`, `net_margin` now ARE the values the steps judged (average when normalise is on, else latest fiscal year), `metrics.basis` names which, `roe_latest` / `roic_latest` keep the other number. Scanner columns and the Analysis header show the basis in parentheses ("(FY)" / "(avg)", "latest FY 4%" underneath when they differ).
 - Evidence: tests/test_parity.py (2, full pipeline with faked data); 209 tests pass.

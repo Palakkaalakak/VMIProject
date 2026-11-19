@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import urllib.request
 
+from vmi import ai_runtime
 from vmi.config import get_settings
 
 ADAM = """You are helping a retail investor apply Adam Khoo's Value Momentum Investing moat step (Step 3). His rules:
@@ -20,8 +21,7 @@ ADAM = """You are helping a retail investor apply Adam Khoo's Value Momentum Inv
 Use only the facts given. If something is not given, say it is unknown; never invent figures."""
 
 
-def status() -> dict:
-    """{"available": bool, "model": str, "url": str} — whether the local model server answers (3 s check)."""
+def _ollama() -> dict:
     s = get_settings()
     try:
         with urllib.request.urlopen(f"{s.ai_url}/api/tags", timeout=3) as r:
@@ -30,6 +30,15 @@ def status() -> dict:
                 "url": s.ai_url}
     except Exception:
         return {"available": False, "model": s.ai_model, "installed": False, "url": s.ai_url}
+
+
+def status() -> dict:
+    """Which backend can answer: an Ollama server that is already running, else the built-in one once downloaded.
+    {"available", "backend": "ollama"|"builtin"|None, "model", "builtin": {...download state...}}"""
+    o, b = _ollama(), ai_runtime.status()
+    backend = "ollama" if o["available"] and o["installed"] else "builtin" if b["ready"] else None
+    return {"available": backend is not None, "backend": backend, "model": o["model"] if backend == "ollama" else b["model"],
+            "installed": o["installed"], "url": o["url"], "builtin": b}
 
 
 def prompt_for(symbol: str, name: str, industry: str, first_sight: dict, peers: dict | None, filing: dict | None) -> str:
@@ -45,6 +54,8 @@ def prompt_for(symbol: str, name: str, industry: str, first_sight: dict, peers: 
 
 
 def opinion(prompt: str) -> str:
+    if status()["backend"] == "builtin":
+        return ai_runtime.chat(prompt)
     s = get_settings()
     body = json.dumps({"model": s.ai_model, "prompt": prompt, "stream": False, "options": {"temperature": 0.3}}).encode()
     req = urllib.request.Request(f"{s.ai_url}/api/generate", data=body, headers={"Content-Type": "application/json"})

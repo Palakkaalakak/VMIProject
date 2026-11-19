@@ -46,6 +46,8 @@ export const api = {
   scanResults: (params) => request("GET", `/api/scan/results${qs(params)}`),
   bars: (s, interval = "1d") => request("GET", `/api/bars/${s}${qs({ interval })}`),
   aiStatus: () => request("GET", "/api/ai/status"),
+  aiDownload: () => request("POST", "/api/ai/download"),
+  aiRemove: () => request("DELETE", "/api/ai/model"),
   aiOpinion: (s) => request("POST", `/api/analysis/${s}/ai-opinion`),
   scanSaved: () => request("GET", "/api/scan/saved"),
   scanSave: (id, name) => request("POST", `/api/scan/runs/${id}/save`, { name }),

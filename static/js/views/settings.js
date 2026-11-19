@@ -49,6 +49,40 @@ function ibCard(s) {
     <button id="ib-sync" ${busy ? "disabled" : ""}>${busy ? "Syncing ..." : "Sync IB fundamentals now"}</button></section>`;
 }
 
+const gb = (n) => (n / 1e9).toFixed(2);
+function aiCard(a) {
+  const b = a.builtin || {}, d = b.download || {};
+  const state = a.backend === "ollama" ? `Using your running Ollama (${esc(a.model)}).`
+    : b.ready ? `Built-in AI ready (${esc(b.model)}). It starts only when you ask for an opinion and stops after 10 idle minutes.`
+    : d.running ? `Downloading ${esc(d.what)}: ${gb(d.done)} of ${d.total ? gb(d.total) : "?"} GB …`
+    : b.supported === false ? "The built-in AI is for Windows + NVIDIA; on this system use Ollama (see the README)."
+    : "Not downloaded. It needs about 10 GB of disk and an NVIDIA GPU with 12 GB of memory.";
+  return `<section class="card" id="ai-card"><h3>AI helper (optional, runs on this PC)</h3>
+    <p class="small muted">A second opinion on a company's moat on the moat page. Nothing you type or any stock data leaves your PC; only the one-time downloads (the llama.cpp program and the model file) use the internet. Never saved, never a verdict.</p>
+    <p class="small" id="ai-msg">${state}${d.error ? ` <span class="neg">${esc(d.error)}</span>` : ""}</p>
+    <div class="inline"><button id="ai-dl" ${d.running || b.ready || b.supported === false ? "disabled" : ""}>Download the built-in AI (≈10 GB)</button>
+      <button id="ai-rm" class="danger" ${b.server_present || b.model_present ? "" : "disabled"}>Remove it</button></div></section>`;
+}
+
+async function pollAi(root) {
+  const tick = async () => {
+    if (!document.body.contains(root) || !$("#ai-card", root)) return;
+    const a = await api.aiStatus();
+    $("#ai-card", root).outerHTML = aiCard(a);
+    bindAi(root);
+    if (a.builtin?.download?.running) setTimeout(tick, 2000);
+  };
+  setTimeout(tick, 2000);
+}
+
+function bindAi(root) {
+  $("#ai-dl", root)?.addEventListener("click", (e) => run(e.target, async () => { await api.aiDownload(); pollAi(root); }));
+  $("#ai-rm", root)?.addEventListener("click", (e) => run(e.target, async () => {
+    if (!confirm("Delete the downloaded AI program and model (about 10 GB)?")) return;
+    await api.aiRemove(); render(root);
+  }));
+}
+
 async function pollIb(root) {
   const poll = async () => {
     if (!document.body.contains(root) || !$("#ib-card", root)) return;
@@ -69,8 +103,10 @@ async function startIb(root) {
 
 export async function render(root) {
   root.innerHTML = loading();
-  const [schema, all, ib] = await Promise.all([api.settings(), api.overridesAll(), api.ibSync()]);
-  root.innerHTML = ibCard(ib) + rulesCard(schema) + overridesCard(all);
+  const [schema, all, ib, ai] = await Promise.all([api.settings(), api.overridesAll(), api.ibSync(), api.aiStatus().catch(() => ({}))]);
+  root.innerHTML = ibCard(ib) + aiCard(ai) + rulesCard(schema) + overridesCard(all);
+  bindAi(root);
+  if (ai.builtin?.download?.running) pollAi(root);
   $("#ib-sync", root)?.addEventListener("click", () => startIb(root));
   if (ib.state === "running") pollIb(root);
   const byName = Object.fromEntries(schema.map((s) => [`${s.section}.${s.key}`, s]));

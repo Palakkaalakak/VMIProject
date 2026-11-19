@@ -260,6 +260,20 @@ def ai_status():
     return ai_helper.status()
 
 
+@sysr.post("/ai/download")
+def ai_download():
+    """Download (or resume) the built-in AI runtime and model into data/ai/."""
+    from vmi import ai_runtime
+    return ai_runtime.start_download()
+
+
+@sysr.delete("/ai/model")
+def ai_remove():
+    from vmi import ai_runtime
+    ai_runtime.remove()
+    return {"ok": True}
+
+
 @ar.post("/{symbol}/ai-opinion")
 def ai_opinion(symbol: str):
     """Optional second opinion from the local model (never saved): built from the moat evidence the page already shows."""
@@ -271,7 +285,7 @@ def ai_opinion(symbol: str):
     rep = analyse_ticker(symbol, with_technicals=False, overrides=store.get_override(symbol))
     prompt = ai_helper.prompt_for(symbol.upper(), rep.get("name", ""), rep.get("industry", ""), ev["first_sight"], ev.get("peers"), ev.get("filing"))
     try:
-        return {"opinion": ai_helper.opinion(prompt), "model": ai_helper.get_settings().ai_model}
+        return {"opinion": ai_helper.opinion(prompt), "model": ai_helper.status()["model"]}
     except Exception as exc:
         raise HTTPException(503, f"The local AI model did not answer ({exc}). Is Ollama running with the model pulled?")
 
