@@ -71,13 +71,13 @@
   },
   "UNH": {
     "method": "dcf_fcf",
-    "moat_grade": "wide",
+    "moat_grade": "narrow",
     "moat_sources": [
       "scale",
       "network_effect",
       "barriers"
     ],
-    "moat_score": 8,
+    "moat_score": 7,
     "moat_reviewed_on": "2026-11-05",
     "note": "Managed care is a cash-flow business (Adam values it by DCF). The 2025-26 medical-cost shock dented CFO, which fails strict consistency and pushes the selector to the P/S reference; use DCF on FCF. Growth stays automatic (lowest source). | AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): scale in managed care, Optum provider network, regulation (Adam: market leader)"
   },
@@ -185,13 +185,13 @@
     "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): platform consolidation, embedded security stack is risky to replace"
   },
   "CRWD": {
-    "moat_grade": "wide",
+    "moat_grade": "narrow",
     "moat_sources": [
       "switching_costs",
       "network_effect",
       "brand"
     ],
-    "moat_score": 8,
+    "moat_score": 7,
     "moat_reviewed_on": "2026-11-05",
     "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): embedded endpoint platform; threat-data network effect"
   },
@@ -282,12 +282,12 @@
     "base_period": "average"
   },
   "CNSWF": {
-    "moat_grade": "wide",
+    "moat_grade": "narrow",
     "moat_sources": [
       "switching_costs",
       "scale"
     ],
-    "moat_score": 8,
+    "moat_score": 7,
     "moat_reviewed_on": "2026-11-05",
     "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): vertical-market software with very high switching costs; acquisition machine"
   },
@@ -408,12 +408,12 @@
     "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): public-safety radio installed base; certification and contracts"
   },
   "NFLX": {
-    "moat_grade": "wide",
+    "moat_grade": "narrow",
     "moat_sources": [
       "brand",
       "scale"
     ],
-    "moat_score": 8,
+    "moat_score": 7,
     "moat_reviewed_on": "2026-11-05",
     "note": "AI moat review (Claude, 2026-11-05; general knowledge + Step-3 evidence — please verify): content scale and global brand (Adam: wide)"
   },
