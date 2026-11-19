@@ -95,7 +95,7 @@ def assess(f, steps: list[dict], peers: dict | None = None, no_moat_industry: bo
     bad = sum(s["reading"] == "bad" for s in signals)
     if no_moat_industry:
         leaning, head = "weak", "Adam's no-moat industry list (commodities, airlines, autos ...)"
-    elif bad >= 2 or (bad and good < 2):
+    elif (bad >= 2 and bad >= good) or (bad and good < 2):
         leaning, head = "weak", "more warning signs than strengths"
     elif good >= 4 and not bad:
         leaning, head = "wide-looking", "strong on every signal that can be checked from data"
