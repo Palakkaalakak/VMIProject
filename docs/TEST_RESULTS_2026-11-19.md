@@ -51,8 +51,23 @@ Owner state: unchanged (no settings changed, TEST scan saved then removed, MSFT 
 - **5 Chart:** defaults correct (SMA 50/100/150/200 on; EMA 20/40 off; Bollinger, Stochastic, Volume on; EMA note present). 5m/15m/1h/Daily/
   Weekly/Monthly load (4596/1533/5080/2512/1044/489 bars, source Yahoo); Weekly/Monthly auto-tick EMA 20/40. Range buttons present.
 
-## Not tested / UNVERIFIED
-- Chart hover readouts and cross-check vs another source, Stochastic pane look, range windows actually changing, drawing tools + persistence.
-- Moat pricing-power 3-source rule (4.4) and saving a guided verdict (would modify the owner's MSFT verdict).
-- Step 3 line update after save; RDDT/JPM analysis pages in the UI; 3a.5 custom-list size floor with a confirmed < $10B name.
+## Follow-up run (remaining items)
+- **3a.5 size floor:** Adam preset, custom list AOS, ARE, APTV → all dropped "Size: market cap $8.7B / $7.4B / $7.8B < $10B". PASS.
+- **RDDT page:** type speculative, rate 10.0%; 10-year only → "10-YEAR ONLY" and "only 6 years of data (<10)". PASS.
+  Observation: header shows raw `speculative_growth`.
+- **JPM page:** type bank, "moat unreviewed", no "rate N%" line (bank method, expected). Observation: JPM Step 3 passes (True) with no
+  moat review and no override.
+- **4.4 pricing-power rule** (done on JPM with a DB override, MSFT verdict untouched, override deleted afterwards, `{}` confirmed):
+  brand + pricing_power + scale, wide, 8 → Step 3 False (2 slots); pricing_power + scale + barriers → Step 3 True (3 slots). PASS.
+- **Chart hover:** readout for 04 Jun '26 = O 435.81 H 436.15 L 426.41, C ~428.05 (+0.17%); `/api/bars` 2026-06-04 = 435.81 / 436.15 /
+  426.41 / 428.05. PASS (close digit read from a small zoom). Stochastic readout shows %K/%D + "neutral"; 80/20 lines and two lines
+  visible. PASS.
+- **Ranges:** 3M and 5Y visibly change the window (axis labels differ). PASS.
+- **Drawings:** Horizontal line draws and saves (`vmi.chart.draw.MSFT.1d=[{"kind":"hline","price":498.86}]`, localStorage, per browser).
+  Clear drawings empties it (`[]`). Trend line: 3 attempts by automated clicks did not store anything (code needs both clicks on a bar
+  time); UNVERIFIED, may be click targeting. Reload persistence read from localStorage, not re-screenshotted.
+
+## Still not tested
+- Moat guided verdict save and the Step 3 line update on MSFT (would change the owner's verdict).
+- Trend line drawing (see above); loss-year ROE note row (none in the scans run).
 - Section 6 (AI download): not tested, owner did not agree.
