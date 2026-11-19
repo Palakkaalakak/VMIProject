@@ -3,6 +3,13 @@
 For a Claude session testing the running app in the built-in browser. The owner started the app; do not start, stop or
 restart it unless a step says so. Work top to bottom, record every result, fix nothing silently.
 
+## Model and effort
+- Run the whole plan on **Sonnet 5.5, medium effort**: the steps are mechanical (read values, compare, report), so a bigger model
+  adds cost without finding more bugs.
+- Do not spawn sub-agents for this; one session, sections in order (long scans in the background as described below).
+- If a result needs judgement you are unsure of (e.g. whether a number difference is a real bug), report it as an "observation" with
+  the raw values; the developer session (Opus) decides.
+
 ## Work fast and cheap (read first)
 - **Numbers from the API, not from screenshots.** Get them with `fetch` in the browser console or with `curl` from a terminal:
   `/api/health`, `/api/analysis/{T}?technicals=false` (add `&normalise=true` / `&ten_year_only=true`), `/api/scan/status`,
