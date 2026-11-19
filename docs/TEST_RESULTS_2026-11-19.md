@@ -5,6 +5,13 @@ IB: paused / not connected, Yahoo fallback. Model: Sonnet 5.5, medium effort. Br
 Owner state: unchanged (no settings changed, TEST scan saved then removed, MSFT verdict untouched, no condition filters left).
 
 ## Bugs
+0. **AI download fails: "no Windows llama.cpp build found in the latest release (install Ollama instead)"** (blocker for the built-in AI).
+   Steps: Settings → "Download the built-in AI". `/api/ai/status` → `builtin.download.error` = that text, nothing downloaded.
+   Root cause: `vmi/ai_runtime.py:30` `RELEASES_API` = `.../ggml-org/llama.cpp/releases/latest`; GitHub's "latest" is currently tag `v1.0.0`
+   with no Windows assets, while the real builds are `b12541` etc. (38 assets each incl. `llama-b12541-bin-win-cuda-12.4-x64.zip`,
+   `cudart-llama-bin-win-cuda-13.5-x64.zip`). `pick_assets` therefore returns None. Suggested fix: query `/releases?per_page=10` and use the
+   first release for which `pick_assets` is not None. PC: RTX 5070 Ti Laptop 12227 MiB, 75 GB free, so requirements are met. Model/steps 2-3
+   of section 6 could not run.
 1. **MSFT moat "At first sight" = weak.** `#/moat/MSFT`: "weak (more warning signs than strengths)". Against: margin fell 2 years
    in a row; Step 1 fails (earnings or margins not consistently rising). For: gross margin 68%, op-margin rank 1 of 7, industry leader,
    pricing power held. Plan expects MSFT not weak. Saved verdict: wide, score 9, sources brand/switching_costs/network_effect/scale,
@@ -67,7 +74,14 @@ Owner state: unchanged (no settings changed, TEST scan saved then removed, MSFT 
   Clear drawings empties it (`[]`). Trend line: 3 attempts by automated clicks did not store anything (code needs both clicks on a bar
   time); UNVERIFIED, may be click targeting. Reload persistence read from localStorage, not re-screenshotted.
 
-## Still not tested
-- Moat guided verdict save and the Step 3 line update on MSFT (would change the owner's verdict).
-- Trend line drawing (see above); loss-year ROE note row (none in the scans run).
-- Section 6 (AI download): not tested, owner did not agree.
+## Final items
+- **Trend line:** draws and saves (`[{"kind":"trend","a":{"time":"2026-02-09",...},"b":{"time":"2026-05-08",...}}]`), still drawn after a
+  page reload (yellow line seen). PASS. Quirk: with the browser tool the first chart click after choosing the tool was not registered
+  (needed 3 clicks); probably the harness (first click only moves the mouse), not confirmed. Drawings cleared afterwards.
+- **Guided evaluation save (MSFT):** final screen shows "4 of 5 sources", answers prefilled from the existing verdict; "Save the moat
+  evaluation" with "save to config" unticked wrote a DB override (reviewed 2026-11-19) and the Step 3 line updated ("PASS · wide · 9/10 ·
+  reviewed 2026-11-19"). Restored by deleting the DB override; MSFT is back to the committed judgement (reviewed 2026-11-05), git tree clean.
+- **Section 6:** FAILED at step 1, see bug 0.
+
+## Not covered
+- A scan row with a loss-year ROE note (none appeared in the scans run).
