@@ -99,6 +99,19 @@ NUANCES ADAM TEACHES (read the numbers the way he does; never mark a moat down f
   is less predictable: Adam calls such a business "good, not great"; that points to NARROW even when the brand is famous.
 - Network effects can be regional: the platform you "have to be on" to buy or sell in a region (a country or continent) has a moat
   there, even if it is small elsewhere; judge it inside its home market.
+- "We face intense / aggressive competition" appears in EVERY annual report; it is boilerplate, not evidence of a weak moat. Evidence
+  of erosion is specific and recent: the leader losing share two years running, the leader forced to cut prices to keep customers,
+  customers visibly switching. A named bigger rival existing (e.g. Microsoft in security) is not erosion either: Adam rates Amazon,
+  Google and Microsoft wide although they compete with each other.
+- Discounting to clear excess stock, a reorganisation, a new CEO, a weak quarter or a strategy mistake is a temporary problem; only
+  discounting that is needed to keep customers year after year is lost pricing power.
+- Never cite the app's automatic "pricing power" check (it only compares margins in the 2021-23 cost shock) as evidence; margins can
+  dip in an inflation shock for a brand that still raises prices. Use sourced price rises and customer behaviour instead.
+- DECISION RULE (Adam: "at least 3 of the 5 sources"): score the five sources honestly 0-10 the way Adam does (Meta 9,9,8,10,9; Zoom
+  6,5,6,6,5). A clear leader with sticky customers (enterprise integration, ecosystem, recurring revenue, a regulated or licensed
+  position, a brand people default to) normally scores 7+ on at least three sources, and then the grade is WIDE unless the notes show
+  specific, recent structural erosion. Two strong sources, or a leader without sticky customers, is NARROW. One or none, or a business
+  that a much bigger rival can copy and bundle, is NONE.
 - Industries he bans (commodities, airlines, autos, property, construction, shipping, oil and gas) stay NONE or at most NARROW even
   with big, profitable companies; key-man dependence and forced price cuts are red flags."""
 
