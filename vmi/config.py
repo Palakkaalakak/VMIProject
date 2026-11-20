@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     ai_url: str = "http://127.0.0.1:11434"
     ai_model: str = "qwen3:14b"
     ai_timeout: float = 240.0
+    # Web search for the moat AI's research: Tavily (free tier, tavily.com). Put VMI_TAVILY_API_KEY=... in .env (never committed).
+    # Without a key the research falls back to DuckDuckGo / Bing, which block heavy automated use.
+    tavily_api_key: str = ""
 
     # Cache TTLs (seconds)
     ttl_quote: int = 15

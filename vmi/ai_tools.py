@@ -96,6 +96,36 @@ _search_lock = threading.Lock()
 _last_search = [0.0]
 
 
+TAVILY_TEXT: dict = {}       # url -> page text Tavily already returned (saves fetching pages that block scripts)
+
+
+def _tavily_key() -> str:
+    try:
+        from vmi.config import get_settings
+        return get_settings().tavily_api_key.strip()
+    except Exception:
+        return ""
+
+
+def _tavily(query: str) -> list[tuple[str, str, str]]:
+    """Tavily search API (needs VMI_TAVILY_API_KEY): [(title, url, snippet)]; page text is kept in TAVILY_TEXT."""
+    key = _tavily_key()
+    if not key:
+        raise RuntimeError("no Tavily key")
+    body = json.dumps({"query": query, "max_results": 8, "search_depth": "basic", "include_raw_content": "text"}).encode()
+    req = urllib.request.Request("https://api.tavily.com/search", data=body,
+                                 headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        data = json.loads(r.read())
+    out = []
+    for x in data.get("results", []):
+        url = x.get("url", "")
+        if x.get("raw_content"):
+            TAVILY_TEXT[url] = str(x["raw_content"])[:60000]
+        out.append((x.get("title", ""), url, (x.get("content") or "")[:400]))
+    return out
+
+
 def _ddg(query: str) -> list[tuple[str, str, str]]:
     """DuckDuckGo Lite (HTML form POST): [(title, url, snippet)]."""
     req = urllib.request.Request("https://lite.duckduckgo.com/lite/", data=urllib.parse.urlencode({"q": query}).encode(),
@@ -133,7 +163,7 @@ def web_search(query: str, n: int = 6) -> str:
             time.sleep(wait)
         _last_search[0] = time.time()
     errors = []
-    for engine in (_ddg, _bing):
+    for engine in ((_tavily,) if _tavily_key() else ()) + (_ddg, _bing):
         try:
             res = _relevant(query, engine(query))
         except Exception as exc:

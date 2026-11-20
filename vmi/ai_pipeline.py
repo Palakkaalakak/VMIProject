@@ -92,21 +92,31 @@ def _score(url: str, name: str, ticker: str) -> int:
 def search(query: str, name: str, ticker: str) -> list[tuple[str, str, str]]:
     """[(title, url, snippet)] ranked: primary sources first, junk dropped. Cached."""
     def go():
-        for engine in (ai_tools._ddg, ai_tools._bing):
+        engines = ((ai_tools._tavily,) if ai_tools._tavily_key() else ()) + (ai_tools._ddg, ai_tools._bing)
+        for engine in engines:
             try:
                 res = ai_tools._relevant(query, engine(query))
             except Exception:
                 continue
             if len(res) >= 2:
-                return [list(r) for r in res]
+                return [list(r) + [ai_tools.TAVILY_TEXT.get(r[1], "")] for r in res]
         return []
     res = _cached("ai:search:" + query.lower(), go)
+    if not res:                                    # never trust a cached empty result (it may date from a block)
+        res = go()
+    for r in res:                                  # page text that came with the search result (Tavily): no fetch needed
+        if len(r) > 3 and r[3]:
+            ai_tools.TAVILY_TEXT.setdefault(r[1], r[3])
+    res = [r[:3] for r in res]
     res = [tuple(r) for r in res if _score(r[1], name, ticker) > -10]
     return sorted(res, key=lambda r: -_score(r[1], name, ticker))
 
 
 def page_text(url: str) -> str:
     """Main text of a page (trafilatura; plain-text fallback). Cached; '' when it cannot be read."""
+    if len(ai_tools.TAVILY_TEXT.get(url, "")) > 300:
+        return ai_tools.TAVILY_TEXT[url]
+
     def go():
         if not ai_tools._public(url):
             return ""
