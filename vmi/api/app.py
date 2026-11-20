@@ -303,7 +303,7 @@ _AI_LAST: dict = {}      # last research opinion per ticker (this session only),
 
 @ar.post("/{symbol}/ai-check")
 def ai_check(symbol: str):
-    """Optional, on request: an independent pass checks every claim of the last AI opinion against its sources; it can only lower the grade."""
+    """Optional, on request: an independent pass checks every claim of the last AI opinion against its sources; its grade replaces the opinion's (it may raise or lower it)."""
     from vmi import ai_helper, ai_research
     res = _AI_LAST.get(symbol.upper())
     if not res:

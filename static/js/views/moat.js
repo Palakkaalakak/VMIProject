@@ -130,7 +130,7 @@ export async function render(root, params) {
       $("#moat-ai-check-out", root).textContent = "Checking every claim against its source … about a minute";
       try {
         const c = await api.aiCheck(sym);
-        $("#moat-ai-check-out", root).innerHTML = `<p><b>After the checker: ${esc(c.grade || "?")}</b> (checker said ${esc(c.checker_grade || "?")}; it can only lower the grade)</p><p>${esc(c.check).replaceAll("\n", "<br>")}</p>`;
+        $("#moat-ai-check-out", root).innerHTML = `<p><b>After the checker: ${esc(c.grade || "?")}</b> (the checker judged every claim against its sources; it can raise or lower the AI grade)</p><p>${esc(c.check).replaceAll("\n", "<br>")}</p>`;
       } catch (err) { $("#moat-ai-check-out", root).innerHTML = `<span class="neg">${esc(err.message)}</span>`; }
     }));
   }).catch(() => {});

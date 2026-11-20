@@ -1,4 +1,4 @@
-"""The research pipeline: grades are parsed, and the checker can only lower the verdict (owner rule: the lower opinion wins)."""
+"""The research pipeline: grades are parsed, the self-review can only lower the verdict, the optional checker sets the grade."""
 from vmi import ai_research as AR
 
 
@@ -28,9 +28,9 @@ def test_self_review_can_only_lower(monkeypatch):
     assert AR.opinion("X", "X")["final"] == "NARROW"
 
 
-def test_checker_cannot_raise(monkeypatch):
+def test_checker_can_raise(monkeypatch):
     _fake(monkeypatch, "MOAT VERDICT: NARROW — 6/10", "CHECKER VERDICT: WIDE")
-    assert AR.opinion("X", "X", run_checker=True)["final_checked"] == "NARROW"
+    assert AR.opinion("X", "X", run_checker=True)["final_checked"] == "WIDE"
 
 
 def test_no_readable_grade_counts_as_none(monkeypatch):

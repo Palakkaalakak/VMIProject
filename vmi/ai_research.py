@@ -6,8 +6,8 @@
   3. review    - the same model re-reads its own verdict once, fixes unsupported claims and present-tense reasoning, and downgrades
                  when unsure. The lower of verdict and review is kept.
   4. checker   - OPTIONAL, run only when the user asks: a separate pass sees only the claims and the sources (the notes and the app's
-                 analysis), marks each claim SUPPORTED / UNSUPPORTED / CONTRADICTED, judges whether the grade follows, and may only
-                 LOWER the grade.
+                 analysis), marks each claim SUPPORTED / UNSUPPORTED / CONTRADICTED, judges whether the grade follows, and gives the
+                 grade the sourced claims support: it may raise or lower the opinion's grade.
 Owner rule: when two opinions differ, the lower one wins.
 """
 from __future__ import annotations
@@ -171,8 +171,9 @@ def opinion(ticker: str, name: str, evidence: str = "", base_url: str | None = N
 
 
 def run_check(result: dict, ticker: str, evidence: str = "", base_url: str | None = None) -> dict:
-    """Optional independent checker on a finished opinion; it can only lower the grade."""
+    """Optional independent checker on a finished opinion. Run only when the user asks; its grade replaces the opinion's grade
+    (it may raise or lower it), because it judged every claim against the sources."""
     figures = evidence or ai_tools.app_analysis(ticker)
     c = check(result.get("review") or result["verdict"], result["notes"], figures, base_url=base_url)
     g = _grade(c, "CHECKER VERDICT")
-    return {"check": c, "checker_grade": g, "final_checked": _lowest(result.get("final"), g)}
+    return {"check": c, "checker_grade": g, "final_checked": g or result.get("final")}
