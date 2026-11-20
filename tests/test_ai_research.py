@@ -42,3 +42,24 @@ def test_grade_parsing_variants():
     assert AR._grade("MOAT VERDICT: **Wide** — 9/10", "MOAT VERDICT") == "WIDE"
     assert AR._grade("MOAT VERDICT: No moat — 2/10", "MOAT VERDICT") == "NONE"
     assert AR._grade("nothing here", "MOAT VERDICT") is None
+
+
+def test_nuance_checklist_is_in_every_pass():
+    n = len([ln for ln in AR.CHECKLIST.split("\n") if ln[:3].strip(". ").isdigit()])
+    assert n == 14
+    assert "CHECKLIST:" in AR.VERDICT_RULES                       # the verdict must answer every item
+    assert "INDEPENDENT RE-VERIFICATION" in AR.REVIEW_RULES         # the final pass re-verifies each item itself
+    assert "MY CHECKLIST" in AR.CHECK_RULES                         # the checker answers it independently first
+
+
+def test_checklist_is_sent_with_each_pass(monkeypatch):
+    seen = {}
+
+    def fake(base_url, messages, max_tokens=1200):
+        seen[messages[0]["content"][:30]] = messages[0]["content"]
+        return "MOAT VERDICT: WIDE — 8/10 CHECKER VERDICT: WIDE"
+    monkeypatch.setattr(AR, "_chat", fake)
+    AR.verdict("X", "X", "notes")
+    AR.review("v", "notes")
+    AR.check("v", "notes", "figures")
+    assert len(seen) >= 2 and all("NUANCE CHECKLIST" in v for v in seen.values())

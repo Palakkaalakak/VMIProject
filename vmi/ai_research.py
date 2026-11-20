@@ -102,6 +102,9 @@ OTHER LESSONS OF THE COURSE, SUMMARISED (Adam's view; read the numbers the way h
   "wide-moat companies have no competitors or insignificant competition"; Pillar 5 is "weak competition" (few competitors, with very
   small market share and a weaker competitive position). Barriers to entry (regulation, patents, IP, security clearances) are what
   keep new rivals out, and in "boring" industries few new competitors want to enter at all.
+- DISCOUNTS: Adam's erosion test is discounting needed to KEEP customers year after year. Discounts offered to WIN customers away from
+  rivals, or to sell a bigger bundle of the company's own products, are expansion, not lost pricing power; discounts to clear stock or
+  a one-off are temporary. Classify every discount before using it as evidence.
 - DECISION RULE (Adam: "at least 3 of the 5 sources"): score the five sources honestly 0-10 the way Adam does (Meta 9,9,8,10,9; Zoom
   6,5,6,6,5). A clear leader with sticky customers (enterprise integration, ecosystem, recurring revenue, a regulated or licensed
   position, a brand people default to) normally scores 7+ on at least three sources, and then the grade is WIDE unless the notes show
@@ -109,6 +112,22 @@ OTHER LESSONS OF THE COURSE, SUMMARISED (Adam's view; read the numbers the way h
   that a much bigger rival can copy and bundle, is NONE.
 - Industries he bans (commodities, airlines, autos, property, construction, shipping, oil and gas) stay NONE or at most NARROW even
   with big, profitable companies; key-man dependence and forced price cuts are red flags."""
+
+CHECKLIST = """NUANCE CHECKLIST: answer EVERY item with YES, NO or NA and one short sourced reason. A wrong answer here is the usual way a grade goes wrong.
+1. FUTURE: is the grade about the next 10-20 years of protection, not how good the numbers are today?
+2. SOURCES: are all five sources scored 0-10 on sourced evidence (not on a guess), and is the grade consistent with the 3-of-5 decision rule?
+3. TOP DOG: are the closest competitors named and compared (clearly weaker / equal / stronger), with a source? Equal strength in a toll-booth duopoly is still WIDE for each.
+4. RIVALS WEIGHED: for each rival named as a threat, did you state OVERLAP (share of this company's revenue it contests), FOCUS (core business or bundled side line for the rival) and EVIDENCE (customers, deals or share actually lost to it)?
+5. COMPETITION WON: is the company beating its rivals (faster growth, share gains, price and margins held)? Competition it wins is not a weakness.
+6. EROSION EVIDENCE: is every erosion signal specific, recent and sourced (the leader losing share two years running, forced discounting to KEEP customers, customers switching)? "Intense competition" boilerplate, "a bigger rival exists" and "could bundle" do not count.
+7. DISCOUNTS CLASSIFIED: is each discount or price cut classed as (a) to keep existing customers = lost pricing power, (b) to win customers from rivals or sell bigger bundles = expansion, or (c) to clear stock or a one-off = temporary?
+8. TEMPORARY OR STRUCTURAL: is every weak number or setback (down year, margin dip, bad CEO, strategy mistake, scandal, lawsuit, capex surge) traced to a sourced cause and classed temporary or structural? A global brand people default to is not weakened by a bad patch.
+9. FIGURES READ RIGHT: negative equity from buybacks, current ratio below 1, lumpy net income, falling free cash flow from a capex surge, slow growth of a boring predictable brand: none was wrongly held against the moat, and the app's automatic "pricing power" check was NOT used as evidence.
+10. BUSINESS-MODEL RED FLAGS: one-trick pony, customer concentration, key-man or unique-talent dependence, a brand that must keep spending heavily on hit-and-miss output: each checked.
+11. BANNED INDUSTRY: is it in commodities, airlines, autos, property, construction, shipping, oil and gas? Then never above NARROW, usually NONE.
+12. NOT OVER-GRADED: grading too HIGH is the worst error; is the grade supported by sourced evidence, not hope?
+13. NOT UNDER-GRADED: was the grade lowered only for specific sourced doubt, not because of general unease, a rival merely existing, or "when unsure" used as a default?
+14. SOURCES CHECKED: does every claim carry a source that really says it?"""
 
 VERDICT_RULES = ADAM + """
 
@@ -124,8 +143,9 @@ Every claim must carry its source exactly as in the notes ([url] or [analysis pa
 Output plain text, no markdown:
 CLAIMS:
 - <claim> [source]
-(as many as needed)
+(the 6-8 most decisive claims only)
 SOURCES (0-10 each, Adam's scale): brand/pricing power=?, switching costs=?, network effect=?, barriers to entry=?, economies of scale=?
+CHECKLIST: (all 14 items, one line each: "n. YES|NO|NA - reason [source]")
 REASONING: <at most 100 words: the strong sources, top dog or not, the tests, the biggest doubt>
 MOAT VERDICT: WIDE — 8/10   (or NARROW or NONE, your own overall score on Adam's scale: about 8-10 wide, 6-7 narrow, 5 or less none)"""
 
@@ -134,7 +154,11 @@ and the app's own figures. For each claim answer SUPPORTED, UNSUPPORTED (no sour
 judging only by the sources, not by your memory. Then judge whether the analyst's grade follows from the SUPPORTED claims alone under
 Adam Khoo's framework: WIDE = brand monopoly / dominant leader, ~20-year protection, >=3 strong sources, no threat shown in the sources;
 NARROW = limited or contested edge, ~10 years; NONE = easily copied or replaced by much bigger rivals, or commodity-like. If torn, the lower grade.
+FIRST, independently of the analyst, answer the NUANCE CHECKLIST (below) yourself from the sources only. THEN compare with the analyst's
+CHECKLIST answers and flag every item where they differ and who is right. Your grade follows from your own checklist answers.
 Output plain text:
+MY CHECKLIST: (14 lines "n. YES|NO|NA - reason [source]")
+DIFFERENCES: <items where you disagree with the analyst, with reasons, or "none">
 CHECKS:
 - <short claim> -> SUPPORTED | UNSUPPORTED | CONTRADICTED
 LOGIC: <one or two sentences>
@@ -174,7 +198,7 @@ def research(ticker: str, name: str, base_url: str | None = None, on_tool=None) 
 
 
 def verdict(ticker: str, name: str, notes: str, evidence: str = "", base_url: str | None = None) -> str:
-    msgs = [{"role": "system", "content": VERDICT_RULES.format(name=name, ticker=ticker)},
+    msgs = [{"role": "system", "content": VERDICT_RULES.format(name=name, ticker=ticker) + "\n\n" + CHECKLIST},
             {"role": "user", "content": (f"EVIDENCE CARD:\n{evidence}\n\n" if evidence else "") + f"RESEARCH NOTES:\n{notes}"}]
     return _chat(base_url, msgs)
 
@@ -188,11 +212,19 @@ Re-read the moat verdict you wrote below, as a strict reviewer of your own work,
   commodity product) -> lower it; the grade is above NONE although the business can easily be copied or replaced by much bigger
   competitors -> NONE;
 - you were genuinely unsure between two grades -> the LOWER one.
-Output the corrected verdict in the same format (CLAIMS, SOURCES, REASONING, MOAT VERDICT). If nothing needs fixing, repeat it unchanged."""
+INDEPENDENT RE-VERIFICATION: before you answer, go through the NUANCE CHECKLIST below yourself, item by item, against the research
+notes (do not just trust the analyst's answers). Where an answer is wrong, unsupported or missing, fix it; a fixed answer may change the grade
+in either direction, but a grade change needs a sourced reason.
+Output only (do not repeat the claims):
+CHECKLIST REVIEW: <"all 14 confirmed" or the numbers you changed with the corrected answer, in at most 60 words>
+FIXES: <what you changed in the verdict and why in at most 40 words, or "none">
+SOURCES (0-10 each, Adam's scale): brand/pricing power=?, switching costs=?, network effect=?, barriers to entry=?, economies of scale=?
+REASONING: <at most 80 words>
+MOAT VERDICT: WIDE — 8/10   (or NARROW or NONE)"""
 
 
 def review(verdict_text: str, notes: str, base_url: str | None = None) -> str:
-    msgs = [{"role": "system", "content": REVIEW_RULES},
+    msgs = [{"role": "system", "content": REVIEW_RULES + "\n\n" + CHECKLIST},
             {"role": "user", "content": f"YOUR VERDICT:\n{verdict_text}\n\nRESEARCH NOTES IT WAS BASED ON:\n{notes}"}]
     return _chat(base_url, msgs)
 
@@ -200,9 +232,16 @@ def review(verdict_text: str, notes: str, base_url: str | None = None) -> str:
 def check(verdict_text: str, notes: str, figures: str, base_url: str | None = None) -> str:
     claims = verdict_text.split("REASONING:")[0]
     grade = _grade(verdict_text, "MOAT VERDICT") or "?"
-    msgs = [{"role": "system", "content": CHECK_RULES},
+    msgs = [{"role": "system", "content": CHECK_RULES + "\n\n" + CHECKLIST},
             {"role": "user", "content": f"ANALYST GRADE: {grade}\n\n{claims}\n\nSOURCE NOTES:\n{notes}\n\nAPP FIGURES [analysis page]:\n{figures}"}]
     return _chat(base_url, msgs, max_tokens=1000)
+
+
+def final_text(result: dict) -> str:
+    """The opinion as one text: the first verdict's sourced claims, then the self-review (fixes, sources, reasoning, grade)."""
+    claims = (result.get("verdict") or "").split("REASONING:")[0].strip()      # claims, sources and the analyst's checklist
+    review = (result.get("review") or "").strip()
+    return (claims + "\n\n" + review).strip() if review else (result.get("verdict") or "")
 
 
 def _lowest(*grades):
@@ -230,6 +269,6 @@ def run_check(result: dict, ticker: str, evidence: str = "", base_url: str | Non
     """Optional independent checker on a finished opinion. Run only when the user asks; its grade replaces the opinion's grade
     (it may raise or lower it), because it judged every claim against the sources."""
     figures = evidence or ai_tools.app_analysis(ticker)
-    c = check(result.get("review") or result["verdict"], result["notes"], figures, base_url=base_url)
+    c = check(final_text(result), result["notes"], figures, base_url=base_url)
     g = _grade(c, "CHECKER VERDICT")
     return {"check": c, "checker_grade": g, "final_checked": g or result.get("final")}
