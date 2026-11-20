@@ -17,7 +17,7 @@ import re
 
 from vmi import ai_runtime, ai_tools
 
-MAX_ROUNDS = 60
+MAX_ROUNDS = 50
 ORDER = {"NONE": 0, "NARROW": 1, "WIDE": 2}
 
 
@@ -40,29 +40,51 @@ before the budget runs out, and stop calling tools and write your NOTES when abo
 When you have enough, reply with NOTES only: one finding per line, each ending with its source in brackets: [url] for web pages or
 [analysis page] for app_analysis. Then a line OPEN QUESTIONS: what you could not establish. No grade yet."""
 
-VERDICT_RULES = """Grade {name} ({ticker}) on Adam Khoo's moat scale using ONLY the research notes below (your memory is out of date).
-Adam: WIDE = ~20 years of protection, no or insignificant competitors, raises prices every year without losing share, very high margins.
-NARROW = ~10 years, several significant competitors, limited pricing power. NONE = commodity-like, price decides, or easily disrupted
-and replaced by stronger competitors (no-moat industries: commodities, airlines, autos, oil and gas, shipping, construction,
-property developers). He wants at least 3 of 5 sources: brand or pricing power, switching costs, network effect, barriers to entry,
-economies of scale.
-A MOAT IS ONLY ABOUT THE FUTURE: the question is whether {name} will still be the top dog, protected from competitors, in 10-20
-years. "It is wide today" or "justifiable today" means nothing; a business whose protection may erode is NOT wide, whatever its
-current numbers. Strong current figures never prove a moat on their own.
-Rules: grading higher than deserved is the worst error. If you are unsure, or torn between two grades, ALWAYS give the LOWER one. A weak number with a one-off cause does not count
-against the moat; a structural cause does. Every claim must carry its source exactly as in the notes ([url] or [analysis page]).
+ADAM = """ADAM KHOO'S MOAT FRAMEWORK (from his course; apply it as written):
+- A moat protects the business from competition so competitors cannot easily take its customers or market share, letting it keep
+  growing sales, profit and cash flow for the next 10 to 20 years. With a strong moat it keeps pricing power: it raises prices
+  consistently without losing customers or share.
+- WIDE: a very strong, sustainable advantage we are pretty certain cannot easily be disrupted for the next 20 years; a very
+  monopolistic business with no competitors or only insignificant ones; can raise prices without hurting demand; very high profit
+  margins and consistent growth. Typical: a BRAND MONOPOLY (the first name people think of for the product; part of everyday
+  vocabulary), a dominant platform with a strong network effect, an ecosystem with very high switching costs, huge economies of scale.
+  Having rivals does not stop a business being WIDE when the rivals are far smaller or cannot take its customers.
+- NARROW: some advantage probably sustainable for ~10 years, beyond that not sure; several significant competitors; limited pricing
+  power (raise prices too much and customers leave, e.g. a carmaker that must keep cutting prices against many rivals); average margins.
+- NONE: it may be growing and profitable now, but it can easily be disrupted, replicated or replaced by a much bigger or stronger
+  competitor within a few years; many competitors selling near-identical products; price decides. Typical pattern: a popular, fast-
+  growing app or payments/communication service that larger platforms can copy and bundle. Also most commodity companies, airlines,
+  auto makers, property developers, construction, shipping, oil and gas.
+- Sources (he wants at least 3 of 5): (1) strong brand / brand monopoly or pricing power, (2) high switching costs, (3) network effect,
+  (4) high barriers to entry (patents, regulation, security clearances), (5) economies of scale.
+- Signs of erosion: margins falling for 2-3 years because it has to discount, rising costs squeezing margins, market share falling for
+  two years straight, customers visibly switching to competitors.
+- Tests: Can it raise prices every year without losing share? Could a much bigger competitor replicate it and take its customers
+  within 1-3 years? Is it the top dog of its industry, with the closest competitors clearly weaker? Is it losing share or discounting?"""
+
+VERDICT_RULES = ADAM + """
+
+Grade {name} ({ticker}) with this framework, using ONLY the research notes below for facts about the company (your memory of it is
+out of date; general knowledge of how moats work is fine).
+A moat is about the FUTURE: will {name} still be the protected top dog in 10-20 years? Current numbers alone never prove a moat, and
+"wide today" means nothing. Judge with the tests above.
+Rules: grading higher than deserved is the worst error, so when the evidence leaves real doubt (the notes show share loss, forced
+discounting, a much stronger rival replicating it, a commodity product), give the LOWER grade. Do NOT downgrade a brand monopoly or
+dominant platform merely because rivals exist or some theoretical risk is imaginable; downgrade for threats the notes actually show.
+A weak number with a one-off cause does not count against the moat; a structural cause does.
+Every claim must carry its source exactly as in the notes ([url] or [analysis page]).
 Output plain text, no markdown:
 CLAIMS:
 - <claim> [source]
 (as many as needed)
-REASONING: <at most 100 words>
+REASONING: <at most 100 words: which of the 5 sources are strong, the tests, the biggest doubt>
 MOAT VERDICT: WIDE — 8/10   (or NARROW or NONE, your own score)"""
 
 CHECK_RULES = """You are an independent checker. Below are CLAIMS from an analyst with their sources, the SOURCE NOTES they came from,
 and the app's own figures. For each claim answer SUPPORTED, UNSUPPORTED (no source says it) or CONTRADICTED (a source says otherwise),
 judging only by the sources, not by your memory. Then judge whether the analyst's grade follows from the SUPPORTED claims alone under
-these rules: WIDE needs a clear leader with ~20-year protection, >=3 strong sources and no structural threat; NARROW for a limited or
-contested edge; NONE for commodity-like or easily disrupted businesses. If torn, the lower grade.
+Adam Khoo's framework: WIDE = brand monopoly / dominant leader, ~20-year protection, >=3 strong sources, no threat shown in the sources;
+NARROW = limited or contested edge, ~10 years; NONE = easily copied or replaced by much bigger rivals, or commodity-like. If torn, the lower grade.
 Output plain text:
 CHECKS:
 - <short claim> -> SUPPORTED | UNSUPPORTED | CONTRADICTED
@@ -101,12 +123,15 @@ def verdict(ticker: str, name: str, notes: str, evidence: str = "", base_url: st
     return _chat(base_url, msgs)
 
 
-REVIEW_RULES = """Re-read the moat verdict you wrote below, as a strict reviewer of your own work, before it goes to anyone.
-Fix it if any of these is true, and downgrade when in doubt:
-- a claim has no source, or the source in the notes does not actually say it -> drop the claim;
-- the reasoning argues from the present ("today", "currently", "for now") instead of the next 10-20 years -> judge the future;
-- the reasoning itself names a serious threat, erosion or doubt, yet the grade is WIDE -> it is not WIDE;
-- you were unsure or torn -> the LOWER grade.
+REVIEW_RULES = ADAM + """
+
+Re-read the moat verdict you wrote below, as a strict reviewer of your own work, before it goes to anyone. Fix it if:
+- a claim has no source, or the source in the notes does not actually say it -> drop the claim and re-judge;
+- the reasoning argues from the present ("today", "currently") instead of the next 10-20 years -> judge the future;
+- the grade is WIDE although the notes show a real threat (share loss, forced discounting, a much stronger rival replicating it, a
+  commodity product) -> lower it; the grade is above NONE although the business can easily be copied or replaced by much bigger
+  competitors -> NONE;
+- you were genuinely unsure between two grades -> the LOWER one.
 Output the corrected verdict in the same format (CLAIMS, REASONING, MOAT VERDICT). If nothing needs fixing, repeat it unchanged."""
 
 
@@ -137,7 +162,7 @@ def opinion(ticker: str, name: str, evidence: str = "", base_url: str | None = N
         v = verdict(ticker, name, notes + "\n\nREMEMBER: end with the line MOAT VERDICT: WIDE|NARROW|NONE — n/10", evidence, base_url=base_url)
     rv = review(v, notes, base_url=base_url)
     g1, g2 = _grade(v, "MOAT VERDICT"), _grade(rv, "MOAT VERDICT")
-    # no readable grade at all counts as NONE: an opinion that cannot state a grade must not count as a moat
+    # owner rule: the lower of the two wins; no readable grade at all counts as NONE (an opinion without a grade is not a moat)
     final = _lowest(g1, g2) or "NONE"
     out = {"notes": notes, "verdict": v, "review": rv, "verdict_grade": g1, "review_grade": g2, "final": final}
     if run_checker:
