@@ -60,7 +60,18 @@ ADAM = """ADAM KHOO'S MOAT FRAMEWORK (from his course; apply it as written):
 - Signs of erosion: margins falling for 2-3 years because it has to discount, rising costs squeezing margins, market share falling for
   two years straight, customers visibly switching to competitors.
 - Tests: Can it raise prices every year without losing share? Could a much bigger competitor replicate it and take its customers
-  within 1-3 years? Is it the top dog of its industry, with the closest competitors clearly weaker? Is it losing share or discounting?"""
+  within 1-3 years? Is it the top dog of its industry, with the closest competitors clearly weaker? Is it losing share or discounting?
+- Top dog: he only invests in the strongest business of its industry; "if the competitor is stronger, I'd rather invest in the
+  competitor"; if there is no clear leader, forget it.
+- Business-model red flags: a one-trick pony with a single product users can abandon for a rival's (the video-call app case);
+  customer concentration (a few customers = most revenue); success that depends on one person or on unique talent.
+- Temporary vs structural: lawsuits, a bad year, a bad CEO, a scandal or a capex surge leave a moat intact; disruption by new
+  technology, a permanent change in what customers want, or a rival taking share year after year destroy it.
+- A clear 10-year uptrend in the share price is usually a clue to a wide moat; a long-run downtrend means no advantage.
+- He scores each source 0-10 (like the Stock Oracle AI moat score) and averages them: 9 = very wide; 7-9 gives him confidence; 6 is
+  "not strong enough" (narrow: e.g. barriers 5 because bigger rivals can replicate it, switching 6 because users switch easily);
+  2 = no moat, "the most dangerous". He is not rigid about counting: two or three strong sources can make a wide moat, and switching
+  costs that exist in one big segment (e.g. enterprise cloud) count."""
 
 VERDICT_RULES = ADAM + """
 
@@ -77,8 +88,9 @@ Output plain text, no markdown:
 CLAIMS:
 - <claim> [source]
 (as many as needed)
-REASONING: <at most 100 words: which of the 5 sources are strong, the tests, the biggest doubt>
-MOAT VERDICT: WIDE — 8/10   (or NARROW or NONE, your own score)"""
+SOURCES (0-10 each, Adam's scale): brand/pricing power=?, switching costs=?, network effect=?, barriers to entry=?, economies of scale=?
+REASONING: <at most 100 words: the strong sources, top dog or not, the tests, the biggest doubt>
+MOAT VERDICT: WIDE — 8/10   (or NARROW or NONE, your own overall score on Adam's scale: about 8-10 wide, 6-7 narrow, 5 or less none)"""
 
 CHECK_RULES = """You are an independent checker. Below are CLAIMS from an analyst with their sources, the SOURCE NOTES they came from,
 and the app's own figures. For each claim answer SUPPORTED, UNSUPPORTED (no source says it) or CONTRADICTED (a source says otherwise),
@@ -132,7 +144,7 @@ Re-read the moat verdict you wrote below, as a strict reviewer of your own work,
   commodity product) -> lower it; the grade is above NONE although the business can easily be copied or replaced by much bigger
   competitors -> NONE;
 - you were genuinely unsure between two grades -> the LOWER one.
-Output the corrected verdict in the same format (CLAIMS, REASONING, MOAT VERDICT). If nothing needs fixing, repeat it unchanged."""
+Output the corrected verdict in the same format (CLAIMS, SOURCES, REASONING, MOAT VERDICT). If nothing needs fixing, repeat it unchanged."""
 
 
 def review(verdict_text: str, notes: str, base_url: str | None = None) -> str:
