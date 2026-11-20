@@ -100,6 +100,9 @@ NUANCES = """OTHER LESSONS OF THE COURSE AND HOW TO READ EVIDENCE (summarised fr
   "wide-moat companies have no competitors or insignificant competition"; Pillar 5 is "weak competition" (few competitors, with very
   small market share and a weaker competitive position). Barriers to entry (regulation, patents, IP, security clearances) are what
   keep new rivals out, and in "boring" industries few new competitors want to enter at all.
+- MISSING EVIDENCE IS NOT NEGATIVE EVIDENCE: if the notes do not cover rivals or a threat, do not lower the grade for it; judge from what is
+  known with Adam's framework. Lower only for sourced negatives from credible sources (company filings, major news or finance outlets,
+  official data); a single unknown blog or report site is weak evidence.
 - DISCOUNTS: Adam's erosion test is discounting needed to KEEP customers year after year. Discounts offered to WIN customers away from
   rivals, or to sell a bigger bundle of the company's own products, are expansion, not lost pricing power; discounts to clear stock or
   a one-off are temporary. Classify every discount before using it as evidence.
@@ -143,17 +146,20 @@ OWNER_QUICK = """THE OWNER'S GUIDANCE (the owner's own reasoning, not Adam's wor
 - Never use the app's automatic "pricing power" check as evidence. Negative equity from buybacks, current ratio below 1, lumpy income,
   capex-driven free-cash-flow dips and slow growth of a predictable brand are not weaknesses. A great brand's bad patch is temporary.
   Toll-booth duopolies (ratings, card networks, exchanges) are WIDE for each leader. Network effects can be regional.
+- MISSING EVIDENCE IS NOT NEGATIVE EVIDENCE: if the notes do not cover rivals or a threat, do not lower the grade for it; judge from what is
+  known with Adam's framework. Lower only for sourced negatives from credible sources; one weak source alone is not enough.
 - DECISION RULE: a clear leader with sticky customers normally scores 7+ on at least three sources: WIDE unless the notes show specific,
   recent structural erosion; two strong sources: NARROW; one or none, or easily copied or bundled by a much bigger rival: NONE.
   Grading too high is the worst error; lower only for specific sourced doubt."""
 
-CHECKLIST_QUICK = """NUANCE CHECKLIST: answer EVERY item YES, NO or NA with a reason of at most 8 words.
+CHECKLIST_QUICK = """NUANCE CHECKLIST: answer EVERY item with a reason of at most 8 words. YES = the requirement is met; NO = it is not met (say why);
+NA = the notes do not cover it. NA and missing information NEVER lower the grade: only a sourced negative from a credible source does.
 1 FUTURE: judged on the next 10-20 years, not today's numbers?
 2 SOURCES: five sources scored 0-10 on sourced evidence; grade fits 3-of-5?
 3 TOP DOG: closest rivals named and compared with a source?
 4 RIVALS WEIGHED: each threat rival's overlap, focus and evidence stated?
 5 COMPETITION WON: is it beating its rivals?
-6 EROSION: every signal specific, recent, sourced (not boilerplate, not "a rival exists")?
+6 EROSION: every signal specific, recent, from a credible source (filings, major news or finance outlets, official data; one unknown blog or report site is weak) and not boilerplate or "a rival exists"?
 7 DISCOUNTS: each classed keep / win / clear?
 8 SETBACKS: each weak number sourced and classed temporary or structural?
 9 FIGURES: buyback equity, current ratio, lumpy income, capex dips, slow growth, app proxy: none misused?
@@ -163,13 +169,15 @@ CHECKLIST_QUICK = """NUANCE CHECKLIST: answer EVERY item YES, NO or NA with a re
 13 NOT UNDER-GRADED: lowered only for specific sourced doubt?
 14 SOURCES: every claim's source really says it?"""
 
-CHECKLIST = """NUANCE CHECKLIST: answer EVERY item with YES, NO or NA and one short sourced reason. A wrong answer here is the usual way a grade goes wrong.
+CHECKLIST = """NUANCE CHECKLIST: answer EVERY item with YES, NO or NA and one short sourced reason. YES = the requirement is met; NO = it is not met
+(say why); NA = the notes do not cover it. NA and missing information NEVER lower the grade: only a sourced negative from a credible source
+does. A wrong answer here is the usual way a grade goes wrong.
 1. FUTURE: is the grade about the next 10-20 years of protection, not how good the numbers are today?
 2. SOURCES: are all five sources scored 0-10 on sourced evidence (not on a guess), and is the grade consistent with the 3-of-5 decision rule?
 3. TOP DOG: are the closest competitors named and compared (clearly weaker / equal / stronger), with a source? Equal strength in a toll-booth duopoly is still WIDE for each.
 4. RIVALS WEIGHED: for each rival named as a threat, did you state OVERLAP (share of this company's revenue it contests), FOCUS (core business or bundled side line for the rival) and EVIDENCE (customers, deals or share actually lost to it)?
 5. COMPETITION WON: is the company beating its rivals (faster growth, share gains, price and margins held)? Competition it wins is not a weakness.
-6. EROSION EVIDENCE: is every erosion signal specific, recent and sourced (the leader losing share two years running, forced discounting to KEEP customers, customers switching)? "Intense competition" boilerplate, "a bigger rival exists" and "could bundle" do not count.
+6. EROSION EVIDENCE: is every erosion signal specific, recent and from a credible source (company filings, major news or finance outlets, official data; a single unknown blog or report site is weak evidence) and (the leader losing share two years running, forced discounting to KEEP customers, customers switching)? "Intense competition" boilerplate, "a bigger rival exists" and "could bundle" do not count.
 7. DISCOUNTS CLASSIFIED: is each discount or price cut classed as (a) to keep existing customers = lost pricing power, (b) to win customers from rivals or sell bigger bundles = expansion, or (c) to clear stock or a one-off = temporary?
 8. TEMPORARY OR STRUCTURAL: is every weak number or setback (down year, margin dip, bad CEO, strategy mistake, scandal, lawsuit, capex surge) traced to a sourced cause and classed temporary or structural? A global brand people default to is not weakened by a bad patch.
 9. FIGURES READ RIGHT: negative equity from buybacks, current ratio below 1, lumpy net income, falling free cash flow from a capex surge, slow growth of a boring predictable brand: none was wrongly held against the moat, and the app's automatic "pricing power" check was NOT used as evidence.
@@ -183,10 +191,11 @@ VERDICT_BODY = """Grade {name} ({ticker}) with this framework, using ONLY the re
 out of date; general knowledge of how moats work is fine).
 A moat is about the FUTURE: will {name} still be the protected top dog in 10-20 years? Current numbers alone never prove a moat, and
 "wide today" means nothing. Judge with the tests above.
-Rules: grading higher than deserved is the worst error, so when the evidence leaves real doubt (the notes show share loss, forced
+Rules: grading higher than deserved is the worst error, so when the sourced evidence leaves real doubt (the notes show share loss, forced
 discounting, a much stronger rival replicating it, a commodity product), give the LOWER grade. Do NOT downgrade a brand monopoly or
 dominant platform merely because rivals exist or some theoretical risk is imaginable; downgrade for threats the notes actually show.
-A weak number with a one-off cause does not count against the moat; a structural cause does.
+A weak number with a one-off cause does not count against the moat; a structural cause does. Missing information is not a negative: if the
+notes do not cover something, judge from what is known.
 Every claim must carry its source exactly as in the notes ([url] or [analysis page]).
 Output plain text, no markdown:
 CLAIMS:
@@ -247,7 +256,7 @@ def research(ticker: str, name: str, base_url: str | None = None, on_tool=None, 
     from vmi import ai_pipeline
     lv = _level(level)
     return ai_pipeline.research(ticker, name, lambda msgs, mt: _chat(base_url, msgs, mt), on_tool=on_tool,
-                                questions=lv["questions"], pages=lv["pages"], followups=lv["followups"])
+                                questions=lv["questions"], pages=lv["pages"], followups=lv["followups"], plan=lv["plan"])
 
 
 def verdict(ticker: str, name: str, notes: str, evidence: str = "", base_url: str | None = None, level: str | None = None) -> str:
@@ -264,7 +273,7 @@ REVIEW_BODY = """Re-read the moat verdict you wrote below, as a strict reviewer 
 - the grade is WIDE although the notes show a real threat (share loss, forced discounting, a much stronger rival replicating it, a
   commodity product) -> lower it; the grade is above NONE although the business can easily be copied or replaced by much bigger
   competitors -> NONE;
-- you were genuinely unsure between two grades -> the LOWER one.
+- you were genuinely torn between two grades because of conflicting SOURCED evidence -> the LOWER one; but missing information in the notes is never a reason to lower, and a lowered grade needs a sourced negative.
 INDEPENDENT RE-VERIFICATION: before you answer, go through the NUANCE CHECKLIST below yourself, item by item, against the research
 notes (do not just trust the analyst's answers). Where an answer is wrong, unsupported or missing, fix it; a fixed answer may change the grade
 in either direction, but a grade change needs a sourced reason.
@@ -279,11 +288,11 @@ REVIEW_RULES = ADAM + "\n\n" + REVIEW_BODY
 # Three depths. quick = condensed framework + short checklist, fewest searches (fast); standard = fuller course nuances;
 # deep = Adam's own words (needs the local course extract) + everything. Each is larger, deeper and slower than the one before.
 LEVELS = {
-    "quick": {"adam": FRAMEWORK_QUICK + "\n\n" + OWNER_QUICK, "checklist": CHECKLIST_QUICK, "questions": 4, "pages": 2, "followups": 0,
+    "quick": {"adam": FRAMEWORK_QUICK + "\n\n" + OWNER_QUICK, "checklist": CHECKLIST_QUICK, "questions": 4, "pages": 2, "followups": 0, "plan": False,
               "claims": "the 4 most decisive claims only", "reasoning": "at most 60 words", "item": "at most 8 words"},
-    "standard": {"adam": FRAMEWORK_QUICK + "\n\n" + NUANCES, "checklist": CHECKLIST, "questions": 6, "pages": 3, "followups": 2,
+    "standard": {"adam": FRAMEWORK_QUICK + "\n\n" + NUANCES, "checklist": CHECKLIST, "questions": 6, "pages": 3, "followups": 2, "plan": True,
                  "claims": "the 6 most decisive claims only", "reasoning": "at most 100 words", "item": "at most 12 words"},
-    "deep": {"adam": ADAM, "checklist": CHECKLIST, "questions": 6, "pages": 3, "followups": 3,
+    "deep": {"adam": ADAM, "checklist": CHECKLIST, "questions": 6, "pages": 3, "followups": 3, "plan": True,
              "claims": "the 6-8 most decisive claims", "reasoning": "at most 100 words", "item": "at most 12 words"},
 }
 DEFAULT_LEVEL = "quick"

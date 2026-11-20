@@ -32,23 +32,24 @@ GOOD_DOMAINS = {"sec.gov": 4, "wikipedia.org": 2, "reuters.com": 3, "bloomberg.c
 BAD_DOMAINS = ("youtube.com", "pinterest.", "facebook.com", "instagram.com", "tiktok.com", "quora.com", "x.com", "twitter.com",
                "linkedin.com", "amazon.com/dp", "ebay.")
 
-DEFAULT_QUESTIONS = [
-    "Who are {name}'s closest competitors in each main business, and what are the market shares? Is {name} gaining or losing share?",
-    "Has {name} raised prices in recent years, and did customers or volumes hold up afterwards?",
-    "How hard or costly is it for {name}'s customers to switch to a competitor (switching costs, contracts, integration, ecosystem)?",
-    "Does {name} benefit from a network effect, high barriers to entry (regulation, patents, licences) or economies of scale?",
-    "What threats could erode {name}'s position over the next 10-20 years (bigger rivals bundling, cheaper substitutes, technology, regulation)?",
-    "What explains any recent decline in {name}'s profits, margins or growth: a one-off or a structural cause?",
-    "What did {name} report in its latest annual or quarterly results and guidance?",
+# (question for the model, short search words). Short and generic on purpose: long, over-specific questions return nothing usable.
+CORE = [
+    ("Who are {name}'s closest competitors, and is {name} gaining or losing market share?", "{name} competitors market share"),
+    ("Has {name} raised prices without losing customers? Is it forced to discount to keep them?", "{name} pricing power price increases customers"),
+    ("How strong are {name}'s switching costs, network effect and barriers to entry?", "{name} switching costs competitive advantage moat"),
+    ("What threats could erode {name}'s position, and what explains any recent decline in its profits or margins?", "{name} risks threats margin decline reasons"),
+    ("What did {name} report in its latest results and guidance?", "{name} latest quarterly results guidance"),
+    ("Is {name} the clear leader of its industry, and how do its rivals compare?", "{name} industry leader vs rivals comparison"),
 ]
+DEFAULT_QUESTIONS = [q for q, _ in CORE]
 
 PLAN_PROMPT = """You plan research for a moat assessment of {name} ({ticker}) using Adam Khoo's framework (brand monopoly / pricing power,
 switching costs, network effect, barriers to entry, economies of scale; top dog vs closest competitors; can a much bigger rival copy it;
 signs of erosion: discounting, share loss, customers switching; temporary vs structural problems).
 App figures for context:
 {figures}
-Write 5 or 6 specific research questions that, once answered from current web sources, would settle the grade. Make them concrete for
-this company (name its businesses, the weak numbers above, its likely rivals as things to CHECK, not facts).
+Write 4 research questions, each SHORT (at most 14 words) and searchable, that, once answered from current web sources, would settle the grade. Make them
+concrete for this company (its businesses, the weak numbers above, its likely rivals to CHECK) but never multi-part.
 Reply with a JSON list of strings only."""
 
 EXTRACT_PROMPT = """QUESTION: {question}
@@ -211,9 +212,9 @@ def _search_query(question: str, name: str) -> str:
     return q[:150] + f" {datetime.date.today().year}"
 
 
-def answer(question: str, name: str, ticker: str, chat, on_tool=None, pages: int = PAGES_PER_QUESTION) -> str:
+def answer(question: str, name: str, ticker: str, chat, on_tool=None, pages: int = PAGES_PER_QUESTION, search_words: str | None = None) -> str:
     """Search, open the best pages, keep the relevant passages and let the model write sourced findings."""
-    q = _search_query(question, name)
+    q = (search_words + f" {datetime.date.today().year}") if search_words else _search_query(question, name)
     if on_tool:
         on_tool("web_search", {"query": q})
     results = search(q, name, ticker)
@@ -235,16 +236,23 @@ def answer(question: str, name: str, ticker: str, chat, on_tool=None, pages: int
 
 
 def research(ticker: str, name: str, chat, on_tool=None, figures: str | None = None, questions: int = 6, pages: int = PAGES_PER_QUESTION,
-             followups: int = 2) -> str:
+             followups: int = 2, plan: bool = True) -> str:
     """Full code-driven research; returns notes where every line names its source. `chat(messages, max_tokens) -> str`."""
     figures = figures if figures is not None else ai_tools.app_analysis(ticker)
     if on_tool:
         on_tool("app_analysis", {"ticker": ticker})
-    qs = _json_list(chat([{"role": "user", "content": PLAN_PROMPT.format(name=name, ticker=ticker, figures=figures[:3500])}], 380))
-    qs = ([q for q in qs if len(q) > 15] or [q.format(name=name) for q in DEFAULT_QUESTIONS])[:questions]
+    core = [(q.format(name=name), w.format(name=name)) for q, w in CORE]
+    if plan:
+        planned = [q for q in _json_list(chat([{"role": "user", "content": PLAN_PROMPT.format(name=name, ticker=ticker, figures=figures[:3500])}], 380))
+                   if 15 < len(q) < 160][:max(0, questions - 2)]
+        items = [core[0], core[3]] + [(q, None) for q in planned]          # competitors and threats are always covered
+        items += [c for c in core[1:3] + core[4:] if len(items) < questions]
+    else:
+        items = core[:questions]
+    qs = items[:questions]
     with cf.ThreadPoolExecutor(WORKERS) as ex:
         sec_future = ex.submit(sec_annual_report, ticker)
-        found = list(ex.map(lambda q: f"Q: {q}\n" + answer(q, name, ticker, chat, on_tool, pages), qs))
+        found = list(ex.map(lambda qw: f"Q: {qw[0]}\n" + answer(qw[0], name, ticker, chat, on_tool, pages, qw[1]), qs))
         annual = sec_future.result()
     notes = "\n\n".join(found)
     gaps = (_json_list(chat([{"role": "user", "content": REFLECT_PROMPT.format(name=name, ticker=ticker, notes=notes[:9000])}], 200))[:followups]

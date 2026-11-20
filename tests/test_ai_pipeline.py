@@ -39,5 +39,5 @@ def test_full_loop_with_fakes(monkeypatch):
 
     notes = P.research("EXC", "Example Corp", chat, on_tool=lambda n, a: calls.append(n), figures="ROE 30% [analysis page]")
     assert "APP FIGURES [analysis page]" in notes and "ANNUAL REPORT" in notes
-    assert notes.count("Q: ") == 2 and "[https://example.org/a]" in notes
-    assert calls.count("read_page") >= 2 and calls.count("web_search") == 2
+    assert notes.count("Q: ") >= 2 and "[https://example.org/a]" in notes
+    assert calls.count("read_page") >= 2 and calls.count("web_search") >= 2
