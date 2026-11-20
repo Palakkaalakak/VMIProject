@@ -47,20 +47,20 @@ switching costs, network effect, barriers to entry, economies of scale; top dog 
 signs of erosion: discounting, share loss, customers switching; temporary vs structural problems).
 App figures for context:
 {figures}
-Write 6 to 8 specific research questions that, once answered from current web sources, would settle the grade. Make them concrete for
+Write 5 or 6 specific research questions that, once answered from current web sources, would settle the grade. Make them concrete for
 this company (name its businesses, the weak numbers above, its likely rivals as things to CHECK, not facts).
 Reply with a JSON list of strings only."""
 
 EXTRACT_PROMPT = """QUESTION: {question}
-Below are passages fetched today from web pages about {name}. Using ONLY these passages (your memory is out of date), write 1 to 5
-short findings that answer the question, each ending with the source URL in brackets, e.g. "... [https://...]". Quote numbers exactly.
+Below are passages fetched today from web pages about {name}. Using ONLY these passages (your memory is out of date), write at most 3
+short findings (each at most 40 words) that answer the question, each ending with the source URL in brackets, e.g. "... [https://...]". Quote numbers exactly.
 If the passages do not answer it, write exactly: UNKNOWN: <what is missing>.
 PASSAGES:
 {passages}"""
 
 REFLECT_PROMPT = """Research notes so far on {name} ({ticker}) for a moat assessment:
 {notes}
-List at most 4 follow-up questions for the most important things still UNKNOWN or contradictory (rivals and market share, pricing power
+List at most 2 follow-up questions for the most important things still UNKNOWN or contradictory (rivals and market share, pricing power
 evidence, switching costs, threats, causes of weak numbers). Reply with a JSON list of strings only; [] if nothing important is missing."""
 
 
@@ -211,15 +211,15 @@ def _search_query(question: str, name: str) -> str:
     return q[:150] + f" {datetime.date.today().year}"
 
 
-def answer(question: str, name: str, ticker: str, chat, on_tool=None) -> str:
+def answer(question: str, name: str, ticker: str, chat, on_tool=None, pages: int = PAGES_PER_QUESTION) -> str:
     """Search, open the best pages, keep the relevant passages and let the model write sourced findings."""
     q = _search_query(question, name)
     if on_tool:
         on_tool("web_search", {"query": q})
     results = search(q, name, ticker)
     texts = []
-    for title, url, snippet in results[:PAGES_PER_QUESTION + 2]:
-        if len(texts) >= PAGES_PER_QUESTION:
+    for title, url, snippet in results[:pages + 2]:
+        if len(texts) >= pages:
             break
         if on_tool:
             on_tool("read_page", {"url": url})
@@ -230,25 +230,27 @@ def answer(question: str, name: str, ticker: str, chat, on_tool=None) -> str:
             texts.append(f"[{url}] {title} (snippet only)\n{snippet}")
     if not texts:
         return f"- UNKNOWN: no usable web pages found for: {question}"
-    out = chat([{"role": "user", "content": EXTRACT_PROMPT.format(question=question, name=name, passages="\n\n".join(texts))}], 700)
+    out = chat([{"role": "user", "content": EXTRACT_PROMPT.format(question=question, name=name, passages="\n\n".join(texts))}], 330)
     return out.strip()
 
 
-def research(ticker: str, name: str, chat, on_tool=None, figures: str | None = None) -> str:
+def research(ticker: str, name: str, chat, on_tool=None, figures: str | None = None, questions: int = 6, pages: int = PAGES_PER_QUESTION,
+             followups: int = 2) -> str:
     """Full code-driven research; returns notes where every line names its source. `chat(messages, max_tokens) -> str`."""
     figures = figures if figures is not None else ai_tools.app_analysis(ticker)
     if on_tool:
         on_tool("app_analysis", {"ticker": ticker})
-    qs = _json_list(chat([{"role": "user", "content": PLAN_PROMPT.format(name=name, ticker=ticker, figures=figures[:3500])}], 600))
-    qs = [q for q in qs if len(q) > 15][:8] or [q.format(name=name) for q in DEFAULT_QUESTIONS]
+    qs = _json_list(chat([{"role": "user", "content": PLAN_PROMPT.format(name=name, ticker=ticker, figures=figures[:3500])}], 380))
+    qs = ([q for q in qs if len(q) > 15] or [q.format(name=name) for q in DEFAULT_QUESTIONS])[:questions]
     with cf.ThreadPoolExecutor(WORKERS) as ex:
         sec_future = ex.submit(sec_annual_report, ticker)
-        found = list(ex.map(lambda q: f"Q: {q}\n" + answer(q, name, ticker, chat, on_tool), qs))
+        found = list(ex.map(lambda q: f"Q: {q}\n" + answer(q, name, ticker, chat, on_tool, pages), qs))
         annual = sec_future.result()
     notes = "\n\n".join(found)
-    gaps = _json_list(chat([{"role": "user", "content": REFLECT_PROMPT.format(name=name, ticker=ticker, notes=notes[:9000])}], 400))[:4]
+    gaps = (_json_list(chat([{"role": "user", "content": REFLECT_PROMPT.format(name=name, ticker=ticker, notes=notes[:9000])}], 200))[:followups]
+            if followups else [])
     if gaps:
         with cf.ThreadPoolExecutor(WORKERS) as ex:
-            notes += "\n\n" + "\n\n".join(ex.map(lambda q: f"Q (follow-up): {q}\n" + answer(q, name, ticker, chat, on_tool), gaps))
+            notes += "\n\n" + "\n\n".join(ex.map(lambda q: f"Q (follow-up): {q}\n" + answer(q, name, ticker, chat, on_tool, pages), gaps))
     head = f"APP FIGURES [analysis page]:\n{figures[:2500]}"
     return "\n\n".join(p for p in (head, annual, notes) if p)

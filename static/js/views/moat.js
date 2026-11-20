@@ -45,6 +45,8 @@ function testsAndEvidence(step) {
     <div class="card" id="moat-first"><h3>At first sight</h3><p class="small muted">Loading the quick read …</p></div>
     <div class="card" id="moat-ai" hidden><h3>AI second opinion <span class="badge na">minor help</span></h3>
       <p class="small muted">A local model (runs on this PC) researches the company itself on the web and on this app's Analysis page, cites a source for every claim, applies Adam's rules for the next 10-20 years and reviews its own verdict (when unsure it grades lower). Its search words go to Bing and Wikipedia; nothing else leaves the PC. It can be wrong: treat it as a prompt to check, not a verdict. Not saved.</p>
+      <label class="small">Depth <select id="moat-ai-level"><option value="quick">Quick (condensed, fastest)</option><option value="standard">Standard (fuller course notes, more research)</option><option value="deep">Deep (Adam's own words, most research, slowest)</option></select></label>
+      <label class="small"><input type="checkbox" id="moat-ai-chk"> also run the independent checker</label>
       <button type="button" id="moat-ai-go">Ask the local AI</button> <button type="button" class="secondary" id="moat-ai-check" hidden>Run the checker (optional)</button>
       <div id="moat-ai-out" class="small"></div><div id="moat-ai-check-out" class="small"></div></div>
     <div class="card"><h3>Evidence <span class="muted small">(no pass/fail: Adam gives no numbers, you judge)</span></h3>
@@ -114,16 +116,16 @@ export async function render(root, params) {
     if (!a.available || !document.body.contains(root)) return;
     const card = $("#moat-ai", root); card.hidden = false;
     $("#moat-ai-go", root).addEventListener("click", (e) => run(e.target, async () => {
-      $("#moat-ai-out", root).textContent = `Researching and thinking (${a.model}) … usually 2-4 minutes`;
+      $("#moat-ai-out", root).textContent = `Researching and thinking (${a.model}) … quick takes a few minutes, deep longer`;
       $("#moat-ai-check-out", root).textContent = "";
       const br = (t) => esc(t || "").replaceAll("\n", "<br>");
       try {
-        const res = await api.aiOpinion(sym);
-        $("#moat-ai-out", root).innerHTML = (res.grade ? `<p><b>AI grade: ${esc(res.grade)}</b>${res.first_grade && res.first_grade !== res.grade ? ` (first draft said ${esc(res.first_grade)}; its own review lowered it)` : ""}</p>` : "")
+        const res = await api.aiOpinion(sym, $("#moat-ai-level", root).value, $("#moat-ai-chk", root).checked);
+        $("#moat-ai-out", root).innerHTML = (res.grade ? `<p><b>AI grade: ${esc(res.grade)}</b>${res.checker_grade ? ` (after the checker, which said ${esc(res.checker_grade)})` : ""} <span class="muted">[${esc(res.level || "quick")}]</span>${res.first_grade && res.first_grade !== res.grade ? ` (first draft said ${esc(res.first_grade)}; its own review lowered it)` : ""}</p>` : "")
           + `<p>${br(res.opinion)}</p>`
           + (res.notes ? `<details><summary>Research notes with sources</summary><p>${br(res.notes)}</p></details>` : "")
           + `<p class="muted">AI opinion from ${esc(res.model)}</p>`;
-        $("#moat-ai-check", root).hidden = !res.can_check;
+        $("#moat-ai-check", root).hidden = !res.can_check || !!res.checker_grade;
       } catch (err) { $("#moat-ai-out", root).innerHTML = `<span class="neg">${esc(err.message)}</span>`; }
     }));
     $("#moat-ai-check", root).addEventListener("click", (e) => run(e.target, async () => {

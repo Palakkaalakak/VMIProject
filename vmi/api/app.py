@@ -275,8 +275,9 @@ def ai_remove():
 
 
 @ar.post("/{symbol}/ai-opinion")
-def ai_opinion(symbol: str):
-    """Optional second opinion from the local model (never saved): built from the moat evidence the page already shows."""
+def ai_opinion(symbol: str, level: str = "quick", checker: bool = False):
+    """Optional second opinion from the local model (never saved): built from the moat evidence the page already shows.
+    level: quick (condensed, fast) | standard | deep (Adam's own words, most research, slowest); checker: also run the independent checker."""
     from vmi import ai_helper
     ev = moat_evidence(symbol)
     if not ev.get("first_sight"):
@@ -288,10 +289,14 @@ def ai_opinion(symbol: str):
         if st["backend"] == "builtin":
             # the built-in model researches for itself (web + this page's figures), cites sources and reviews its own verdict
             from vmi import ai_research
-            res = ai_research.opinion(symbol.upper(), rep.get("name", "") or symbol.upper())
+            level = level if level in ai_research.LEVELS else ai_research.DEFAULT_LEVEL
+            res = ai_research.opinion(symbol.upper(), rep.get("name", "") or symbol.upper(), level=level, run_checker=checker)
             _AI_LAST[symbol.upper()] = res
-            return {"opinion": ai_helper.plain(ai_research.final_text(res)), "notes": ai_helper.plain(res["notes"]),
-                    "grade": res["final"], "first_grade": res["verdict_grade"], "model": st["model"], "can_check": True}
+            out = {"opinion": ai_helper.plain(ai_research.final_text(res)), "notes": ai_helper.plain(res["notes"]),
+                   "grade": res["final"], "first_grade": res["verdict_grade"], "model": st["model"], "can_check": True, "level": level}
+            if checker:
+                out.update(check=ai_helper.plain(res["check"]), checker_grade=res["checker_grade"], grade=res["final_checked"])
+            return out
         prompt = ai_helper.prompt_for(symbol.upper(), rep.get("name", ""), rep.get("industry", ""), ev["first_sight"], ev.get("peers"), ev.get("filing"))
         return {"opinion": ai_helper.opinion(prompt), "model": st["model"], "can_check": False}
     except Exception as exc:
