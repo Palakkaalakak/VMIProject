@@ -17,7 +17,7 @@ import re
 
 from vmi import ai_runtime, ai_tools
 
-MAX_ROUNDS = 40
+MAX_ROUNDS = 60
 ORDER = {"NONE": 0, "NARROW": 1, "WIDE": 2}
 
 
@@ -35,6 +35,8 @@ pages with read_page (snippets are not evidence), follow links, and search again
 4. Threats over the next 20 years: bigger rivals that bundle the same thing, cheaper substitutes, technology shifts, regulation.
 5. Evidence of pricing power (price rises that stuck) and of switching costs or network effects.
 6. The latest results and guidance.
+BUDGET: you have {budget} tool calls in total. Every tool result tells you how many are left. Plan for it: cover all six points
+before the budget runs out, and stop calling tools and write your NOTES when about 5 calls are left (or earlier if you have enough).
 When you have enough, reply with NOTES only: one finding per line, each ending with its source in brackets: [url] for web pages or
 [analysis page] for app_analysis. Then a line OPEN QUESTIONS: what you could not establish. No grade yet."""
 
@@ -74,9 +76,18 @@ def _grade(text: str, label: str) -> str | None:
 
 
 def research(ticker: str, name: str, base_url: str | None = None, on_tool=None, max_rounds: int = MAX_ROUNDS) -> str:
-    msgs = [{"role": "system", "content": RESEARCH_SYSTEM.format(today=_today(), name=name, ticker=ticker)},
+    msgs = [{"role": "system", "content": RESEARCH_SYSTEM.format(today=_today(), name=name, ticker=ticker, budget=max_rounds)},
             {"role": "user", "content": f"Research {name} ({ticker}) now. Start with app_analysis."}]
-    return ai_runtime.chat_with_tools(msgs, ai_tools.TOOLS, ai_tools.make_runner(), max_rounds=max_rounds, max_tokens=1500,
+    inner, used = ai_tools.make_runner(), [0]
+
+    def counted(tool: str, args: dict) -> str:
+        used[0] += 1
+        left = max_rounds - used[0]
+        note = (f"\n[tool call {used[0]} of {max_rounds}: {left} left]" if left > 5 else
+                f"\n[tool call {used[0]} of {max_rounds}: only {left} left. Stop researching and write your NOTES now.]")
+        return inner(tool, args) + note
+
+    return ai_runtime.chat_with_tools(msgs, ai_tools.TOOLS, counted, max_rounds=max_rounds, max_tokens=1500,
                                       require_first_tool=True, base_url=base_url, on_tool=on_tool, timeout=600)
 
 
@@ -122,9 +133,13 @@ def opinion(ticker: str, name: str, evidence: str = "", base_url: str | None = N
     """Research -> verdict -> self-review (always); the checker only when run_checker (the user asks for it)."""
     notes = research(ticker, name, base_url=base_url, on_tool=on_tool)
     v = verdict(ticker, name, notes, evidence, base_url=base_url)
+    if not _grade(v, "MOAT VERDICT"):                  # forgot the grade line: ask once more
+        v = verdict(ticker, name, notes + "\n\nREMEMBER: end with the line MOAT VERDICT: WIDE|NARROW|NONE — n/10", evidence, base_url=base_url)
     rv = review(v, notes, base_url=base_url)
     g1, g2 = _grade(v, "MOAT VERDICT"), _grade(rv, "MOAT VERDICT")
-    out = {"notes": notes, "verdict": v, "review": rv, "verdict_grade": g1, "review_grade": g2, "final": _lowest(g1, g2)}
+    # no readable grade at all counts as NONE: an opinion that cannot state a grade must not count as a moat
+    final = _lowest(g1, g2) or "NONE"
+    out = {"notes": notes, "verdict": v, "review": rv, "verdict_grade": g1, "review_grade": g2, "final": final}
     if run_checker:
         out.update(run_check(out, ticker, evidence, base_url=base_url))
     return out

@@ -33,6 +33,11 @@ def test_checker_cannot_raise(monkeypatch):
     assert AR.opinion("X", "X", run_checker=True)["final_checked"] == "NARROW"
 
 
+def test_no_readable_grade_counts_as_none(monkeypatch):
+    _fake(monkeypatch, "CLAIMS: ... (no grade line)", "")
+    assert AR.opinion("X", "X")["final"] == "NONE"
+
+
 def test_grade_parsing_variants():
     assert AR._grade("MOAT VERDICT: **Wide** — 9/10", "MOAT VERDICT") == "WIDE"
     assert AR._grade("MOAT VERDICT: No moat — 2/10", "MOAT VERDICT") == "NONE"
