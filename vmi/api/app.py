@@ -283,11 +283,36 @@ def ai_opinion(symbol: str):
         raise HTTPException(404, "no fundamentals for this ticker")
     from vmi.analysis.pipeline import analyse_ticker
     rep = analyse_ticker(symbol, with_technicals=False, overrides=store.get_override(symbol))
-    prompt = ai_helper.prompt_for(symbol.upper(), rep.get("name", ""), rep.get("industry", ""), ev["first_sight"], ev.get("peers"), ev.get("filing"))
+    st = ai_helper.status()
     try:
-        return {"opinion": ai_helper.opinion(prompt), "model": ai_helper.status()["model"]}
+        if st["backend"] == "builtin":
+            # the built-in model researches for itself (web + this page's figures), cites sources and reviews its own verdict
+            from vmi import ai_research
+            res = ai_research.opinion(symbol.upper(), rep.get("name", "") or symbol.upper())
+            _AI_LAST[symbol.upper()] = res
+            return {"opinion": ai_helper.plain(res["review"] or res["verdict"]), "notes": ai_helper.plain(res["notes"]),
+                    "grade": res["final"], "first_grade": res["verdict_grade"], "model": st["model"], "can_check": True}
+        prompt = ai_helper.prompt_for(symbol.upper(), rep.get("name", ""), rep.get("industry", ""), ev["first_sight"], ev.get("peers"), ev.get("filing"))
+        return {"opinion": ai_helper.opinion(prompt), "model": st["model"], "can_check": False}
     except Exception as exc:
-        raise HTTPException(503, f"The local AI model did not answer ({exc}). Is Ollama running with the model pulled?")
+        raise HTTPException(503, f"The local AI model did not answer ({exc}).")
+
+
+_AI_LAST: dict = {}      # last research opinion per ticker (this session only), so the optional checker can verify it
+
+
+@ar.post("/{symbol}/ai-check")
+def ai_check(symbol: str):
+    """Optional, on request: an independent pass checks every claim of the last AI opinion against its sources; it can only lower the grade."""
+    from vmi import ai_helper, ai_research
+    res = _AI_LAST.get(symbol.upper())
+    if not res:
+        raise HTTPException(404, "ask the AI for an opinion on this ticker first")
+    try:
+        c = ai_research.run_check(res, symbol.upper())
+    except Exception as exc:
+        raise HTTPException(503, f"The checker did not answer ({exc}).")
+    return {"check": ai_helper.plain(c["check"]), "checker_grade": c["checker_grade"], "grade": c["final_checked"]}
 
 
 @ar.get("/{symbol}/fundamentals")

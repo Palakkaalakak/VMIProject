@@ -20,6 +20,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -29,9 +30,13 @@ from vmi.config import get_settings
 log = logging.getLogger("vmi.ai")
 
 RELEASES_API = "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=10"
-MODEL_FILE = "Qwen3-14B-Q4_K_M.gguf"
-MODEL_URL = f"https://huggingface.co/Qwen/Qwen3-14B-GGUF/resolve/main/{MODEL_FILE}"
-MODEL_MIN_BYTES = 8_000_000_000                       # a finished file is about 9 GB; anything smaller is a partial download
+# Gemma 4 12B, Google's own quantisation-aware 4-bit build: won the 2026-11-20 blind moat benchmark against Qwen3-14B and
+# gpt-oss-20b on over-calls (the error the owner cares about most). Apache 2.0.
+MODEL_FILE = "models/gemma-4-12b-it-qat-q4_0.gguf"
+MODEL_URL = "https://huggingface.co/google/gemma-4-12B-it-qat-q4_0-gguf/resolve/main/gemma-4-12b-it-qat-q4_0.gguf"
+MODEL_MIN_BYTES = 6_500_000_000                       # a finished file is about 7 GB; anything smaller is a partial download
+SERVER_EXTRA = ["-fa", "on", "--cache-type-k", "q8_0", "--cache-type-v", "q8_0"]   # 8-bit KV cache: half the memory, negligible loss
+CHAT_KWARGS = {"enable_thinking": False}                                           # Gemma's thinking mode used up whole budgets
 IDLE_SECONDS = 600
 
 DOWNLOAD: dict = {"running": False, "what": "", "done": 0, "total": 0, "error": ""}
@@ -114,6 +119,7 @@ def _run_download() -> None:
     try:
         _install_runtime()
         if not model_present():
+            model_path().parent.mkdir(parents=True, exist_ok=True)
             _download(MODEL_URL, model_path(), MODEL_FILE)
         DOWNLOAD["error"] = ""
     except Exception as exc:
@@ -149,9 +155,9 @@ def ready() -> bool:
 
 
 CTX = 12288
-MODEL_LAYERS = 41                 # Qwen3-14B: 40 blocks + output layer
-MB_PER_LAYER = 230                # ~9 GB of weights over 41 layers
-KV_AND_BUFFERS_MB = 2600          # KV cache for CTX tokens (about 2 GB) + compute buffers + desktop headroom
+MODEL_LAYERS = 49                 # Gemma 4 12B: 48 blocks + output layer
+MB_PER_LAYER = 145                # ~7 GB of weights over 49 layers
+KV_AND_BUFFERS_MB = 2000          # KV cache for CTX tokens (about 2 GB) + compute buffers + desktop headroom
 
 
 def gpu_layers(free_mb: float | None = None) -> int:
@@ -185,7 +191,7 @@ def ensure_running(wait: float = 120.0) -> str:
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0
         for ngl in dict.fromkeys(plan):
             port = _free_port()
-            cmd = [str(server_exe()), "-m", str(model_path()), "--port", str(port), "--host", "127.0.0.1", "-ngl", str(ngl), "-c", str(CTX), "--jinja"]
+            cmd = [str(server_exe()), "-m", str(model_path()), "--port", str(port), "--host", "127.0.0.1", "-ngl", str(ngl), "-c", str(CTX), "--jinja"] + SERVER_EXTRA
             _server["proc"] = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
             _server["port"], _server["last_used"] = port, time.time()
             deadline = time.time() + wait
@@ -229,7 +235,8 @@ def stop() -> None:
 def chat(prompt: str, timeout: float = 300.0) -> str:
     """One answer from the built-in server (OpenAI-style chat endpoint)."""
     base = ensure_running()
-    body = json.dumps({"messages": [{"role": "user", "content": prompt}], "temperature": 0.3, "max_tokens": 700}).encode()
+    body = json.dumps({"messages": [{"role": "user", "content": prompt}], "temperature": 0.3, "max_tokens": 700,
+                       "chat_template_kwargs": CHAT_KWARGS}).encode()
     req = urllib.request.Request(f"{base}/v1/chat/completions", data=body, headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         text = json.loads(r.read())["choices"][0]["message"]["content"]
@@ -237,22 +244,44 @@ def chat(prompt: str, timeout: float = 300.0) -> str:
     return text.split("</think>")[-1].strip()
 
 
+def _post_chat(base: str, body: dict, timeout: float) -> dict:
+    req = urllib.request.Request(f"{base}/v1/chat/completions", data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read())["choices"][0]["message"]
+
+
 def chat_with_tools(messages: list[dict], tools: list[dict], run_tool, max_rounds: int = 5, timeout: float = 300.0,
-                    max_tokens: int = 900, on_tool=None, require_first_tool: bool = False, think: bool = False) -> str:
+                    max_tokens: int = 900, on_tool=None, require_first_tool: bool = False, think: bool = False,
+                    base_url: str | None = None, keep_chars: int = 24000) -> str:
     """Chat loop: the model may call `tools` (OpenAI-style) up to `max_rounds` times; `run_tool(name, args) -> str` answers them.
     The last round is sent without tools so the model must write its answer."""
-    base = ensure_running()
+    base = base_url or ensure_running()
     messages = list(messages)
     for rnd in range(max_rounds + 1):
-        body = {"messages": messages, "temperature": 0.3, "max_tokens": max_tokens, "chat_template_kwargs": {"enable_thinking": think}}
+        # keep the conversation inside the context window: older tool results shrink to a stub, the last 4 stay whole
+        tool_idx = [i for i, m in enumerate(messages) if m.get("role") == "tool"]
+        if sum(len(str(m.get("content", ""))) for m in messages) > keep_chars:
+            for i in tool_idx[:-4]:
+                messages[i] = {**messages[i], "content": "[older result trimmed; rely on what you noted from it]"}
+        body = {"messages": messages, "temperature": 0.3, "max_tokens": max_tokens, "chat_template_kwargs": {**CHAT_KWARGS, "enable_thinking": think}}
         if rnd < max_rounds:
             body["tools"] = tools
             if rnd == 0 and require_first_tool:
                 body["tool_choice"] = "required"          # research before the first word of the answer
-        req = urllib.request.Request(f"{base}/v1/chat/completions", data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            msg = json.loads(r.read())["choices"][0]["message"]
-        _server["last_used"] = time.time()
+        try:
+            msg = _post_chat(base, body, timeout)
+        except urllib.error.HTTPError:
+            # usually the conversation outgrew the context window: shrink every older tool result hard and retry once
+            tool_idx = [i for i, m in enumerate(messages) if m.get("role") == "tool"]
+            for i in tool_idx[:-1]:
+                messages[i] = {**messages[i], "content": "[older result trimmed]"}
+            if tool_idx:
+                last = messages[tool_idx[-1]]
+                messages[tool_idx[-1]] = {**last, "content": str(last.get("content", ""))[:1500]}
+            body["messages"] = messages
+            msg = _post_chat(base, body, timeout)
+        if not base_url:
+            _server["last_used"] = time.time()
         calls = msg.get("tool_calls") or []
         if not calls:
             return (msg.get("content") or "").split("</think>")[-1].strip()

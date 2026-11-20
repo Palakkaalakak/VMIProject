@@ -18,7 +18,7 @@ import urllib.request
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
 MAX_BYTES = 600_000
-PAGE_CHARS = 3500
+PAGE_CHARS = 6000
 
 TOOLS = [
     {"type": "function", "function": {
@@ -28,8 +28,14 @@ TOOLS = [
         "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
     {"type": "function", "function": {
         "name": "read_page",
-        "description": "Read the text of one web page (a link from web_search, an investor-relations page, an annual-report page).",
-        "parameters": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}}},
+        "description": "Read the text of one web page (a link from web_search, an investor-relations page, an annual-report page, a news "
+                       "article). Long pages come in parts: call again with the next offset to keep reading. Also lists the page's links.",
+        "parameters": {"type": "object", "properties": {"url": {"type": "string"}, "offset": {"type": "integer"}}, "required": ["url"]}}},
+    {"type": "function", "function": {
+        "name": "app_analysis",
+        "description": "This app's own analysis of a ticker (the Analysis page): 10-year statement figures, margins, ROE/ROIC, growth, the step "
+                       "checks, peers and moat evidence. Cite it as [analysis page].",
+        "parameters": {"type": "object", "properties": {"ticker": {"type": "string"}}, "required": ["ticker"]}}},
     {"type": "function", "function": {
         "name": "wikipedia",
         "description": "Short Wikipedia summary of a company or industry term (business model, competitors, history).",
@@ -100,14 +106,42 @@ def web_search(query: str, n: int = 6) -> str:
     return "\n".join(out) or "no results"
 
 
-def read_page(url: str) -> str:
+def read_page(url: str, offset: int = 0) -> str:
     if not _public(url):
         return "refused: only public http(s) pages can be read"
     try:
-        text = _text(_get(url))
+        raw = _get(url)
     except Exception as exc:
         return f"could not read the page: {exc}"
-    return text[:PAGE_CHARS] or "the page had no readable text"
+    text = _text(raw)
+    offset = max(0, int(offset or 0))
+    part = text[offset:offset + PAGE_CHARS]
+    if not part:
+        return "no more text on this page"
+    more = f"\n[page continues: call read_page with offset={offset + PAGE_CHARS}]" if len(text) > offset + PAGE_CHARS else "\n[end of page]"
+    links = []
+    if offset == 0:
+        for href, label in re.findall(r'<a[^>]+href="(https?://[^"#]+)"[^>]*>(.*?)</a>', raw, re.S)[:200]:
+            label = _text(label)[:60]
+            if label and len(links) < 25:
+                links.append(f"{label}: {href[:150]}")
+    return part + more + ("\nLINKS: " + " | ".join(links) if links else "")
+
+
+def app_analysis(ticker: str) -> str:
+    """Summary of the local app's analysis of `ticker` (the same figures the Analysis page shows)."""
+    try:
+        from vmi.analysis.pipeline import analyse_ticker
+        rep = analyse_ticker(ticker.upper(), with_technicals=False)
+    except Exception as exc:
+        return f"analysis failed: {exc}"
+    m = rep.get("metrics") or {}
+    keep = {k: m.get(k) for k in ("roe", "roic", "net_margin", "gross_margin", "operating_margin", "basis", "roe_loss_years") if k in m}
+    steps = [f"Step {s['step']} {s.get('title','')}: {'pass' if s.get('passed') else 'fail'}; "
+             + "; ".join(f"{c['name']}={'ok' if c.get('passed') else 'no' if c.get('passed') is False else '?'} ({c.get('note','')[:90]})"
+                         for c in s.get("checks", [])[:8]) for s in rep.get("steps", [])]
+    return json.dumps({"ticker": ticker.upper(), "name": rep.get("name"), "industry": rep.get("industry"), "price": rep.get("price"),
+                       "metrics": keep, "moat": rep.get("moat")}, default=str)[:1500] + "\n" + "\n".join(steps)[:4500]
 
 
 def wikipedia(title: str) -> str:
@@ -121,12 +155,44 @@ def wikipedia(title: str) -> str:
         return f"wikipedia failed: {exc}"
 
 
+def make_runner():
+    """A `run` for one research session that steers the model away from search loops: a near-repeat of an earlier query is
+    refused, and after two searches in a row without opening a page it is told to read the best results first."""
+    seen: list[set] = []
+    streak = [0]
+
+    def words(q: str) -> set:
+        return {w for w in re.findall(r"[a-z0-9]+", q.lower()) if len(w) > 2}
+
+    def runner(name: str, args: dict) -> str:
+        if name == "web_search":
+            q = words(str(args.get("query", "")))
+            for old in seen:
+                if q and len(q & old) / len(q | old) >= 0.6:
+                    return ("You already searched almost exactly this. Do not repeat searches: open the most relevant result pages from "
+                            "your earlier searches with read_page, or search for a DIFFERENT question.")
+            seen.append(q)
+            streak[0] += 1
+            out = run(name, args)
+            if streak[0] >= 2:
+                out += ("\nNOTE: you have searched twice without reading anything. Now open the 1-2 most relevant result pages "
+                        "above with read_page before searching again; snippets are not evidence.")
+            return out
+        if name == "read_page":
+            streak[0] = 0
+        return run(name, args)
+
+    return runner
+
+
 def run(name: str, args: dict) -> str:
     try:
         if name == "web_search":
             return web_search(str(args.get("query", ""))[:200])
         if name == "read_page":
-            return read_page(str(args.get("url", ""))[:500])
+            return read_page(str(args.get("url", ""))[:500], args.get("offset") or 0)
+        if name == "app_analysis":
+            return app_analysis(str(args.get("ticker", ""))[:12])
         if name == "wikipedia":
             return wikipedia(str(args.get("title", ""))[:100])
     except Exception as exc:                       # a tool must never break the answer

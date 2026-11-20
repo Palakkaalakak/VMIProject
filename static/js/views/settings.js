@@ -56,11 +56,11 @@ function aiCard(a) {
     : b.ready ? `Built-in AI ready (${esc(b.model)}). It starts only when you ask for an opinion and stops after 10 idle minutes.`
     : d.running ? `Downloading ${esc(d.what)}: ${gb(d.done)} of ${d.total ? gb(d.total) : "?"} GB …`
     : b.supported === false ? "The built-in AI is for Windows + NVIDIA; on this system use Ollama (see the README)."
-    : "Not downloaded. It needs about 10 GB of disk and an NVIDIA GPU with 12 GB of memory.";
+    : "Not downloaded. It needs about 7.5 GB of disk and an NVIDIA GPU with 8 GB or more (less works, slower, using normal RAM).";
   return `<section class="card" id="ai-card"><h3>AI helper (optional, runs on this PC)</h3>
-    <p class="small muted">A second opinion on a company's moat on the moat page. Nothing you type or any stock data leaves your PC; only the one-time downloads (the llama.cpp program and the model file) use the internet. Never saved, never a verdict.</p>
+    <p class="small muted">A second opinion on a company's moat on the moat page (Gemma 4 12B). It researches the company itself: its search words go to Bing and Wikipedia and it reads public web pages; nothing you type, your portfolio or your settings leave the PC. The one-time downloads (the llama.cpp program and the model file) also use the internet. Never saved, never a verdict.</p>
     <p class="small" id="ai-msg">${state}${d.error ? ` <span class="neg">${esc(d.error)}</span>` : ""}</p>
-    <div class="inline"><button id="ai-dl" ${d.running || b.ready || b.supported === false ? "disabled" : ""}>Download the built-in AI (≈10 GB)</button>
+    <div class="inline"><button id="ai-dl" ${d.running || b.ready || b.supported === false ? "disabled" : ""}>Download the built-in AI (≈7.5 GB)</button>
       <button id="ai-rm" class="danger" ${b.server_present || b.model_present ? "" : "disabled"}>Remove it</button></div></section>`;
 }
 
@@ -78,7 +78,7 @@ async function pollAi(root) {
 function bindAi(root) {
   $("#ai-dl", root)?.addEventListener("click", (e) => run(e.target, async () => { await api.aiDownload(); pollAi(root); }));
   $("#ai-rm", root)?.addEventListener("click", (e) => run(e.target, async () => {
-    if (!confirm("Delete the downloaded AI program and model (about 10 GB)?")) return;
+    if (!confirm("Delete the downloaded AI program and model (about 7.5 GB)?")) return;
     await api.aiRemove(); render(root);
   }));
 }
