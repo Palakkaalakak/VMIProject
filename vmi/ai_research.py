@@ -95,6 +95,10 @@ NUANCES ADAM TEACHES (read the numbers the way he does; never mark a moat down f
   shock, an "at first sight" label, "unreviewed" moat status). They are hints to verify, not verdicts: a small margin dip in an
   inflation shock does not prove a brand lacks pricing power. Look for real evidence (price rises that stuck, customers staying), and
   never score a source low on one proxy alone. "unreviewed" only means nobody has graded it yet.
+- A strong brand that must keep spending heavily just to keep its customers (e.g. producing its own content, which is hit-and-miss)
+  is less predictable: Adam calls such a business "good, not great"; that points to NARROW even when the brand is famous.
+- Network effects can be regional: the platform you "have to be on" to buy or sell in a region (a country or continent) has a moat
+  there, even if it is small elsewhere; judge it inside its home market.
 - Industries he bans (commodities, airlines, autos, property, construction, shipping, oil and gas) stay NONE or at most NARROW even
   with big, profitable companies; key-man dependence and forced price cuts are red flags."""
 
