@@ -16,15 +16,15 @@ Owner state: unchanged (no settings changed, TEST scan saved then removed, MSFT 
    in a row; Step 1 fails (earnings or margins not consistently rising). For: gross margin 68%, op-margin rank 1 of 7, industry leader,
    pricing power held. Plan expects MSFT not weak. Saved verdict: wide, score 9, sources brand/switching_costs/network_effect/scale,
    reviewed 2026-11-05. (DAL = weak via no-moat industry list: correct.) Severity: wrong label.
-2. **Scanner Filters "Reset" does not clear Conditions.** Steps: Filters → + Add condition (steps = 5, ROE >=) → Reset.
+2. **FIXED 2026-11-20 (Reset now clears the condition rows and their hidden value; checked in the browser). Scanner Filters "Reset" does not clear Conditions.** Steps: Filters → + Add condition (steps = 5, ROE >=) → Reset.
    Actual: 2 condition rows remain, hidden `conds` value unchanged, count stays "67 of 105 shown". Expected: all cleared (105 of 105).
    Removed manually via ✕. Severity: cosmetic/functional.
 
 ## Observations
-- Raw snake_case keys shown to the user: scanner "missed Step 4: revenue_vs_receivables, cash_conversion_cycle"; Why dropped? reasons
+- FIXED for scanner text (missed/Why dropped now "revenue vs receivables"); moat-page text from the AI is plain words. Raw snake_case keys shown to the user: scanner "missed Step 4: revenue_vs_receivables, cash_conversion_cycle"; Why dropped? reasons
   (`cfo_consistent`, `gross_margin_stable`, `current_ratio`…); moat text (`switching_costs`, `network_effect`, `pricing_power`).
-- `/api/scan/status` `elapsed` keeps growing after a scan is done (215 s for a 6 s scan); scanner header shows "· 204s" while idle.
-- Guided evaluation counter says "question 7 of 8" (plan: 7 questions). "What the app already knows" also on question 2 (plan: 1, 6, 7).
+- FIXED (timer stops when the scan ends; checked: 3.8 s stays 3.8 s). `/api/scan/status` `elapsed` keeps growing after a scan is done (215 s for a 6 s scan); scanner header shows "· 204s" while idle.
+- FIXED (counter is N of N). Guided evaluation counter says "question 7 of 8" (plan: 7 questions). "What the app already knows" also on question 2 (plan: 1, 6, 7).
 - Scanner rows show steps as "6/7" (plan wording assumes 5).
 - Scan result count read once right after a scan finished still showed the previous scan (#17) until the UI refreshed.
 - Custom-list scan with SMCI under the Adam preset dropped it with "Step 1: cfo_consistent, gross_margin_stable", not a size reason

@@ -64,7 +64,7 @@ export function startGuide(box, ctx) {
 
   function drawStep(s, n) {
     box.innerHTML = `<div class="card"><div class="inline"><h3>Guided moat evaluation — ${esc(ctx.sym)}</h3><span class="spacer"></span>
-        <span class="muted small">question ${state.i + 1} of ${n + 1}</span><button type="button" class="secondary small" id="mg-quit">Close</button></div>
+        <span class="muted small">question ${state.i + 1} of ${n}</span><button type="button" class="secondary small" id="mg-quit">Close</button></div>
       <h4>${esc(s.title)}</h4>
       <p><b>Adam:</b> ${esc(s.adam)}</p>
       <p class="small"><b>What to search for:</b></p>

@@ -53,7 +53,7 @@ def test_failed_required_steps_text_and_scan_drop():
     rep = {"steps": [{"step": 1, "passed": False, "checks": [{"name": "earnings_consistent", "passed": False},
                                                             {"name": "cfo_consistent", "passed": True}]},
                      {"step": 3, "passed": False, "checks": []}, {"step": 4, "passed": True, "checks": []}]}
-    assert funnel.failed_required_steps(rep, [1, 2, 4, 5]) == "Step 1: earnings_consistent"
+    assert funnel.failed_required_steps(rep, [1, 2, 4, 5]) == "Step 1: earnings consistent"
     assert funnel.failed_required_steps(rep, [4]) is None and funnel.failed_required_steps(rep, []) is None
 
 
@@ -70,7 +70,7 @@ def test_stage_deep_drops_failures_of_required_steps(monkeypatch):
     cands = [funnel.Candidate("GOOD", "g", None), funnel.Candidate("BAD", "b", None)]
     kept = funnel.stage_deep(cands, funnel.ScanParams(universe="list", require_steps=[1, 2, 4, 5], workers=1))
     assert [c.symbol for c in kept] == ["GOOD"] and [r["symbol"] for r in funnel.STATE.results] == ["GOOD"]
-    assert funnel.STATE.dropped["BAD"] == "Step 1: earnings_consistent"
+    assert funnel.STATE.dropped["BAD"] == "Step 1: earnings consistent"
 
 
 def test_normalised_mode_is_labelled_everywhere_it_matters():

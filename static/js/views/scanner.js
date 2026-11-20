@@ -320,7 +320,12 @@ async function loadResults(root, runId = null) {
     if (wasOpen) fb.querySelector("details").open = true;
     const redraw = () => { save(readFilters(form)); drawRows(root); };
     form.addEventListener("input", redraw);
-    $("#scan-reset", root).addEventListener("click", () => { form.reset(); redraw(); });
+    $("#scan-reset", root).addEventListener("click", () => {
+      form.reset();
+      form.querySelector(".conds").innerHTML = "";       // condition rows are added by script: reset() does not remove them
+      form.elements.conds.value = "";
+      redraw();
+    });
     drawRows(root);
   } catch (e) { box.innerHTML = `<p class="muted">${esc(e.message)}</p>`; }
 }

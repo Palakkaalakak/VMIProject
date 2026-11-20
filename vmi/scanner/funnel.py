@@ -83,6 +83,7 @@ class ScanState:
     results: list[dict] = field(default_factory=list)
     running: bool = False
     started: float = 0.0
+    finished: float = 0.0
     error: str = ""
 
 
@@ -289,7 +290,7 @@ def failed_required_steps(rep: dict, required: list) -> str | None:
         return None
     from vmi.analysis.pipeline import failed_checks
 
-    bad = [f"Step {st['step']}: " + ", ".join(failed_checks(st)) for st in rep.get("steps", [])
+    bad = [f"Step {st['step']}: " + ", ".join(n.replace("_", " ") for n in failed_checks(st)) for st in rep.get("steps", [])
            if st["step"] in [int(x) for x in required] and not st["passed"]]
     return "; ".join(bad) or None
 
@@ -470,6 +471,7 @@ def run(params: dict | None = None) -> dict:
         status = "error"
     finally:
         STATE.running = False
+        STATE.finished = time.time()
         STATE.stage = status
         STATE.progress = 1.0
         with store.session() as s:
@@ -491,7 +493,7 @@ def start_background(params: dict | None = None) -> dict:
 def status_dict() -> dict:
     return {"run_id": STATE.run_id, "running": STATE.running, "stage": STATE.stage, "progress": round(STATE.progress, 3),
             "message": STATE.message, "funnel": STATE.funnel, "n_results": len(STATE.results), "error": STATE.error,
-            "elapsed": round(time.time() - STATE.started, 1) if STATE.started else 0}
+            "elapsed": round(((time.time() if STATE.running else (STATE.finished or time.time())) - STATE.started), 1) if STATE.started else 0}
 
 
 def latest_results(run_id: int | None = None) -> dict:
