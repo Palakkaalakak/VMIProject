@@ -12,6 +12,8 @@ import ipaddress
 import json
 import re
 import socket
+import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -90,20 +92,56 @@ def _unwrap(link: str) -> str:
     return link
 
 
-def web_search(query: str, n: int = 6) -> str:
-    try:
-        page = _get("https://www.bing.com/search?" + urllib.parse.urlencode({"q": query, "setlang": "en", "cc": "us"}))
-    except Exception as exc:
-        return f"search failed: {exc}"
+_search_lock = threading.Lock()
+_last_search = [0.0]
+
+
+def _ddg(query: str) -> list[tuple[str, str, str]]:
+    """DuckDuckGo Lite (HTML form POST): [(title, url, snippet)]."""
+    req = urllib.request.Request("https://lite.duckduckgo.com/lite/", data=urllib.parse.urlencode({"q": query}).encode(),
+                                 headers={"User-Agent": UA, "Accept-Language": "en", "Content-Type": "application/x-www-form-urlencoded"})
+    with _opener.open(req, timeout=15) as r:
+        page = r.read(MAX_BYTES).decode("utf-8", "ignore")
+    links = re.findall(r"""<a[^>]+href=["']([^"']+)["'][^>]*class=["']result-link["'][^>]*>(.*?)</a>""", page, re.S)
+    snips = re.findall(r"""class=["']result-snippet["'][^>]*>(.*?)</td>""", page, re.S)
+    return [(_text(t), u, _text(snips[i]) if i < len(snips) else "") for i, (u, t) in enumerate(links)]
+
+
+def _bing(query: str) -> list[tuple[str, str, str]]:
+    page = _get("https://www.bing.com/search?" + urllib.parse.urlencode({"q": query, "setlang": "en", "cc": "us"}))
     out = []
     for b in re.findall(r'<li class="b_algo"[^>]*>(.*?)</li>', page, re.S):
         a = re.search(r'<h2[^>]*><a[^>]*href="([^"]+)"[^>]*>(.*?)</a>', b, re.S)
         p = re.search(r"<p[^>]*>(.*?)</p>", b, re.S)
         if a:
-            out.append(f"- {_text(a.group(2))[:100]} ({_unwrap(a.group(1))[:140]}): {_text(p.group(1))[:240] if p else ''}")
-        if len(out) >= n:
-            break
-    return "\n".join(out) or "no results"
+            out.append((_text(a.group(2)), _unwrap(a.group(1)), _text(p.group(1)) if p else ""))
+    return out
+
+
+def _relevant(query: str, results: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
+    """Drop junk: keep results that share at least one meaningful word with the query (a throttled engine returns
+    unrelated pages, e.g. 'the letter S' for 'S&P Global')."""
+    words = {w for w in re.findall(r"[a-z0-9]+", query.lower()) if len(w) > 3}
+    return [r for r in results if not words or words & set(re.findall(r"[a-z0-9]+", (r[0] + " " + r[2] + " " + r[1]).lower()))]
+
+
+def web_search(query: str, n: int = 6) -> str:
+    """DuckDuckGo first, Bing as fallback; unrelated results are dropped; searches are spaced out so no engine throttles us."""
+    with _search_lock:
+        wait = 1.5 - (time.time() - _last_search[0])
+        if wait > 0:
+            time.sleep(wait)
+        _last_search[0] = time.time()
+    errors = []
+    for engine in (_ddg, _bing):
+        try:
+            res = _relevant(query, engine(query))
+        except Exception as exc:
+            errors.append(f"{engine.__name__.strip('_')}: {exc}")
+            continue
+        if len(res) >= 2:
+            return "\n".join(f"- {t[:100]} ({u[:140]}): {s[:240]}" for t, u, s in res[:n])
+    return "no relevant results" + (f" ({'; '.join(errors)})" if errors else "") + ": try different, simpler words"
 
 
 def read_page(url: str, offset: int = 0) -> str:
@@ -171,13 +209,12 @@ def make_runner():
                 if q and len(q & old) / len(q | old) >= 0.6:
                     return ("You already searched almost exactly this. Do not repeat searches: open the most relevant result pages from "
                             "your earlier searches with read_page, or search for a DIFFERENT question.")
+            if streak[0] >= 2:
+                return ("REFUSED: you have searched twice without reading a page. Open the 1-2 most relevant result pages from your "
+                        "last searches with read_page first; snippets are not evidence. Searching is allowed again after a read.")
             seen.append(q)
             streak[0] += 1
-            out = run(name, args)
-            if streak[0] >= 2:
-                out += ("\nNOTE: you have searched twice without reading anything. Now open the 1-2 most relevant result pages "
-                        "above with read_page before searching again; snippets are not evidence.")
-            return out
+            return run(name, args)
         if name == "read_page":
             streak[0] = 0
         return run(name, args)
