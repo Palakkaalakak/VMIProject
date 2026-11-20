@@ -138,7 +138,7 @@ def _grade(text: str, label: str) -> str | None:
     return None if not m else ("NONE" if m.group(1).upper().startswith("NO") else m.group(1).upper())
 
 
-def research(ticker: str, name: str, base_url: str | None = None, on_tool=None, max_rounds: int = MAX_ROUNDS) -> str:
+def research_agent(ticker: str, name: str, base_url: str | None = None, on_tool=None, max_rounds: int = MAX_ROUNDS) -> str:
     msgs = [{"role": "system", "content": RESEARCH_SYSTEM.format(today=_today(), name=name, ticker=ticker, budget=max_rounds)},
             {"role": "user", "content": f"Research {name} ({ticker}) now. Start with app_analysis."}]
     inner, used = ai_tools.make_runner(), [0]
@@ -156,6 +156,13 @@ def research(ticker: str, name: str, base_url: str | None = None, on_tool=None, 
 
 def _chat(base_url: str | None, messages: list[dict], max_tokens: int = 1200) -> str:
     return ai_runtime.chat_with_tools(messages, [], lambda n, a: "", max_rounds=0, max_tokens=max_tokens, base_url=base_url, timeout=600)
+
+
+def research(ticker: str, name: str, base_url: str | None = None, on_tool=None) -> str:
+    """Code-driven research (vmi.ai_pipeline): the code searches and reads, the model plans and extracts. The older free-roaming
+    agent is kept as research_agent()."""
+    from vmi import ai_pipeline
+    return ai_pipeline.research(ticker, name, lambda msgs, mt: _chat(base_url, msgs, mt), on_tool=on_tool)
 
 
 def verdict(ticker: str, name: str, notes: str, evidence: str = "", base_url: str | None = None) -> str:
