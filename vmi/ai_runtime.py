@@ -35,7 +35,8 @@ RELEASES_API = "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_pag
 MODEL_FILE = "models/gemma-4-12b-it-qat-q4_0.gguf"
 MODEL_URL = "https://huggingface.co/google/gemma-4-12B-it-qat-q4_0-gguf/resolve/main/gemma-4-12b-it-qat-q4_0.gguf"
 MODEL_MIN_BYTES = 6_500_000_000                       # a finished file is about 7 GB; anything smaller is a partial download
-SERVER_EXTRA = ["-fa", "on", "--cache-type-k", "q8_0", "--cache-type-v", "q8_0"]   # 8-bit KV cache: half the memory, negligible loss
+SERVER_EXTRA = ["-fa", "on", "--cache-type-k", "q8_0", "--cache-type-v", "q8_0",       # 8-bit KV cache: half the memory, negligible loss
+                "--spec-type", "ngram-simple", "--spec-ngram-simple-size-n", "6", "--spec-ngram-simple-size-m", "32"]   # lossless speed-up: reuses prompt text
 CHAT_KWARGS = {"enable_thinking": False}                                           # Gemma's thinking mode used up whole budgets
 IDLE_SECONDS = 600
 
@@ -154,7 +155,7 @@ def ready() -> bool:
     return server_exe() is not None and model_present()
 
 
-CTX = 12288
+CTX = 20480                      # the deep moat prompt is ~8.6k tokens + notes + answer
 MODEL_LAYERS = 49                 # Gemma 4 12B: 48 blocks + output layer
 MB_PER_LAYER = 145                # ~7 GB of weights over 49 layers
 KV_AND_BUFFERS_MB = 2000          # KV cache for CTX tokens (about 2 GB) + compute buffers + desktop headroom
