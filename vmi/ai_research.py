@@ -40,39 +40,20 @@ before the budget runs out, and stop calling tools and write your NOTES when abo
 When you have enough, reply with NOTES only: one finding per line, each ending with its source in brackets: [url] for web pages or
 [analysis page] for app_analysis. Then a line OPEN QUESTIONS: what you could not establish. No grade yet."""
 
-ADAM = """ADAM KHOO'S MOAT FRAMEWORK (from his course; apply it as written):
-- A moat protects the business from competition so competitors cannot easily take its customers or market share, letting it keep
-  growing sales, profit and cash flow for the next 10 to 20 years. With a strong moat it keeps pricing power: it raises prices
-  consistently without losing customers or share.
-- WIDE: a very strong, sustainable advantage we are pretty certain cannot easily be disrupted for the next 20 years; a very
-  monopolistic business with no competitors or only insignificant ones; can raise prices without hurting demand; very high profit
-  margins and consistent growth. Typical: a BRAND MONOPOLY (the first name people think of for the product; part of everyday
-  vocabulary), a dominant platform with a strong network effect, an ecosystem with very high switching costs, huge economies of scale.
-  Having rivals does not stop a business being WIDE when the rivals are far smaller or cannot take its customers.
-- NARROW: some advantage probably sustainable for ~10 years, beyond that not sure; several significant competitors; limited pricing
-  power (raise prices too much and customers leave, e.g. a carmaker that must keep cutting prices against many rivals); average margins.
-- NONE: it may be growing and profitable now, but it can easily be disrupted, replicated or replaced by a much bigger or stronger
-  competitor within a few years; many competitors selling near-identical products; price decides. Typical pattern: a popular, fast-
-  growing app or payments/communication service that larger platforms can copy and bundle. Also most commodity companies, airlines,
-  auto makers, property developers, construction, shipping, oil and gas.
-- Sources (he wants at least 3 of 5): (1) strong brand / brand monopoly or pricing power, (2) high switching costs, (3) network effect,
-  (4) high barriers to entry (patents, regulation, security clearances), (5) economies of scale.
-- Signs of erosion: margins falling for 2-3 years because it has to discount, rising costs squeezing margins, market share falling for
-  two years straight, customers visibly switching to competitors.
-- Tests: Can it raise prices every year without losing share? Could a much bigger competitor replicate it and take its customers
-  within 1-3 years? Is it the top dog of its industry, with the closest competitors clearly weaker? Is it losing share or discounting?
-- Top dog: he only invests in the strongest business of its industry; "if the competitor is stronger, I'd rather invest in the
-  competitor"; if there is no clear leader, forget it.
-- Business-model red flags: a one-trick pony with a single product users can abandon for a rival's (the video-call app case);
-  customer concentration (a few customers = most revenue); success that depends on one person or on unique talent.
-- Temporary vs structural: lawsuits, a bad year, a bad CEO, a scandal or a capex surge leave a moat intact; disruption by new
-  technology, a permanent change in what customers want, or a rival taking share year after year destroy it.
-- A clear 10-year uptrend in the share price is usually a clue to a wide moat; a long-run downtrend means no advantage.
-- He scores each source 0-10 (like the Stock Oracle AI moat score) and averages them: 9 = very wide; 7-9 gives him confidence; 6 is
-  "not strong enough" (narrow: e.g. barriers 5 because bigger rivals can replicate it, switching 6 because users switch easily);
-  2 = no moat, "the most dangerous". He is not rigid about counting: two or three strong sources can make a wide moat, and switching
-  costs that exist in one big segment (e.g. enterprise cloud) count.
-NUANCES ADAM TEACHES (read the numbers the way he does; never mark a moat down for these):
+def _course() -> str:
+    """Adam's own words on the moat: vmi/data/adam_moat.md, verbatim extracts of the owner's course master document. It is the owner's
+    copy of paid course material, so it is kept out of git; build it with tools/make_adam_moat.py. Without it the AI works from the
+    summary below."""
+    from pathlib import Path
+    try:
+        return (Path(__file__).parent / "data" / "adam_moat.md").read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
+ADAM = _course() + """
+
+OTHER LESSONS OF THE COURSE, SUMMARISED (Adam's view; read the numbers the way he does):
 - Negative shareholders' equity caused by years of share buybacks (large treasury stock) is not a weakness: ROE is effectively
   infinite, not negative. Check the cause before reading ROE or debt ratios.
 - A current ratio below 1 can be deliberate (stretching supplier payments) or come from subscription deferred revenue; not a red flag
@@ -107,6 +88,20 @@ NUANCES ADAM TEACHES (read the numbers the way he does; never mark a moat down f
   discounting that is needed to keep customers year after year is lost pricing power.
 - Never cite the app's automatic "pricing power" check (it only compares margins in the 2021-23 cost shock) as evidence; margins can
   dip in an inflation shock for a brand that still raises prices. Use sourced price rises and customer behaviour instead.
+- WEIGH EVERY RIVAL, never just name it. Ask three things and write the answers in your reasoning: (1) OVERLAP: what share of THIS
+  company's revenue does the rival actually compete for? A rival that overlaps one small segment is a small threat; one that overlaps
+  nearly everything is a big one. (2) FOCUS: is the product a core business for the rival or a bundled side line? A specialist for whom
+  the product is the whole company (it invests, innovates and sells in it full time) usually keeps an edge against a giant that treats
+  it as a side line, although the giant can win on price by bundling. (3) EVIDENCE: do the notes show customers, deals or share
+  actually going to the rival, or price cuts forced by it? Only sourced evidence of that counts as erosion. "Competes in some
+  segments", "is a big company" and "could bundle" are not evidence.
+  Competition itself is NOT a problem. A company that keeps beating its rivals (growing faster than them, winning their customers,
+  taking share, keeping or raising prices and margins) has a moat BECAUSE of the competition it wins: Adam rates Google, Amazon
+  and Microsoft wide although they fight each other. Grade the track record against the rivals: who is winning, who is gaining share?
+  Better still is little or no competition at all: Adam wants "monopolistic businesses with ideally little or no competition";
+  "wide-moat companies have no competitors or insignificant competition"; Pillar 5 is "weak competition" (few competitors, with very
+  small market share and a weaker competitive position). Barriers to entry (regulation, patents, IP, security clearances) are what
+  keep new rivals out, and in "boring" industries few new competitors want to enter at all.
 - DECISION RULE (Adam: "at least 3 of the 5 sources"): score the five sources honestly 0-10 the way Adam does (Meta 9,9,8,10,9; Zoom
   6,5,6,6,5). A clear leader with sticky customers (enterprise integration, ecosystem, recurring revenue, a regulated or licensed
   position, a brand people default to) normally scores 7+ on at least three sources, and then the grade is WIDE unless the notes show

@@ -21,3 +21,5 @@ data/research/reserve_sweep.json
 data/research/scan_sp500.json
 .venv/
 data/.deps-hash
+# Adam Khoo course text for the moat AI: owner's own copy of paid material, never pushed
+vmi/data/adam_moat.md
