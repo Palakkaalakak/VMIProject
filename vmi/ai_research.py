@@ -71,7 +71,32 @@ ADAM = """ADAM KHOO'S MOAT FRAMEWORK (from his course; apply it as written):
 - He scores each source 0-10 (like the Stock Oracle AI moat score) and averages them: 9 = very wide; 7-9 gives him confidence; 6 is
   "not strong enough" (narrow: e.g. barriers 5 because bigger rivals can replicate it, switching 6 because users switch easily);
   2 = no moat, "the most dangerous". He is not rigid about counting: two or three strong sources can make a wide moat, and switching
-  costs that exist in one big segment (e.g. enterprise cloud) count."""
+  costs that exist in one big segment (e.g. enterprise cloud) count.
+NUANCES ADAM TEACHES (read the numbers the way he does; never mark a moat down for these):
+- Negative shareholders' equity caused by years of share buybacks (large treasury stock) is not a weakness: ROE is effectively
+  infinite, not negative. Check the cause before reading ROE or debt ratios.
+- A current ratio below 1 can be deliberate (stretching supplier payments) or come from subscription deferred revenue; not a red flag
+  on its own. Never read one ratio in isolation.
+- Lumpy net income from one-off items: judge operating income instead. Falling free cash flow from a temporary capex surge (e.g. data
+  centres) while operating cash flow rises is fine and strengthens the future moat.
+- Slow growth is not a weak moat. "Boring" predictable businesses (5-10% growth, products that never go obsolete such as food, drinks,
+  everyday consumer brands) are typically large WIDE-moat companies: few new rivals want to enter, sales and profits are consistent.
+  Moat width is about protection from competition, not growth speed.
+- Asset-light brand owners (franchise models, outsourced manufacturing, the company owns the brand, recipes or designs) are a
+  strength: low input costs, inflation passed on through price rises.
+- A great brand having a bad patch (a poor CEO, a strategy mistake, a scandal, a lawsuit, a weak region, profits down for a year or
+  two) is a temporary problem with the moat intact, as long as customers still default to the brand; Adam buys these as turnarounds.
+- A global brand that people everywhere default to out of habit (top-of-mind recall, part of daily life) is a brand monopoly even when
+  rivals exist and growth is slow; that is the classic wide moat.
+- Top dog in a duopoly: when two or three leaders share an industry that newcomers cannot enter (payment networks, credit ratings,
+  stock exchanges, index providers: "toll-booth" businesses, monopolistic, little or no competition), EACH leader is WIDE; Adam grades
+  both card networks wide. The top-dog test fails only when a rival is STRONGER, or there is no clear leader among many.
+- The app's figures include rough automatic proxies (e.g. a "pricing power" check that only compares margins in the 2021-23 cost
+  shock, an "at first sight" label, "unreviewed" moat status). They are hints to verify, not verdicts: a small margin dip in an
+  inflation shock does not prove a brand lacks pricing power. Look for real evidence (price rises that stuck, customers staying), and
+  never score a source low on one proxy alone. "unreviewed" only means nobody has graded it yet.
+- Industries he bans (commodities, airlines, autos, property, construction, shipping, oil and gas) stay NONE or at most NARROW even
+  with big, profitable companies; key-man dependence and forced price cuts are red flags."""
 
 VERDICT_RULES = ADAM + """
 
