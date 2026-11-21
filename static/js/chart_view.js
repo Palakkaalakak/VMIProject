@@ -66,7 +66,7 @@ const pairs = (bars, vals) => bars.map((b, i) => (vals[i] == null ? null : { tim
 
 // ---- the widget ---------------------------------------------------------------------------------------------------
 /** Mount a chart for `symbol` into `box`. Returns { destroy }. */
-export async function mountChart(box, symbol, { interval = "1d" } = {}) {
+export async function mountChart(box, symbol, { interval = "1d", levels = [] } = {}) {
   box.innerHTML = `<p class="small muted">Loading the chart …</p>`;
   try { await ensureLib(); } catch (e) { box.innerHTML = `<p class="small neg">${esc(e.message)}</p>`; return { destroy() {} }; }
   const L = window.LightweightCharts;
@@ -159,6 +159,12 @@ export async function mountChart(box, symbol, { interval = "1d" } = {}) {
       else { const s = chart.addLineSeries({ color: "#eab308", lineWidth: 2, priceLineVisible: false, lastValueVisible: false }); s.setData([{ time: d.a.time, value: d.a.price }, { time: d.b.time, value: d.b.price }].sort((x, y) => (x.time > y.time ? 1 : -1))); drawn.push({ series: s }); }
     }
   }
+  // tranche buy levels (set for this stock): one green dotted line each, T1 = highest price
+  let levelLines = [];
+  function renderLevels() {
+    levelLines.forEach((l) => candles.removePriceLine(l)); levelLines = [];
+    levels.forEach((b, i) => { if (b && b.price > 0) levelLines.push(candles.createPriceLine({ price: b.price, color: "#22c55e", lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: `T${b.tranche ?? i + 1}` })); });
+  }
   chart.subscribeClick((p) => {
     if (!st.tool || !p.point) return;
     const price = candles.coordinateToPrice(p.point.y);
@@ -186,7 +192,7 @@ export async function mountChart(box, symbol, { interval = "1d" } = {}) {
     st.indicators.ema = new Set(higher ? [20, 40] : []);
     box.querySelectorAll("[data-ema]").forEach((c) => { c.checked = st.indicators.ema.has(+c.dataset.ema); });
     st.lines = loadDrawings();
-    drawIndicators(); renderDrawings(); lastBar();
+    drawIndicators(); renderDrawings(); renderLevels(); lastBar();
     setRange(365);
     box.querySelectorAll("[data-tf]").forEach((b) => b.classList.toggle("primary", b.dataset.tf === st.interval));
   }

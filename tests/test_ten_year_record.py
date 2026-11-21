@@ -23,7 +23,7 @@ def test_short_record_fails_a_ten_year_rule_but_passes_five():
 
 
 def test_ten_year_rule_rejects_an_old_collapse():
-    f = make_fund(revenue=[100, 90, 80, 70, 60, 100, 110, 120, 130, 150])
+    f = make_fund(revenue=[100, 90, 80, 70, 60, 50, 100, 110, 120, 150])
     assert series_trend(f, "revenue", _rules(5)).consistent        # the last 5 years look fine
     assert not series_trend(f, "revenue", _rules(10)).consistent   # but the 10-year record has too many down years
 

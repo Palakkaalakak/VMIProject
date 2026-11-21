@@ -28,9 +28,11 @@ def test_self_review_can_only_lower(monkeypatch):
     assert AR.opinion("X", "X")["final"] == "NARROW"
 
 
-def test_checker_can_raise(monkeypatch):
-    _fake(monkeypatch, "MOAT VERDICT: NARROW — 6/10", "CHECKER VERDICT: WIDE")
-    assert AR.opinion("X", "X", run_checker=True)["final_checked"] == "WIDE"
+def test_checker_never_raises_to_wide(monkeypatch):
+    _fake(monkeypatch, "MOAT VERDICT: NARROW — 6/10", "CHECKER VERDICT: WIDE")      # over-grading is the worst error: capped at NARROW
+    assert AR.opinion("X", "X", run_checker=True)["final_checked"] == "NARROW"
+    _fake(monkeypatch, "MOAT VERDICT: NONE — 3/10", "CHECKER VERDICT: NARROW")
+    assert AR.opinion("X", "X", run_checker=True)["final_checked"] == "NARROW"
 
 
 def test_no_readable_grade_counts_as_none(monkeypatch):

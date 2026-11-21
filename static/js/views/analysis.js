@@ -131,6 +131,7 @@ function technicals(r) {
       <div class="kpi" title="The moving average this stock bounces off most often (Lesson 6)"><span>Personality</span><b>${esc(personality(t.personality))}</b></div></div>
     <p class="small">${esc(t.scenario || "")} — ${esc(t.entry_reason || "")}</p>
     <table class="compact"><thead><tr><th>Tranche</th><th>Buy level</th><th>Source</th><th>Touches</th><th></th></tr></thead><tbody>${lv || `<tr><td colspan="5" class="muted">no levels</td></tr>`}</tbody></table>
+    <p><button type="button" class="small secondary" id="an-open-chart">Open chart${(t.buy_levels || []).length ? ` (with ${(t.buy_levels || []).length} tranche levels)` : ""}</button></p>
     <details id="an-chart-box"><summary><b>Chart</b> <span class="muted small">candles, Adam's moving averages, Bollinger, drawing, any timeframe</span></summary><div id="an-chart"></div></details>
   </div>`;
 }
@@ -223,7 +224,9 @@ const view = (r) => `${header(r)}<div class="cols"><div>${valuation(r)}${technic
 
 function bind(out, r) {
   const cb = $("#an-chart-box", out);
-  if (cb) cb.addEventListener("toggle", () => { if (cb.open && !cb.dataset.done) { cb.dataset.done = "1"; mountChart($("#an-chart", out), r.ticker).catch(() => {}); } });
+  if (cb) cb.addEventListener("toggle", () => { if (cb.open && !cb.dataset.done) { cb.dataset.done = "1"; mountChart($("#an-chart", out), r.ticker, { levels: r.technicals?.buy_levels || [] }).catch(() => {}); } });
+  const openBtn = $("#an-open-chart", out);
+  if (cb && openBtn) openBtn.addEventListener("click", () => { cb.open = true; cb.scrollIntoView({ behavior: "smooth", block: "start" }); });
   const pf = $("#trade-pf", out);
   const chosen = () => { const v = $("#trade-mult", out)?.value; return v ? parseFloat(v) : (r.allocation_multiplier || 1); };
   const showSize = async () => {

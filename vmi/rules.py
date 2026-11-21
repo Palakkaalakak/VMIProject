@@ -14,7 +14,7 @@ from typing import Any
 class TrackRecordRules:  # Step 1 (Part VI)
     min_years: int = 5                     # "at least the last 5 years, better 10"
     preferred_years: int = 10
-    max_down_years_5y: int = 2             # "one or two years of decline is fine"
+    max_down_years_5y: int = 3             # Adam: 1-2 down years fine; owner raised to 3 (5y window only)
     min_trend_r2: float = 0.0              # optional extra strictness (log-linear fit); 0 = off
     margin_tolerance: float = 0.15         # current margin may be up to 15% (relative) below 5y avg
     reject_if_margin_falls_n_years: int = 5  # "margins falling for five straight years → avoid"
@@ -191,6 +191,7 @@ class PortfolioRules:  # Lesson 8
     max_stocks: int = 60
     default_target_stocks: int = 20
     tranches: int = 4                      # "three to four tranches"
+    dynamic_tranches: bool = True          # owner: the stock's own stated levels (plan, else watchlist) decide how many tranches (3-6)
     speculative_multiplier: float = 0.5
     turnaround_multiplier: float = 0.5
     narrow_moat_multiplier: float = 0.75   # "smaller positions, especially initially"

@@ -328,4 +328,20 @@ def size_for(pid: int, symbol: str, multiplier: float = 1.0) -> dict:
     price = market.last_price(symbol) or 0
     cur = sum(r["market_value"] for r in summ["positions"] if r["symbol"] == symbol.upper() and r["sec_type"] == "STK")
     return sizing.plan(summ["equity"], price, cur, summ["target_positions"], multiplier,
-                       cash=summ["free_cash"]).to_dict()
+                       tranches=stated_tranches(pid, symbol), cash=summ["free_cash"]).to_dict()
+
+
+def stated_tranches(pid: int, symbol: str) -> int | None:
+    """Dynamic tranche count (rule portfolio.dynamic_tranches): the number of buy levels stated for the stock, in the
+    portfolio's plan first, else on a watchlist. None = use the fixed rule (3-4)."""
+    from vmi.rules import RULES
+    if not RULES.portfolio.dynamic_tranches:
+        return None
+    sym = symbol.upper()
+    with store.session() as s:
+        plan = s.scalar(select(store.TranchePlan).where(store.TranchePlan.portfolio_id == pid, store.TranchePlan.symbol == sym,
+                                                        store.TranchePlan.status == "active"))
+        n = len(plan.buy_levels or []) if plan else 0
+        if not n:
+            n = max((len(i.supports or []) for i in s.scalars(select(store.WatchItem).where(store.WatchItem.symbol == sym))), default=0)
+    return n if 1 <= n <= 10 else None

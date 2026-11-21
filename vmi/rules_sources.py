@@ -21,7 +21,7 @@ SOURCES: dict[str, tuple[str, str]] = {
     # ---- Step 1 ------------------------------------------------------------------------------------------
     "track.min_years": (ADAM, "Step 1: sales/NI/CFO rising for 5–10 years (checklist, l.7556)"),
     "track.preferred_years": (ADAM, "5 years, 10 better (l.2688)"),
-    "track.max_down_years_5y": (ADAM, "'1–2 down years acceptable; overall uptrend required' (checklist)"),
+    "track.max_down_years_5y": (ADAM, "'1–2 down years acceptable; overall uptrend required' (checklist); owner allows 3"),
     "track.min_trend_r2": (MODEL, "optional extra strictness on the trend fit; 0 = off"),
     "track.margin_tolerance": (INTERP, "Adam: current margins 'close to the 5-year average' (no figure given)"),
     "track.reject_if_margin_falls_n_years": (ADAM, "REJECT if margins fell 5 straight years (checklist)"),
@@ -129,6 +129,7 @@ SOURCES: dict[str, tuple[str, str]] = {
     "portfolio.max_stocks": (INTERP, "Adam: 8–30 positions (l.12102); the cap here is looser (kept from earlier work; confirm)"),
     "portfolio.default_target_stocks": (OWNER, "default number of positions used for sizing"),
     "portfolio.tranches": (ADAM, "buy in 3–4 tranches (checklist 16)"),
+    "portfolio.dynamic_tranches": (OWNER, "number of tranches follows the levels stated for the stock (3, 4, 5 or 6)"),
     "portfolio.speculative_multiplier": (ADAM, "speculative growth: ½ or ⅓ of a normal position (l.9347)"),
     "portfolio.turnaround_multiplier": (ADAM, "turnarounds: ½ or ⅓ of a normal position (l.9347)"),
     "portfolio.narrow_moat_multiplier": (INTERP, "Adam: narrow moat = 'smaller positions, especially initially', no figure; 0.75 kept from earlier work (confirm)"),

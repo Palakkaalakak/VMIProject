@@ -107,9 +107,9 @@ NUANCES = """OTHER LESSONS OF THE COURSE AND HOW TO READ EVIDENCE (summarised fr
   rivals, or to sell a bigger bundle of the company's own products, are expansion, not lost pricing power; discounts to clear stock or
   a one-off are temporary. Classify every discount before using it as evidence.
 - DECISION RULE (Adam: "at least 3 of the 5 sources"): score the five sources honestly 0-10 the way Adam does (Meta 9,9,8,10,9; Zoom
-  6,5,6,6,5). A clear leader with sticky customers (enterprise integration, ecosystem, recurring revenue, a regulated or licensed
-  position, a brand people default to) normally scores 7+ on at least three sources, and then the grade is WIDE unless the notes show
-  specific, recent structural erosion. Two strong sources, or a leader without sticky customers, is NARROW. One or none, or a business
+  6,5,6,6,5). Most companies have no wide moat; a good leader starts at NARROW. WIDE needs at least three sources scored 7+, each
+  backed by a sourced claim, and near-uncontested dominance; a business that must keep spending on hit-and-miss output (streaming
+  content, films, games) or faces several well-funded rivals is at most NARROW (Netflix: good, not great). Two strong sources, or a leader without sticky customers, is NARROW. One or none, or a business
   that a much bigger rival can copy and bundle, is NONE.
 - Industries he bans (commodities, airlines, autos, property, construction, shipping, oil and gas) stay NONE or at most NARROW even
   with big, profitable companies; key-man dependence and forced price cuts are red flags."""
@@ -129,7 +129,7 @@ FRAMEWORK_QUICK = """ADAM KHOO'S MOAT FRAMEWORK, CONDENSED (from his course):
   (patents, regulation, security clearances: Palantir, Lockheed); (5) economies of scale (Amazon, Walmart, Costco). Score each 0-10 as he
   does (Meta 9,9,8,10,9; Zoom 6,5,6,6,5): 7-9 overall gives confidence, 6 is "not strong enough".
 - Top dog: he invests in the strongest business of its industry; the closest rivals must be weaker; no clear leader means forget it.
-  Wide examples he names: Meta, Amazon, S&P Global, Alphabet, Netflix, Nvidia, Mastercard, Visa, Apple, Microsoft. Narrow: Cisco,
+  Wide examples he names: Meta, Amazon, S&P Global, Alphabet, Nvidia, Mastercard, Visa, Apple, Microsoft. Narrow: Netflix (good, not great: hit-and-miss content spend, strong rivals), Cisco,
   FedEx, Expedia, Dow, Alcoa, Chevron, Schlumberger, Tesla, Exxon, Shell.
 - Tests: can it raise prices every year without losing share? could a bigger rival replicate it within 1-3 years? is it losing share
   or discounting? one-trick pony, customer concentration, key-man risk?
@@ -148,8 +148,12 @@ OWNER_QUICK = """THE OWNER'S GUIDANCE (the owner's own reasoning, not Adam's wor
   Toll-booth duopolies (ratings, card networks, exchanges) are WIDE for each leader. Network effects can be regional.
 - MISSING EVIDENCE IS NOT NEGATIVE EVIDENCE: if the notes do not cover rivals or a threat, do not lower the grade for it; judge from what is
   known with Adam's framework. Lower only for sourced negatives from credible sources; one weak source alone is not enough.
-- DECISION RULE: a clear leader with sticky customers normally scores 7+ on at least three sources: WIDE unless the notes show specific,
-  recent structural erosion; two strong sources: NARROW; one or none, or easily copied or bundled by a much bigger rival: NONE.
+- BASE RATE: most companies have NO wide moat, and even good, famous ones are usually NARROW. Start from NARROW for a good leader and
+  move to WIDE only when the notes prove it. WIDE needs at least three sources scored 7+, EACH backed by a sourced claim, plus near-
+  uncontested dominance (a brand monopoly, a toll-booth duopoly, a network or ecosystem rivals have failed to crack for years). A strong
+  brand with several well-funded rivals, or a business that must keep spending heavily on hit-and-miss output (streaming content,
+  films, games, fashion), is at most NARROW: "good, not great" (Netflix). Scores of 7+ without a sourced claim must be lowered.
+  Two strong sources: NARROW; one or none, or easily copied or bundled by a much bigger rival: NONE.
   Grading too high is the worst error; lower only for specific sourced doubt."""
 
 CHECKLIST_QUICK = """NUANCE CHECKLIST: answer EVERY item with a reason of at most 12 words. YES = the requirement is met; NO = it is not met (say why);
@@ -163,7 +167,7 @@ NA = the notes do not cover it. NA and missing information NEVER lower the grade
 7 DISCOUNTS: each classed keep / win / clear?
 8 SETBACKS: each weak number sourced and classed temporary or structural?
 9 FIGURES: buyback equity, current ratio, lumpy income, capex dips, slow growth, app proxy: none misused?
-10 RED FLAGS: one-trick pony, concentration, key-man, hit-and-miss spend checked?
+10 RED FLAGS: one-trick pony, concentration, key-man, hit-and-miss spend (content, games)? If yes: at most NARROW.
 11 BANNED INDUSTRY: commodity, airline, auto, property, construction, shipping, oil and gas?
 12 NOT OVER-GRADED: supported by sourced evidence?
 13 NOT UNDER-GRADED: lowered only for specific sourced doubt?
@@ -181,7 +185,7 @@ does. A wrong answer here is the usual way a grade goes wrong.
 7. DISCOUNTS CLASSIFIED: is each discount or price cut classed as (a) to keep existing customers = lost pricing power, (b) to win customers from rivals or sell bigger bundles = expansion, or (c) to clear stock or a one-off = temporary?
 8. TEMPORARY OR STRUCTURAL: is every weak number or setback (down year, margin dip, bad CEO, strategy mistake, scandal, lawsuit, capex surge) traced to a sourced cause and classed temporary or structural? A global brand people default to is not weakened by a bad patch.
 9. FIGURES READ RIGHT: negative equity from buybacks, current ratio below 1, lumpy net income, falling free cash flow from a capex surge, slow growth of a boring predictable brand: none was wrongly held against the moat, and the app's automatic "pricing power" check was NOT used as evidence.
-10. BUSINESS-MODEL RED FLAGS: one-trick pony, customer concentration, key-man or unique-talent dependence, a brand that must keep spending heavily on hit-and-miss output: each checked.
+10. BUSINESS-MODEL RED FLAGS: one-trick pony, customer concentration, key-man or unique-talent dependence, a brand that must keep spending heavily on hit-and-miss output: each checked. A company that must keep spending heavily on hit-and-miss output (streaming content, films, games) is at most NARROW.
 11. BANNED INDUSTRY: is it in commodities, airlines, autos, property, construction, shipping, oil and gas? Then never above NARROW, usually NONE.
 12. NOT OVER-GRADED: grading too HIGH is the worst error; is the grade supported by sourced evidence, not hope?
 13. NOT UNDER-GRADED: was the grade lowered only for specific sourced doubt, not because of general unease, a rival merely existing, or "when unsure" used as a default?
@@ -367,4 +371,7 @@ def run_check(result: dict, ticker: str, evidence: str = "", base_url: str | Non
     figures = evidence or ai_tools.app_analysis(ticker)
     c = check(final_text(result), result["notes"], figures, base_url=base_url, level=level or result.get("level"))
     g = _grade(c, "CHECKER VERDICT")
+    base = result.get("final")
+    if g == "WIDE" and base and base != "WIDE":      # owner rule: the checker may lower freely, but never raises to WIDE (over-grading is the worst error)
+        g = "NARROW"
     return {"check": c, "checker_grade": g, "final_checked": g or result.get("final")}
