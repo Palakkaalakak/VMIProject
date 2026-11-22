@@ -131,7 +131,8 @@ function technicals(r) {
       <div class="kpi" title="The moving average this stock bounces off most often (Lesson 6)"><span>Personality</span><b>${esc(personality(t.personality))}</b></div></div>
     <p class="small">${esc(t.scenario || "")} — ${esc(t.entry_reason || "")}</p>
     <table class="compact"><thead><tr><th>Tranche</th><th>Buy level</th><th>Source</th><th>Touches</th><th></th></tr></thead><tbody>${lv || `<tr><td colspan="5" class="muted">no levels</td></tr>`}</tbody></table>
-    <p><button type="button" class="small secondary" id="an-open-chart">Open chart${(t.buy_levels || []).length ? ` (with ${(t.buy_levels || []).length} tranche levels)` : ""}</button></p>
+    <p class="inline"><button type="button" class="small secondary" id="an-open-chart">Open chart</button>
+      <label class="small">draw the supports of watchlist <select id="an-wl"><option value="">(the analysis buy levels)</option></select></label></p>
     <details id="an-chart-box"><summary><b>Chart</b> <span class="muted small">candles, Adam's moving averages, Bollinger, drawing, any timeframe</span></summary><div id="an-chart"></div></details>
   </div>`;
 }
@@ -224,7 +225,26 @@ const view = (r) => `${header(r)}<div class="cols"><div>${valuation(r)}${technic
 
 function bind(out, r) {
   const cb = $("#an-chart-box", out);
-  if (cb) cb.addEventListener("toggle", () => { if (cb.open && !cb.dataset.done) { cb.dataset.done = "1"; mountChart($("#an-chart", out), r.ticker, { levels: r.technicals?.buy_levels || [] }).catch(() => {}); } });
+  if (cb) cb.addEventListener("toggle", () => { if (cb.open && !cb.dataset.done) { cb.dataset.done = "1"; mountChart($("#an-chart", out), r.ticker, { levels: r.technicals?.buy_levels || [] }).then((h) => { chartH = h; applyWl(); }).catch(() => {}); } });
+  // supports stated in the chosen watchlist for this stock are drawn as the tranche lines (T1 = highest)
+  let chartH = null;
+  const wlSel = $("#an-wl", out);
+  async function applyWl() {
+    if (!chartH || !chartH.setLevels) return;
+    if (!wlSel.value) return chartH.setLevels(r.technicals?.buy_levels || []);
+    try {
+      const w = await api.watchlist(wlSel.value);
+      const it = (w.items || []).find((i) => i.symbol === r.ticker);
+      chartH.setLevels(((it && it.supports) || []).slice().sort((x, y) => y - x).map((price, i) => ({ price, tranche: i + 1 })));
+    } catch { /* keep the current lines */ }
+  }
+  if (wlSel) {
+    api.watchlists().then((ls) => {
+      wlSel.insertAdjacentHTML("beforeend", ls.map((l) => `<option value="${l.id}">${esc(l.name)}</option>`).join(""));
+      return Promise.all(ls.map((l) => api.watchlist(l.id).then((w) => ((w.items || []).some((i) => i.symbol === r.ticker && (i.supports || []).length) ? l.id : null)).catch(() => null)));
+    }).then((ids) => { const first = ids.find(Boolean); if (first) { wlSel.value = String(first); applyWl(); } }).catch(() => {});
+    wlSel.addEventListener("change", applyWl);
+  }
   const openBtn = $("#an-open-chart", out);
   if (cb && openBtn) openBtn.addEventListener("click", () => { cb.open = true; cb.scrollIntoView({ behavior: "smooth", block: "start" }); });
   const pf = $("#trade-pf", out);

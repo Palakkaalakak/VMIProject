@@ -66,7 +66,8 @@ const pairs = (bars, vals) => bars.map((b, i) => (vals[i] == null ? null : { tim
 
 // ---- the widget ---------------------------------------------------------------------------------------------------
 /** Mount a chart for `symbol` into `box`. Returns { destroy }. */
-export async function mountChart(box, symbol, { interval = "1d", levels = [] } = {}) {
+export async function mountChart(box, symbol, { interval = "1d", levels: initialLevels = [] } = {}) {
+  let levels = initialLevels;
   box.innerHTML = `<p class="small muted">Loading the chart …</p>`;
   try { await ensureLib(); } catch (e) { box.innerHTML = `<p class="small neg">${esc(e.message)}</p>`; return { destroy() {} }; }
   const L = window.LightweightCharts;
@@ -222,5 +223,5 @@ export async function mountChart(box, symbol, { interval = "1d", levels = [] } =
     st.tool = st.tool === b.dataset.tool ? null : b.dataset.tool; st.pending = null; markTool();
   }));
   await load();
-  return { destroy() { document.removeEventListener("keydown", onEsc); document.body.classList.remove("chart-full-open"); chart.remove(); sc.remove(); } };
+  return { setLevels(l) { levels = l || []; renderLevels(); }, destroy() { document.removeEventListener("keydown", onEsc); document.body.classList.remove("chart-full-open"); chart.remove(); sc.remove(); } };
 }
