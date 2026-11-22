@@ -173,6 +173,12 @@ def delete_plan(pid: int, symbol: str) -> None:
             s.commit()
 
 
+def _plan_has_levels(pid: int, symbol: str) -> bool:
+    with store.session() as s:
+        p = s.scalar(select(store.TranchePlan).where(store.TranchePlan.portfolio_id == pid, store.TranchePlan.symbol == symbol))
+        return bool(p and p.buy_levels)
+
+
 def plans_from_watchlist(pid: int, wid: int, overwrite: bool = False) -> dict:
     """One EMPTY plan per watchlist stock. Tranche levels are never calculated for you (owner, 2026-11-16): you set the buy
     and sell levels yourself; a plan without levels does nothing. The IV is copied only when you typed it in the watchlist
@@ -185,15 +191,21 @@ def plans_from_watchlist(pid: int, wid: int, overwrite: bool = False) -> dict:
     made, skipped = [], {}
     for it in items:
         if it.symbol in existing and not overwrite:
-            skipped[it.symbol] = "plan exists"
+            if RULES.portfolio.dynamic_tranches and it.supports and not _plan_has_levels(pid, it.symbol):
+                upsert_plan(pid, it.symbol, buy_levels=[float(x) for x in it.supports if x])      # an empty plan picks up the stated supports
+                made.append(it.symbol)
+            else:
+                skipped[it.symbol] = "plan exists"
             continue
-        fields = {"source": "watchlist", "status": "active", "buy_levels": [], "sell_levels": []}
+        # dynamic tranches: the stock's own supports in the watchlist ARE its buy levels (3, 4, 5, 6 ...), split equally
+        sup = [float(x) for x in (it.supports or []) if x] if RULES.portfolio.dynamic_tranches else []
+        fields = {"source": "watchlist", "status": "active", "buy_levels": sup, "sell_levels": []}
         if it.iv_source == "manual" and it.intrinsic_value:
             fields["intrinsic_value"] = it.intrinsic_value
         upsert_plan(pid, it.symbol, **fields)
         made.append(it.symbol)
     return {"created": made, "skipped": skipped, "settings": settings(pid),
-            "note": "Plans are empty: set the tranche levels yourself."}
+            "note": "Buy levels come from each stock's supports in the watchlist (one tranche per support, equal split); stocks without supports start empty: set their levels yourself."}
 
 
 def match_manual_fill(pid: int, trade_id: int) -> str | None:

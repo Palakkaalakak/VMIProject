@@ -29,7 +29,7 @@ async function draw(root, id) {
           <option value="manual" ${c.sizing_mode === "manual" ? "selected" : ""}>Manual $ per stock</option></select></label>
         <label>Watchlist <select name="watchlist_id"><option value="">—</option>${wls.map((w) => `<option value="${w.id}" ${c.watchlist_id === w.id ? "selected" : ""}>${esc(w.name)} (${w.count ?? ""})</option>`).join("")}</select></label>
         <label>Manual $ per stock <input name="manual_allocation" type="number" step="any" value="${c.manual_allocation ?? ""}"></label>
-        <label>Tranches per position <input name="tranches" type="number" min="1" max="10" value="${c.tranches}"></label>
+        <label title="Used only when a stock has no levels of its own: stocks with levels in a watchlist or plan use exactly that many tranches (3, 4, 5, 6 ...)">Default tranches per position <input name="tranches" type="number" min="1" max="10" value="${c.tranches}"></label>
         <label>Regular market hours only <select name="market_hours_only"><option value="true" ${c.market_hours_only ? "selected" : ""}>Yes</option><option value="false" ${c.market_hours_only ? "" : "selected"}>No</option></select></label>
         <label>Gap through several levels: trading days between tranches <input name="gap_stagger_days" type="number" min="0" max="30" value="${c.gap_stagger_days ?? 3}"></label>
         <label>Fill levels hit while offline <select name="backfill"><option value="true" ${c.backfill ? "selected" : ""}>Yes (back-dated)</option><option value="false" ${c.backfill ? "" : "selected"}>No</option></select></label>
@@ -38,7 +38,7 @@ async function draw(root, id) {
         Backfill uses daily bars: it fills at the level, or at the open if the price gapped through it, dated that day.</p></section>
     <section class="card"><div class="inline"><h3>Plans (${d.plans.length})</h3>
       <button id="pl-new">+ Plan</button>
-      <select id="pl-wl"><option value="">Add plans for a watchlist (you set the levels)…</option>${wls.map((w) => `<option value="${w.id}">${esc(w.name)}</option>`).join("")}</select>
+      <select id="pl-wl"><option value="">Add plans for a watchlist (one tranche per support it states)…</option>${wls.map((w) => `<option value="${w.id}">${esc(w.name)}</option>`).join("")}</select>
       <button id="pl-run" class="secondary">Run now</button></div><div id="pl-table"></div></section>`;
   $("#pl-table", root).appendChild(table([
     { key: "symbol", label: "Stock", render: (r) => `<a href="#/analysis/${esc(r.symbol)}"><b>${esc(r.symbol)}</b></a>` },
@@ -49,7 +49,7 @@ async function draw(root, id) {
     { key: "sell", label: "Sell levels", render: (r) => levels(r.sell_levels, "sell") },
     { key: "last_checked", label: "Checked", render: (r) => esc(String(r.last_checked || "").slice(0, 16).replace("T", " ")) },
     { key: "_a", label: "", render: () => `<button class="small secondary" data-action="edit">Edit</button> <button class="small secondary" data-action="hist">History</button> <button class="small danger" data-action="del">Delete</button>` },
-  ], d.plans, { empty: "No plans: add one, or add empty plans for a watchlist's stocks and set the levels yourself.", actions: {
+  ], d.plans, { empty: "No plans: add one, or add plans for a watchlist's stocks (their supports become the tranche levels).", actions: {
     edit: (r) => editModal(root, id, r), hist: (r) => modal(`${r.symbol} history`, `<pre class="small">${esc(JSON.stringify(r.history, null, 1))}</pre>`),
     del: (r, b) => confirm(`Delete the plan for ${r.symbol}?`) && run(b, async () => { await api.deletePlan(id, r.symbol); draw(root, id); }) } }));
   $("#pl-set", root).addEventListener("submit", (e) => {

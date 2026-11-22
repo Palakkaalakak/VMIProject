@@ -108,24 +108,24 @@ def test_sell_level_over_iv(pid):
     assert len(sells) == 1 and sells[0]["qty"] == pytest.approx(10)
 
 
-def test_plans_from_watchlist_never_calculates_levels(pid):
+def test_plans_from_watchlist_use_the_stated_supports_as_tranches(pid):
     with store.session() as s:
         w = store.Watchlist(name="W")
         s.add(w)
         s.flush()
-        s.add(store.WatchItem(watchlist_id=w.id, symbol="AAA", intrinsic_value=100, iv_source="manual", supports=[110, 95, 80]))
-        s.add(store.WatchItem(watchlist_id=w.id, symbol="BBB", intrinsic_value=50, iv_source="auto", supports=[40]))
+        s.add(store.WatchItem(watchlist_id=w.id, symbol="AAA", intrinsic_value=100, iv_source="manual", supports=[110, 95, 80, 70, 60]))
+        s.add(store.WatchItem(watchlist_id=w.id, symbol="BBB", intrinsic_value=50, iv_source="auto", supports=[40, 35, 30]))
+        s.add(store.WatchItem(watchlist_id=w.id, symbol="CCC", supports=[]))
         s.commit()
         wid = w.id
     res = autotrade.plans_from_watchlist(pid, wid)
-    assert sorted(res["created"]) == ["AAA", "BBB"]
+    assert sorted(res["created"]) == ["AAA", "BBB", "CCC"]
     plans = {p["symbol"]: p for p in autotrade.get_plans(pid)}
-    assert plans["AAA"]["buy_levels"] == [] and plans["BBB"]["buy_levels"] == []        # supports are NOT turned into levels
+    assert [l["price"] for l in plans["AAA"]["buy_levels"]] == [110, 95, 80, 70, 60]      # the number of tranches follows the stated supports
+    assert [round(l["fraction"], 3) for l in plans["AAA"]["buy_levels"]] == [0.2] * 5
+    assert len(plans["BBB"]["buy_levels"]) == 3 and plans["CCC"]["buy_levels"] == []
     assert plans["AAA"]["intrinsic_value"] == 100 and plans["BBB"]["intrinsic_value"] is None   # only a typed IV is copied
     assert res["settings"]["sizing_mode"] == "watchlist"
-    autotrade.update_settings(pid, {"auto_trade": True})
-    autotrade.run(pid, quote_fn=quote(50), history_fn=no_history, in_session=lambda: True)
-    assert not _trades(pid)                                                            # no levels, nothing happens
 
 
 def test_hand_entered_order_at_a_level_fills_it_so_automation_does_not_double_buy(pid):
@@ -210,3 +210,17 @@ def test_live_gap_fills_one_now_and_schedules_the_rest(pid):
     lv = autotrade.get_plans(pid)[0]["buy_levels"]
     assert [l["status"] for l in lv] == ["filled", "scheduled", "scheduled"] and lv[2]["fill_after"] > lv[1]["fill_after"]
     assert any(e["event"] == "gap_stagger" for e in ev)
+
+
+def test_one_click_sizing_follows_the_stated_levels(pid):
+    from vmi.paper import engine
+    with store.session() as s:
+        w = store.Watchlist(name="W2")
+        s.add(w)
+        s.flush()
+        s.add(store.WatchItem(watchlist_id=w.id, symbol="ZZZ", supports=[50, 45, 40, 35, 30, 25]))
+        s.commit()
+    assert engine.stated_tranches(pid, "ZZZ") == 6                     # six stated supports = six tranches
+    assert engine.stated_tranches(pid, "NOPE") is None                 # nothing stated: the fixed rule (4)
+    autotrade.upsert_plan(pid, "ZZZ", buy_levels=[50, 45, 40])
+    assert engine.stated_tranches(pid, "ZZZ") == 3                     # the portfolio's own plan wins over the watchlist
