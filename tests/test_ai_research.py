@@ -88,3 +88,17 @@ def test_opinion_passes_the_level_through(monkeypatch):
     monkeypatch.setattr(AR, "review", lambda v, n, base_url=None, level=None: seen.setdefault("review", level) and "MOAT VERDICT: WIDE — 8/10")
     r = AR.opinion("X", "X", level="standard")
     assert seen == {"research": "standard", "verdict": "standard", "review": "standard"} and r["level"] == "standard"
+
+
+def test_ai_server_safeguards(monkeypatch):
+    from vmi import ai_runtime as RT
+    monkeypatch.setattr(RT, "free_ram_mb", lambda: 500.0)
+    monkeypatch.setattr(RT, "gpu_state", lambda: {"temp": 60.0, "free_mb": 9000.0})
+    assert "memory" in RT._danger()
+    monkeypatch.setattr(RT, "free_ram_mb", lambda: 9000.0)
+    monkeypatch.setattr(RT, "gpu_state", lambda: {"temp": 90.0, "free_mb": 9000.0})
+    assert "°C" in RT._danger()
+    monkeypatch.setattr(RT, "gpu_state", lambda: {"temp": 60.0, "free_mb": 100.0})
+    assert "GPU memory" in RT._danger()
+    monkeypatch.setattr(RT, "gpu_state", lambda: {"temp": 60.0, "free_mb": 9000.0})
+    assert RT._danger() == ""

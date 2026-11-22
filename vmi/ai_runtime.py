@@ -39,9 +39,16 @@ SERVER_EXTRA = ["-fa", "on", "--cache-type-k", "q8_0", "--cache-type-v", "q8_0",
                 "--spec-type", "ngram-simple", "--spec-ngram-simple-size-n", "6", "--spec-ngram-simple-size-m", "32"]   # lossless speed-up: reuses prompt text
 CHAT_KWARGS = {"enable_thinking": False}                                           # Gemma's thinking mode used up whole budgets
 IDLE_SECONDS = 600
+# ---- safeguards (a run once froze the PC and BitLocker locked it): the server is stopped, not left to grind, when the machine is stressed
+MAX_RUN_SECONDS = int(os.environ.get("VMI_AI_MAX_RUN_SECONDS", 40 * 60))     # hard ceiling on one server's life, busy or not
+MAX_GPU_TEMP_C = int(os.environ.get("VMI_AI_MAX_TEMP", 85))                  # stop at this GPU temperature; no start when already near it
+MIN_FREE_RAM_MB = 1536                                                       # stop when free system RAM falls below this
+MIN_START_RAM_MB = 2560                                                      # no start unless this much RAM is free (6 GB when layers are offloaded to RAM)
+MIN_FREE_VRAM_MB = 400                                                       # stop when the GPU has less than this left (the display needs some)
+COOLDOWN_SECONDS = 300                                                       # after a safety stop, no restart for this long
 
 DOWNLOAD: dict = {"running": False, "what": "", "done": 0, "total": 0, "error": ""}
-_server: dict = {"proc": None, "port": None, "last_used": 0.0}
+_server: dict = {"proc": None, "port": None, "last_used": 0.0, "started": 0.0, "tripped": "", "tripped_at": 0.0}
 _lock = threading.Lock()
 
 
@@ -158,7 +165,7 @@ def ready() -> bool:
 CTX = 20480                      # the deep moat prompt is ~8.6k tokens + notes + answer
 MODEL_LAYERS = 49                 # Gemma 4 12B: 48 blocks + output layer
 MB_PER_LAYER = 145                # ~7 GB of weights over 49 layers
-KV_AND_BUFFERS_MB = 2000          # KV cache for CTX tokens (about 2 GB) + compute buffers + desktop headroom
+KV_AND_BUFFERS_MB = 3000          # KV cache for CTX tokens (about 2 GB) + compute buffers + desktop headroom
 
 
 def gpu_layers(free_mb: float | None = None) -> int:
@@ -178,23 +185,119 @@ def gpu_layers(free_mb: float | None = None) -> int:
     return 99 if n >= MODEL_LAYERS else max(0, n)
 
 
+def free_ram_mb() -> float | None:
+    """Free physical memory in MB (None if unknown)."""
+    try:
+        if sys.platform == "win32":
+            import ctypes
+
+            class MS(ctypes.Structure):
+                _fields_ = [("l", ctypes.c_ulong), ("load", ctypes.c_ulong), ("tp", ctypes.c_ulonglong), ("ap", ctypes.c_ulonglong),
+                            ("tv", ctypes.c_ulonglong), ("av", ctypes.c_ulonglong), ("tx", ctypes.c_ulonglong), ("ax", ctypes.c_ulonglong),
+                            ("ae", ctypes.c_ulonglong)]
+            m = MS()
+            m.l = ctypes.sizeof(MS)
+            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
+            return m.ap / 1048576
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemAvailable"):
+                    return int(line.split()[1]) / 1024
+    except Exception:
+        pass
+    return None
+
+
+def gpu_state() -> dict | None:
+    """{temp, free_mb} of the hottest / fullest GPU from nvidia-smi, or None when there is none."""
+    try:
+        out = subprocess.run(["nvidia-smi", "--query-gpu=temperature.gpu,memory.free", "--format=csv,noheader,nounits"], capture_output=True,
+                             text=True, timeout=10, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0).stdout
+        rows = [[float(x) for x in ln.split(",")] for ln in out.strip().splitlines() if ln.strip()]
+        return {"temp": max(r[0] for r in rows), "free_mb": min(r[1] for r in rows)} if rows else None
+    except Exception:
+        return None
+
+
+def _danger() -> str:
+    """Why the machine is too stressed for the AI right now ('' = fine)."""
+    ram, gpu = free_ram_mb(), gpu_state()
+    if ram is not None and ram < MIN_FREE_RAM_MB:
+        return f"free memory is down to {ram:.0f} MB"
+    if gpu and gpu["temp"] >= MAX_GPU_TEMP_C:
+        return f"the GPU reached {gpu['temp']:.0f} °C"
+    if gpu and gpu["free_mb"] < MIN_FREE_VRAM_MB:
+        return f"only {gpu['free_mb']:.0f} MB of GPU memory is left"
+    return ""
+
+
+def _pidfile() -> Path:
+    return ai_dir() / "llama-server.pid"
+
+
+def kill_stale() -> None:
+    """A llama-server left behind by an earlier crash or kill of this app is stopped (only the one recorded in our pid file)."""
+    try:
+        pid = int(_pidfile().read_text().strip())
+        _pidfile().unlink(missing_ok=True)
+        if sys.platform == "win32":
+            out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"], capture_output=True, text=True, timeout=10,
+                                 creationflags=subprocess.CREATE_NO_WINDOW).stdout
+            if "llama-server" in out.lower():
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, timeout=10, creationflags=subprocess.CREATE_NO_WINDOW)
+        else:
+            os.kill(pid, 15)
+    except Exception:
+        pass
+
+
+def _guard() -> None:
+    """Watches the running server every few seconds and stops it before the machine is hurt."""
+    proc = _server["proc"]
+    while proc is not None and proc.poll() is None and _server["proc"] is proc:
+        time.sleep(5)
+        if time.time() - _server["started"] > MAX_RUN_SECONDS:
+            why = f"it had run for {MAX_RUN_SECONDS // 60} minutes (the safety limit)"
+        else:
+            why = _danger()
+        if why:
+            _server["tripped"], _server["tripped_at"] = why, time.time()
+            stop()
+            return
+
+
 def ensure_running(wait: float = 120.0) -> str:
     """Base URL of the built-in server, starting it when needed."""
     with _lock:
         if _server["proc"] is not None and _server["proc"].poll() is None:
             _server["last_used"] = time.time()
             return f"http://127.0.0.1:{_server['port']}"
+        if _server["tripped"] and time.time() - _server["tripped_at"] < COOLDOWN_SECONDS:
+            raise RuntimeError(f"the AI was stopped for safety ({_server['tripped']}); try again in a few minutes")
         if not ready():
             raise RuntimeError("the built-in AI is not downloaded yet (Settings > AI helper)")
+        kill_stale()
+        ram, gpu = free_ram_mb(), gpu_state()
+        need = MIN_START_RAM_MB if gpu_layers() >= 99 else 6144
+        if ram is not None and ram < need:
+            raise RuntimeError(f"not enough free memory to start the AI safely ({ram:.0f} MB free, {need} MB needed): close other programs")
+        if gpu and gpu["temp"] >= MAX_GPU_TEMP_C - 8:
+            raise RuntimeError(f"the GPU is already hot ({gpu['temp']:.0f} °C): let it cool before starting the AI")
+        _server["tripped"] = ""
         first = gpu_layers()
         # start-up that dies (not enough GPU memory) is retried with fewer layers on the GPU; the rest then runs from normal RAM
         plan = [first] + ([max(0, min(first, MODEL_LAYERS) - 8), 0] if first > 0 else [])
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0
         for ngl in dict.fromkeys(plan):
             port = _free_port()
-            cmd = [str(server_exe()), "-m", str(model_path()), "--port", str(port), "--host", "127.0.0.1", "-ngl", str(ngl), "-c", str(CTX), "--jinja"] + SERVER_EXTRA
-            _server["proc"] = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
-            _server["port"], _server["last_used"] = port, time.time()
+            cmd = [str(server_exe()), "-m", str(model_path()), "--port", str(port), "--host", "127.0.0.1", "-ngl", str(ngl), "-c", str(CTX), "--jinja", "-t", str(max(2, (os.cpu_count() or 4) // 2))] + SERVER_EXTRA
+            low = getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0)       # the desktop stays responsive
+            _server["proc"] = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags | low)
+            _server["port"], _server["last_used"], _server["started"] = port, time.time(), time.time()
+            try:
+                _pidfile().write_text(str(_server["proc"].pid))
+            except OSError:
+                pass
             deadline = time.time() + wait
             died = False
             while time.time() < deadline:
@@ -202,6 +305,7 @@ def ensure_running(wait: float = 120.0) -> str:
                     with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=2) as r:
                         if r.status == 200:
                             threading.Thread(target=_idle_watch, daemon=True).start()
+                            threading.Thread(target=_guard, daemon=True, name="vmi-ai-guard").start()
                             return f"http://127.0.0.1:{port}"
                 except Exception:
                     if _server["proc"].poll() is not None:
@@ -231,6 +335,14 @@ def stop() -> None:
         except subprocess.TimeoutExpired:
             p.kill()
     _server["proc"] = None
+    try:
+        _pidfile().unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+import atexit  # noqa: E402
+atexit.register(stop)          # the server never outlives the app
 
 
 def chat(prompt: str, timeout: float = 300.0) -> str:
