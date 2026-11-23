@@ -96,6 +96,16 @@ def wait_until_up(port: int, proc, secs: float = WAIT_SECS, sleep=time.sleep) ->
     return False
 
 
+def port_free(port: int) -> bool:
+    import socket
+    with socket.socket() as s:
+        try:
+            s.bind(("127.0.0.1", port))
+            return True
+        except OSError:
+            return False
+
+
 def serve(port: int, open_browser: bool = True, root: Path = ROOT) -> int:
     from vmi.version import version
 
@@ -112,9 +122,16 @@ def serve(port: int, open_browser: bool = True, root: Path = ROOT) -> int:
         if not stop_listener(port):
             say("Could not stop it. Close the other VMI window (or restart the PC) and try again.")
             return 1
+    if not port_free(port):                  # some other program (not this app) holds the port: use the next free one
+        other = next((p for p in range(port + 1, port + 50) if port_free(p)), None)
+        if other is None:
+            say(f"Port {port} is used by another program and no free port was found nearby. Close that program and try again.")
+            return 1
+        say(f"Port {port} is used by another program (not this app): using port {other} instead.")
+        port = other
     log_path = root / "data" / "launcher.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    cmd = [sys.executable, "-m", "uvicorn", "vmi.api.app:app", "--host", "127.0.0.1", "--port", str(port)]
+    cmd =[sys.executable, "-m", "uvicorn", "vmi.api.app:app", "--host", "127.0.0.1", "--port", str(port)]
     say("Starting the app...")
     import signal
     import threading
