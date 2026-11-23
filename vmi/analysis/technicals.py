@@ -251,6 +251,26 @@ def chart_slope(closes, aspect: float | None = None) -> dict | None:
             "fitted_total_return": float(np.exp(rise) - 1), "months": int(len(m))}
 
 
+def volatility_profile(df: pd.DataFrame, beta: float | None = None) -> dict | None:
+    """How jumpy the stock is (10y daily history): annualised volatility, worst drawdown, typical monthly swing and the label
+    defensive / moderate / growth-like. Owner extra (not from Adam): volatility under ~22% a year = defensive, over ~35% = high-growth."""
+    import numpy as np
+    close = df["close"].dropna() if df is not None and not df.empty and "close" in df else None
+    if close is None or len(close) < 250:
+        return None
+    r = np.log(close.values[1:] / close.values[:-1])
+    ann = float(np.std(r, ddof=1) * np.sqrt(252))
+    y1 = float(np.std(r[-252:], ddof=1) * np.sqrt(252))
+    peak = np.maximum.accumulate(close.values)
+    dd = float(np.min(close.values / peak - 1))
+    m = close.resample("ME").last().dropna() if hasattr(close.index, "freq") or isinstance(close.index, pd.DatetimeIndex) else None
+    mon = m.pct_change().dropna() if m is not None and len(m) > 12 else None
+    avg_move = float(np.mean(np.abs(mon.values))) if mon is not None and len(mon) else None
+    label = "defensive" if ann < 0.22 else "growth-like (high)" if ann >= 0.35 else "moderate"
+    return {"annual_vol": round(ann, 4), "annual_vol_1y": round(y1, 4), "max_drawdown": round(dd, 4),
+            "avg_monthly_move": None if avg_move is None else round(avg_move, 4), "beta": beta, "label": label, "years": round(len(close) / 252, 1)}
+
+
 def ten_year_slope(df: pd.DataFrame) -> dict | None:
     monthly = resample(df.dropna(subset=["close"]), "ME")
     return chart_slope(monthly["close"].values) if len(monthly) else None

@@ -34,6 +34,7 @@ async function detail(box, id) {
         <button class="primary">Add / update</button>
         <span class="spacer"></span>
         <button type="button" id="wl-import" class="secondary">Import…</button>
+        <button type="button" id="wl-export" class="secondary" title="Download this watchlist as a CSV (symbol, iv, supports) that Import reads back">Export CSV</button>
         <button type="button" id="wl-check" class="secondary">Check prices now</button>
         <button type="button" id="wl-scan" class="secondary">Run VMI scan on list</button>
         <button type="button" id="wl-stats" class="secondary">Watchlist stats</button>
@@ -73,6 +74,15 @@ async function detail(box, id) {
     });
   });
   $("#wl-import", box).addEventListener("click", () => importDialog(id, refresh));
+  $("#wl-export", box).addEventListener("click", async () => {
+    const w = await api.watchlist(id);
+    const csv = ["symbol,iv,supports", ...(w.items || []).map((i) => `${i.symbol},${i.intrinsic_value ?? ""},${(i.supports || []).join(";")}`)].join("\n") + "\n";
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.download = `watchlist-${(w.name || id).toString().replace(/[^\w-]+/g, "_")}.csv`;
+    a.click(); URL.revokeObjectURL(a.href);
+    toast(`Exported ${(w.items || []).length} symbols`, "ok");
+  });
   $("#wl-check", box).addEventListener("click", (e) => run(e.target, async () => { const r = await api.checkAlerts(); toast(`Checked — ${Array.isArray(r) ? r.length : 0} new alert(s)`, "ok"); refresh(); }));
   $("#wl-scan", box).addEventListener("click", (e) => run(e.target, async () => { await api.scanWatchlist(id); location.hash = "#/scanner"; }));
   $("#wl-del", box).addEventListener("click", (e) => confirm(`Delete ${w.name}?`) && run(e.target, async () => { await api.deleteWatchlist(id); location.hash = "#/watchlists"; }));

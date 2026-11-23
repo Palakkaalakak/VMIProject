@@ -120,6 +120,20 @@ function valuation(r) {
   </div>`;
 }
 
+function volatility(r) {
+  const v = r.volatility;
+  if (!v) return "";
+  const pct = (x) => (x == null ? "—" : (x * 100).toFixed(1) + "%");
+  return `<div class="card"><h3>Volatility <span class="muted small">defensive or growth?</span></h3>
+    <div class="kpis"><div class="kpi" title="Standard deviation of daily returns, annualised, over the whole history (about ${v.years} years)"><span>average volatility / yr</span><b>${pct(v.annual_vol)}</b></div>
+      <div class="kpi"><span>last 12 months</span><b>${pct(v.annual_vol_1y)}</b></div>
+      <div class="kpi"><span>worst drawdown</span><b>${pct(v.max_drawdown)}</b></div>
+      <div class="kpi" title="Average size of a calendar month's move, up or down"><span>typical monthly move</span><b>${pct(v.avg_monthly_move)}</b></div>
+      <div class="kpi"><span>beta</span><b>${v.beta == null ? "—" : v.beta.toFixed(2)}</b></div>
+      <div class="kpi"><span>profile</span><b>${esc(v.label)}</b></div></div>
+    <p class="small muted">Owner extra, not from Adam. Under 22% a year reads as defensive, 22-35% moderate, 35% and over growth-like. For comparison, the S&amp;P 500 is usually about 15-20%.</p></div>`;
+}
+
 function technicals(r) {
   const t = r.technicals;
   if (!t) return "";
@@ -221,7 +235,7 @@ async function bindOverrides(out, r) {
   });
 }
 
-const view = (r) => `${header(r)}<div class="cols"><div>${valuation(r)}${technicals(r)}</div><div>${trade(r)}${overrides()}</div></div>${steps(r)}`;
+const view = (r) => `${header(r)}<div class="cols"><div>${valuation(r)}${volatility(r)}${technicals(r)}</div><div>${trade(r)}${overrides()}</div></div>${steps(r)}`;
 
 function bind(out, r) {
   const cb = $("#an-chart-box", out);

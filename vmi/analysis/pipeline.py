@@ -208,7 +208,7 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
         "steps": [s.to_dict() for s in (s1, s2, s3, s4, s5, s6, s7)],
         "normalised": {"enabled": rules.normalise.enabled, "years": rules.normalise.years},
         "valuation": val.to_dict(), "iv_confidence": _iv_confidence(val, g, f, ov, rules),
-        "intrinsic_value": iv, "technicals": tech_dict, "metrics": metrics,
+        "intrinsic_value": iv, "volatility": T.volatility_profile(hist, est.beta) if hist is not None and not hist.empty else None, "technicals": tech_dict, "metrics": metrics,
         "estimates": {k: v for k, v in est.to_dict().items() if k != "extra"},
         "data": {"provenance": f.provenance, "completeness": f.meta.get("completeness"), "warnings": f.warnings,
                  "latest_date": f.latest_date, "currency": f.currency},
