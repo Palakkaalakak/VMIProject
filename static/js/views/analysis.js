@@ -254,7 +254,7 @@ function bind(out, r) {
     const mult = chosen();
     const s = await api.size(r.ticker, pf.value, mult).catch(() => null);
     if (s) $("#trade-size", out).textContent =
-      `Full allocation ${fmt.money(s.full_allocation, 0)} (×${mult}) · tranche ${fmt.money(s.tranche_value, 0)} ≈ ${s.shares_next_tranche} sh · held ${fmt.money(s.current_value, 0)} · remaining ${fmt.money(s.remaining_value, 0)} ${s.warning ? "· ⚠ " + s.warning : ""}`;
+      `Full allocation ${fmt.money(s.full_allocation, 0)} (×${mult}) · tranche ${fmt.money(s.tranche_value, 0)} (1 of ${s.tranches}) ≈ ${s.shares_next_tranche} sh · held ${fmt.money(s.current_value, 0)} · remaining ${fmt.money(s.remaining_value, 0)} ${s.warning ? "· ⚠ " + s.warning : ""}`;
   };
   pf?.addEventListener("change", showSize);
   $("#trade-mult", out)?.addEventListener("change", showSize);
