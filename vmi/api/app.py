@@ -330,9 +330,9 @@ def fundamentals(symbol: str):
 
 
 @ar.get("/{symbol}/size")
-def size(symbol: str, portfolio_id: int, multiplier: float = 1.0):
+def size(symbol: str, portfolio_id: int, multiplier: float = 1.0, price: float | None = None):
     from vmi.paper.engine import size_for
-    return size_for(portfolio_id, symbol, multiplier)
+    return size_for(portfolio_id, symbol, multiplier, price)
 
 
 # ======================================================================================== scanner

@@ -105,6 +105,7 @@ function orderForm(r = {}) {
     <label class="wide">Thesis / why this trade <input name="thesis" value="${esc(r.thesis || "")}"></label>
     <label class="wide">Note <input name="note" value="${esc(r.note || "")}"></label>
     <label class="wide"><b>Reason for this admin change (required)</b> <input name="reason" required placeholder="e.g. fill missed while IBKR was offline"></label>
+    ${r.id ? "" : `<label class="check wide"><input type="checkbox" name="auto"> auto-size one VMI tranche (type the fill price first; fills the shares for you)</label><div class="small muted wide" id="auto-note"></div>`}
     <label class="check"><input type="checkbox" name="neg"> allow cash to go negative at some point</label>
     <button class="primary">Save</button></form>`;
 }
@@ -119,7 +120,20 @@ function payload(form) {
 
 function addModal(root, id) {
   const m = modal("Add a real order (back-dated allowed)", orderForm());
-  $("form", m.el).addEventListener("submit", (e) => {
+  const frm = $("form", m.el);
+  const autosize = async () => {          // shares = one tranche at the price typed in (this portfolio's sizing, tranche count and cash)
+    if (!frm.auto.checked) return;
+    const sym = frm.symbol.value.trim().toUpperCase(), px = +frm.price.value, note = $("#auto-note", m.el);
+    if (!sym || !(px > 0) || frm.side.value !== "BUY" || frm.sec_type.value !== "STK") { note.textContent = "Needs a stock BUY with a symbol and a fill price."; return; }
+    try {
+      const s = await api.size(sym, id, 1, px);
+      frm.qty.value = s.shares_next_tranche;
+      note.textContent = `Tranche ${fmt.money(s.tranche_value, 0)} (1 of ${s.tranches}) at ${fmt.money(px, 2)} = ${s.shares_next_tranche} shares${s.warning ? " · ⚠ " + s.warning : ""}`;
+    } catch (err) { note.textContent = err.message; }
+  };
+  ["symbol", "price", "side", "sec_type", "auto"].forEach((n) => frm.elements[n] && frm.elements[n].addEventListener("change", autosize));
+  frm.price.addEventListener("input", autosize);
+  frm.addEventListener("submit", (e) => {
     e.preventDefault();
     const { d, reason, allow_negative_cash } = payload(e.target);
     run(e.submitter, async () => { await api.ledgerAdd(id, { ...d, reason, allow_negative_cash }); m.close(); toast("Order added; portfolio rebuilt", "ok"); draw(root, id); });

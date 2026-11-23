@@ -38,7 +38,7 @@ export const api = {
   settings: () => request("GET", "/api/settings"),
   saveSettings: (changes) => request("PUT", "/api/settings", { changes }),
   resetSettings: () => request("DELETE", "/api/settings"),
-  size: (s, portfolio_id, multiplier) => request("GET", `/api/analysis/${s}/size${qs({ portfolio_id, multiplier })}`),
+  size: (s, portfolio_id, multiplier, price) => request("GET", `/api/analysis/${s}/size${qs({ portfolio_id, multiplier, price })}`),
   // scanner
   scanPresets: () => request("GET", "/api/scan/presets"),
   scanStart: (body) => request("POST", "/api/scan/start", body),

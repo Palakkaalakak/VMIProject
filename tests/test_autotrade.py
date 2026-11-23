@@ -224,3 +224,9 @@ def test_one_click_sizing_follows_the_stated_levels(pid):
     assert engine.stated_tranches(pid, "NOPE") is None                 # nothing stated: the fixed rule (4)
     autotrade.upsert_plan(pid, "ZZZ", buy_levels=[50, 45, 40])
     assert engine.stated_tranches(pid, "ZZZ") == 3                     # the portfolio's own plan wins over the watchlist
+
+
+def test_size_for_takes_an_explicit_price(pid):
+    from vmi.paper import engine
+    s = engine.size_for(pid, "ZZZ", 1.0, 50.0)
+    assert s["price"] == 50.0 and s["shares_next_tranche"] == int(s["tranche_value"] // 50)

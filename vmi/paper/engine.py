@@ -322,10 +322,10 @@ def trades(pid: int, limit: int = 200) -> list[dict]:
         return [store.to_dict(t) for t in s.scalars(q)]
 
 
-def size_for(pid: int, symbol: str, multiplier: float = 1.0) -> dict:
+def size_for(pid: int, symbol: str, multiplier: float = 1.0, price: float | None = None) -> dict:
     """Auto order sizing per VMI rules for this portfolio."""
     summ = summary(pid)
-    price = market.last_price(symbol) or 0
+    price = price or market.last_price(symbol) or 0       # an explicit price (the admin order form) beats the live quote
     cur = sum(r["market_value"] for r in summ["positions"] if r["symbol"] == symbol.upper() and r["sec_type"] == "STK")
     return sizing.plan(summ["equity"], price, cur, summ["target_positions"], multiplier,
                        tranches=stated_tranches(pid, symbol), cash=summ["free_cash"]).to_dict()
