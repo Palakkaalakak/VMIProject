@@ -47,7 +47,11 @@ def test_option_fill_slippage():
 
 def test_sizing_equal_weight_tranches():
     p = plan(100_000, 100, target_positions=20)
-    assert p.full_allocation == 5000 and p.tranche_value == 1250 and p.shares_next_tranche == 12
+    assert p.full_allocation == 5000 and p.tranche_value == 1250 and p.shares_next_tranche == 12.5       # fractional shares to 2 decimals
+    from dataclasses import replace
+    from vmi.rules import RULES
+    whole = plan(100_000, 99, target_positions=20, rules=replace(RULES.portfolio, fractional_shares=False))
+    assert whole.shares_next_tranche == 12 and plan(100_000, 99, target_positions=20).shares_next_tranche == 12.62
 
 
 def test_sizing_speculative_half_and_full_stop():

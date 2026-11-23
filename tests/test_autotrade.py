@@ -229,4 +229,4 @@ def test_one_click_sizing_follows_the_stated_levels(pid):
 def test_size_for_takes_an_explicit_price(pid):
     from vmi.paper import engine
     s = engine.size_for(pid, "ZZZ", 1.0, 50.0)
-    assert s["price"] == 50.0 and s["shares_next_tranche"] == int(s["tranche_value"] // 50)
+    assert s["price"] == 50.0 and abs(s["shares_next_tranche"] - s["tranche_value"] / 50) < 0.01

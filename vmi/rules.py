@@ -190,6 +190,7 @@ class PortfolioRules:  # Lesson 8
     min_stocks: int = 8
     max_stocks: int = 60
     default_target_stocks: int = 20
+    fractional_shares: bool = True         # owner: fractional shares allowed, to 2 decimals
     tranches: int = 4                      # "three to four tranches"
     dynamic_tranches: bool = True          # owner: the stock's own stated levels (plan, else watchlist) decide how many tranches (3-6)
     speculative_multiplier: float = 0.5

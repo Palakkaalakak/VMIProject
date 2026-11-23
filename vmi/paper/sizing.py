@@ -23,14 +23,23 @@ class SizePlan:
     tranches: int
     current_value: float          # $ already held
     remaining_value: float        # $ still allowed
-    shares_next_tranche: int
-    shares_to_full: int
+    shares_next_tranche: float
+    shares_to_full: float
     price: float
     fractional_shares_next: float
     warning: str = ""
 
     def to_dict(self):
         return asdict(self)
+
+
+def _shares(value: float, price: float, rules: PortfolioRules) -> float:
+    """Whole shares, or down to 2 decimals when fractional shares are allowed (never rounds up past the money)."""
+    if price <= 0:
+        return 0
+    if not rules.fractional_shares:
+        return math.floor(value / price)
+    return math.floor(value / price * 100 + 1e-9) / 100
 
 
 def plan(equity: float, price: float, current_value: float = 0.0, target_positions: int | None = None,
@@ -48,9 +57,9 @@ def plan(equity: float, price: float, current_value: float = 0.0, target_positio
         next_val = max(0.0, cash)
     if remaining <= 0:
         warning = "full allocation reached — do not add (Lesson 8 discipline rule)"
-    shares_next = math.floor(next_val / price) if price > 0 else 0
+    shares_next = _shares(next_val, price, rules)
     return SizePlan(equity, n, multiplier, round(full, 2), round(tranche, 2), t, round(current_value, 2),
-                    round(remaining, 2), shares_next, math.floor(remaining / price) if price > 0 else 0, price,
+                    round(remaining, 2), shares_next, _shares(remaining, price, rules), price,
                     round(next_val / price, 4) if price > 0 else 0.0, warning)
 
 
