@@ -34,7 +34,7 @@ from vmi.rules import RULES
 
 ET = ZoneInfo("America/New_York")
 DEFAULTS: dict[str, Any] = {"sizing_mode": None, "watchlist_id": None, "manual_allocation": None,
-                            "tranches": RULES.portfolio.tranches, "auto_trade": False, "market_hours_only": True,
+                            "tranches": RULES.portfolio.tranches, "dynamic_tranches": RULES.portfolio.dynamic_tranches, "auto_trade": False, "market_hours_only": True,
                             "backfill": True, "fill_tolerance": 0.0, "alert_tolerance": RULES.technical.near_level_pct,
                             "max_backfill_days": 120,
                             "gap_stagger_days": 3}   # price through several unfilled levels: 1 now, the rest this many trading days apart (0 = all at once)
@@ -191,14 +191,14 @@ def plans_from_watchlist(pid: int, wid: int, overwrite: bool = False) -> dict:
     made, skipped = [], {}
     for it in items:
         if it.symbol in existing and not overwrite:
-            if RULES.portfolio.dynamic_tranches and it.supports and not _plan_has_levels(pid, it.symbol):
+            if settings(pid).get("dynamic_tranches") and it.supports and not _plan_has_levels(pid, it.symbol):
                 upsert_plan(pid, it.symbol, buy_levels=[float(x) for x in it.supports if x])      # an empty plan picks up the stated supports
                 made.append(it.symbol)
             else:
                 skipped[it.symbol] = "plan exists"
             continue
         # dynamic tranches: the stock's own supports in the watchlist ARE its buy levels (3, 4, 5, 6 ...), split equally
-        sup = [float(x) for x in (it.supports or []) if x] if RULES.portfolio.dynamic_tranches else []
+        sup = [float(x) for x in (it.supports or []) if x] if settings(pid).get("dynamic_tranches") else []
         fields = {"source": "watchlist", "status": "active", "buy_levels": sup, "sell_levels": []}
         if it.iv_source == "manual" and it.intrinsic_value:
             fields["intrinsic_value"] = it.intrinsic_value

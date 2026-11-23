@@ -334,8 +334,8 @@ def size_for(pid: int, symbol: str, multiplier: float = 1.0) -> dict:
 def stated_tranches(pid: int, symbol: str) -> int | None:
     """Dynamic tranche count (rule portfolio.dynamic_tranches): the number of buy levels stated for the stock, in the
     portfolio's plan first, else on a watchlist. None = use the fixed rule (3-4)."""
-    from vmi.rules import RULES
-    if not RULES.portfolio.dynamic_tranches:
+    from vmi.paper import autotrade
+    if not autotrade.settings(pid).get("dynamic_tranches"):
         return None
     sym = symbol.upper()
     with store.session() as s:

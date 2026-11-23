@@ -29,6 +29,7 @@ async function draw(root, id) {
           <option value="manual" ${c.sizing_mode === "manual" ? "selected" : ""}>Manual $ per stock</option></select></label>
         <label>Watchlist <select name="watchlist_id"><option value="">—</option>${wls.map((w) => `<option value="${w.id}" ${c.watchlist_id === w.id ? "selected" : ""}>${esc(w.name)} (${w.count ?? ""})</option>`).join("")}</select></label>
         <label>Manual $ per stock <input name="manual_allocation" type="number" step="any" value="${c.manual_allocation ?? ""}"></label>
+        <label title="Dynamic: each stock gets as many tranches as it has levels in its plan or watchlist (3, 4, 5, 6 ...). Fixed: always the default number below.">Tranches per stock <select name="dynamic_tranches"><option value="true" ${c.dynamic_tranches !== false ? "selected" : ""}>Dynamic: follow each stock's levels</option><option value="false" ${c.dynamic_tranches === false ? "selected" : ""}>Fixed number</option></select></label>
         <label title="Used only when a stock has no levels of its own: stocks with levels in a watchlist or plan use exactly that many tranches (3, 4, 5, 6 ...)">Default tranches per position <input name="tranches" type="number" min="1" max="10" value="${c.tranches}"></label>
         <label>Regular market hours only <select name="market_hours_only"><option value="true" ${c.market_hours_only ? "selected" : ""}>Yes</option><option value="false" ${c.market_hours_only ? "" : "selected"}>No</option></select></label>
         <label>Gap through several levels: trading days between tranches <input name="gap_stagger_days" type="number" min="0" max="30" value="${c.gap_stagger_days ?? 3}"></label>
@@ -57,7 +58,7 @@ async function draw(root, id) {
     const f = e.target, num = (v) => (v === "" ? null : +v);
     run(e.submitter, async () => {
       await api.savePfSettings(id, { auto_trade: f.auto_trade.value === "true", sizing_mode: f.sizing_mode.value, watchlist_id: num(f.watchlist_id.value),
-        manual_allocation: num(f.manual_allocation.value), tranches: +f.tranches.value, market_hours_only: f.market_hours_only.value === "true", backfill: f.backfill.value === "true", gap_stagger_days: +f.gap_stagger_days.value });
+        manual_allocation: num(f.manual_allocation.value), tranches: +f.tranches.value, dynamic_tranches: f.dynamic_tranches.value === "true", market_hours_only: f.market_hours_only.value === "true", backfill: f.backfill.value === "true", gap_stagger_days: +f.gap_stagger_days.value });
       toast("Settings saved", "ok"); draw(root, id);
     });
   });
