@@ -173,8 +173,19 @@ function overrides() {
     <div id="ov-body">${loading()}</div></div>`;
 }
 
+let REPORT = null;     // the analysis being shown (its growth sources fill the "Use one source" dropdown)
+function growthSourceSelect(name, v) {
+  const known = (SCHEMA.find((x) => x.key === "exclude_sources") || {}).choices || [];
+  const seen = (REPORT && REPORT.metrics && REPORT.metrics.growth_sources && REPORT.metrics.growth_sources.sources) || {};
+  const extra = Object.keys((REPORT && REPORT.overrides && REPORT.overrides.extra_sources) || {});
+  const names = [...new Set([...known, ...Object.keys(seen), ...extra, ...(v ? [v] : [])])];
+  const pct = (k) => (typeof seen[k] === "number" ? ` (${(seen[k] * 100).toFixed(1)}%)` : "");
+  return `<select ${name}><option value="">auto (blend of all sources)</option>${names.map((c) => `<option value="${esc(c)}" ${v === c ? "selected" : ""}>${esc(c)}${pct(c)}</option>`).join("")}</select>`;
+}
+
 function fieldInput(f, v) {
   const name = `name="${f.key}"`;
+  if (f.key === "growth_source") return growthSourceSelect(name, v);
   if (f.kind === "choice") {
     return `<select ${name}>${f.choices.map((c) => `<option value="${esc(c)}" ${(v ?? "") === c ? "selected" : ""}>${esc(c || "auto")}</option>`).join("")}</select>`;
   }
@@ -223,6 +234,7 @@ async function bindOverrides(out, r) {
   const box = $("#ov-body", out);
   if (!box) return;
   SCHEMA ||= await api.overrideSchema();
+  REPORT = r;
   box.innerHTML = overridesForm(r.overrides || {});
   const reanalyse = () => { location.hash = `#/analysis/${r.ticker}?t=${Date.now()}`; };
   $("#ov-form", box).addEventListener("submit", (e) => {
