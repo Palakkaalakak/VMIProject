@@ -303,6 +303,26 @@ def ai_opinion(symbol: str, level: str = "quick", checker: bool = False):
         raise HTTPException(503, f"The local AI model did not answer ({exc}).")
 
 
+@ar.post("/{symbol}/ai-explain")
+def ai_explain(symbol: str, level: str = "quick", fresh: bool = False):
+    """Optional, on request: a plain-language read of the company (what it does, history, industry, management) and WHY each metric is what
+    it is, with links. Slow (a few minutes on the local model); cached 3 days; never saved as a verdict."""
+    from vmi import ai_explain as AE, ai_helper, ai_research
+    from vmi.analysis import moat_evidence as ME
+    from vmi.analysis.pipeline import analyse_ticker
+    from vmi.data.fundamentals import resolve
+    st = ai_helper.status()
+    if st["backend"] != "builtin":
+        raise HTTPException(503, "The company explainer needs the built-in AI (Settings > AI helper).")
+    rep = analyse_ticker(symbol, with_technicals=False, overrides=store.get_override(symbol))
+    f = resolve(symbol)
+    try:
+        return AE.explain(symbol.upper(), rep.get("name", "") or symbol.upper(), rep, lambda msgs, mt: ai_research._chat(None, msgs, mt),
+                          margins=ME.margin_history(f) if f else None, level=level, cik=getattr(f, "cik", None), use_cache=not fresh)
+    except Exception as exc:
+        raise HTTPException(503, f"The local AI model did not finish ({exc}).")
+
+
 _AI_LAST: dict = {}      # last research opinion per ticker (this session only), so the optional checker can verify it
 
 

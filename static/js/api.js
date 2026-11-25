@@ -46,6 +46,7 @@ export const api = {
   scanResults: (params) => request("GET", `/api/scan/results${qs(params)}`),
   bars: (s, interval = "1d") => request("GET", `/api/bars/${s}${qs({ interval })}`),
   aiStatus: () => request("GET", "/api/ai/status"),
+  aiExplain: (s, level, fresh) => request("POST", `/api/analysis/${s}/ai-explain${qs({ level, fresh })}`),
   aiDownload: () => request("POST", "/api/ai/download"),
   aiRemove: () => request("DELETE", "/api/ai/model"),
   aiOpinion: (s, level = "quick", checker = false) => request("POST", `/api/analysis/${s}/ai-opinion?level=${level}&checker=${checker}`),

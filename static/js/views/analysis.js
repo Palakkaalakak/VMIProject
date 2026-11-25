@@ -249,9 +249,37 @@ async function bindOverrides(out, r) {
   });
 }
 
-const view = (r) => `${header(r)}<div class="cols"><div>${valuation(r)}${volatility(r)}${technicals(r)}</div><div>${trade(r)}${overrides()}</div></div>${steps(r)}`;
+const view = (r) => `${header(r)}<div class="cols"><div>${valuation(r)}${volatility(r)}${technicals(r)}</div><div>${trade(r)}${overrides()}</div></div>${steps(r)}${explainCard()}`;
+
+/** "Explain this company": AI read of what the company is and why each metric is what it is. Shown only when the built-in AI is ready. */
+const explainCard = () => `<section class="card" id="an-explain" hidden><h3>Explain this company <span class="badge na">AI, minor help</span></h3>
+  <p class="small muted">A plain-language read: what the company does and how it makes money, its industry, history, management, what moves it, and
+    WHY each of the numbers above is what it is, with links to read more. Uses the local AI (nothing leaves this PC except the web searches) and takes a few minutes.
+    Facts come from web pages it cites; the app's numbers are never changed; it is not advice.</p>
+  <div class="inline"><label class="small">Depth <select id="ex-level"><option value="quick">quick</option><option value="deep">deep (more sources, slower)</option></select></label>
+    <button id="ex-go">Explain this company</button><label class="small check"><input type="checkbox" id="ex-fresh"> ignore the 3-day cache</label></div>
+  <div id="ex-out" class="small"></div></section>`;
+
+function showExplain(box, ex) {
+  const links = (us) => us.length ? `<div class="muted">Read more: ${us.map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60))}</a>`).join(" · ")}</div>` : "";
+  box.innerHTML = `<p class="muted">${esc(ex.name)} · ${esc(ex.level)} · ${esc(ex.generated)}${ex.cached ? " · from cache" : ""}</p>` +
+    ex.sections.map((s) => `<h4>${esc(s.title)}</h4>${s.figures ? `<pre class="small muted" style="white-space:pre-wrap">${esc(s.figures)}</pre>` : ""}
+      <p style="white-space:pre-wrap">${esc(s.text)}</p>${links(s.links)}`).join("") +
+    `<h4>Further reading</h4>${links(ex.further_reading)}`;
+}
 
 function bind(out, r) {
+  api.aiStatus().then((a) => {
+    if (!a.builtin?.ready || !document.body.contains(out)) return;
+    const card = $("#an-explain", out);
+    if (!card) return;
+    card.hidden = false;
+    $("#ex-go", out).addEventListener("click", (e) => run(e.target, async () => {
+      $("#ex-out", out).textContent = "Researching and writing … this takes a few minutes. You can keep using the app.";
+      try { showExplain($("#ex-out", out), await api.aiExplain(r.ticker, $("#ex-level", out).value, $("#ex-fresh", out).checked)); }
+      catch (err) { $("#ex-out", out).innerHTML = `<span class="neg">${esc(err.message)}</span>`; }
+    }));
+  }).catch(() => {});
   const cb = $("#an-chart-box", out);
   if (cb) cb.addEventListener("toggle", () => { if (cb.open && !cb.dataset.done) { cb.dataset.done = "1"; mountChart($("#an-chart", out), r.ticker, { levels: r.technicals?.buy_levels || [] }).then((h) => { chartH = h; applyWl(); }).catch(() => {}); } });
   // supports stated in the chosen watchlist for this stock are drawn as the tranche lines (T1 = highest)

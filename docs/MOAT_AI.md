@@ -50,3 +50,9 @@ Single runs flip on borderline stocks, so treat one grade as a prompt to check. 
 - Web search quality decides a lot: with empty research the AI falls back to the 10-K alone.
 - Idle shutdown of the model server after 10 minutes was not re-verified after the Gemma switch.
 - The checker was only exercised in a few runs.
+
+## Explain this company (Analysis page)
+A separate, optional read (not a grade): `vmi/ai_explain.py`. Press "Explain this company" on the Analysis page (built-in AI must be ready).
+It researches the business, industry, history, management and risks, and explains WHY each metric group is what it is, handing the model the
+app's own numbers. Quick = 2 pages per question, deep = 3 and longer sections. Cached 3 days (tick "ignore the cache" to refresh). Every
+factual claim should carry a source link; otherwise it says "not found in the sources". Not advice, not saved.
