@@ -183,6 +183,27 @@ class WatchItem(Base):
     watchlist: Mapped[Watchlist] = relationship(back_populates="items")
 
 
+class SupportTouch(Base):
+    """One touch of a buy level / support: lets the owner learn whether buying ON the touch or WAITING for confirmation works
+    better (vmi/paper/entry_timing.py). Open until a buy is linked to it (entered) or price leaves / 30 days pass (lapsed)."""
+    __tablename__ = "support_touches"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(20), index=True)
+    level: Mapped[float] = mapped_column(Float)
+    touch_price: Mapped[float] = mapped_column(Float)
+    touched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    source: Mapped[str] = mapped_column(String(12), default="watchlist")   # watchlist | plan | manual (a buy with no prior touch)
+    status: Mapped[str] = mapped_column(String(10), default="open")        # open | entered | lapsed
+    waiting: Mapped[bool | None] = mapped_column(Boolean, nullable=True)  # None = never answered = assumed waiting for confirmation
+    last_asked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    answers: Mapped[list] = mapped_column(JSON, default=list)              # [{"at": iso, "waiting": bool}]
+    entry_type: Mapped[str | None] = mapped_column(String(12), nullable=True)   # on_touch | special | confirmed
+    trade_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    entry_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    entered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class Alert(Base):
     __tablename__ = "alerts"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

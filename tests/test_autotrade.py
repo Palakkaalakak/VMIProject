@@ -212,6 +212,16 @@ def test_live_gap_fills_one_now_and_schedules_the_rest(pid):
     assert any(e["event"] == "gap_stagger" for e in ev)
 
 
+def test_alert_only_plan_staggers_a_gap_too(pid):
+    autotrade.update_settings(pid, {"auto_trade": False, "gap_stagger_days": 3})
+    autotrade.upsert_plan(pid, "AAA", buy_levels=[95, 90, 85], intrinsic_value=150)
+    ev = autotrade.run(pid, quote_fn=quote(84), history_fn=no_history, in_session=lambda: True)
+    assert _trades(pid) == []                                            # alert only: nothing is bought
+    lv = autotrade.get_plans(pid)[0]["buy_levels"]
+    assert [l["status"] for l in lv] == ["alerted", "scheduled", "scheduled"] and lv[2]["fill_after"] > lv[1]["fill_after"]
+    assert any(e["event"] == "gap_stagger" for e in ev)
+
+
 def test_one_click_sizing_follows_the_stated_levels(pid):
     from vmi.paper import engine
     with store.session() as s:

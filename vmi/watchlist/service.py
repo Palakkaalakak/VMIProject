@@ -25,6 +25,7 @@ from sqlalchemy import select
 
 from vmi import store
 from vmi.data import market
+from vmi.paper import entry_timing
 from vmi.rules import RULES
 
 log = logging.getLogger("vmi.watchlist")
@@ -220,6 +221,8 @@ def enrich(item: dict, price: float | None = None) -> dict:
 def check_all() -> list[dict]:
     """Refresh prices for every watched symbol and create alerts for newly triggered conditions."""
     new_alerts: list[dict] = []
+    touches: list[tuple] = []
+    moves: list[tuple] = []
     with store.session() as s:
         items = [i for i in s.scalars(select(store.WatchItem)) if i.stage != "review"]
         symbols = sorted({i.symbol for i in items})
@@ -246,6 +249,7 @@ def check_all() -> list[dict]:
                            + (f" — {((iv - px) / iv):.0%} below IV {iv:.2f}" if iv else "")
                            + ". Consider a tranche (Step 7).")
                     s.add(store.Alert(symbol=it.symbol, kind="buy_level", message=msg, price=px))
+                    touches.append((it.symbol, lvl, px))
                     new_alerts.append({"symbol": it.symbol, "kind": "buy_level", "message": msg})
                     trig.add(key)
                 elif px > lvl * (1 + 3 * tol) and key in trig:
@@ -258,7 +262,12 @@ def check_all() -> list[dict]:
             elif iv and px > iv * 1.03:
                 trig.discard("IV")
             it.triggered = sorted(trig)
+            moves.append((it.symbol, px))
         s.commit()
+    for sym, lvl, px in touches:                 # after the commit: these use their own sessions (SQLite allows one writer)
+        entry_timing.record_touch(sym, lvl, px, "watchlist")
+    for sym, px in moves:
+        entry_timing.on_price(sym, px)
     return new_alerts
 
 

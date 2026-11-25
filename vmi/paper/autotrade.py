@@ -17,6 +17,7 @@ Gap rule (owner, 2026-11-11): when one price check finds SEVERAL unfilled buy le
 tranches 1-3), only the highest is filled now; the others are "scheduled" `gap_stagger_days` trading days apart, a buffer
 in case the price keeps falling (a lower level reached meanwhile fills on its own). When a scheduled tranche falls due it
 is released to the normal check: it fills if the price is still at/below its level and below IV, otherwise it waits.
+Alert-only plans follow the same schedule (only the alert, not the fill, is staggered).
 """
 from __future__ import annotations
 
@@ -351,7 +352,7 @@ def _release_and_stagger(buys: list[dict], day, reached: Callable[[dict], bool],
     """Gap rule. 1) scheduled tranches that fell due go back to pending; 2) of the pending levels reached right now keep
     only the highest, schedule the rest `gap_stagger_days` trading days apart."""
     n = int(cfg.get("gap_stagger_days") or 0)
-    if not auto or n <= 0:
+    if n <= 0:                      # alert-only plans are staggered too (owner 2026-11-25): one level alerts now, the rest on their dates
         return
     for l in buys:
         if l["status"] == "scheduled" and str(l.get("fill_after") or "") <= str(day):
@@ -413,7 +414,7 @@ def _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now) -> list[di
                             if lvl["status"] != "alerted":
                                 msg = f"{sym} touched buy level {lvl['price']:.2f} on {day} while offline (alert only)."
                                 _alert(sym, "tranche_level", msg, fill_ref)
-                                events.append({"symbol": sym, "event": "backfill_alert", "day": str(day)})
+                                events.append({"symbol": sym, "event": "backfill_alert", "day": str(day), "level": lvl["price"], "px": fill_ref})
                                 done(lvl, "alerted", note=msg)
                             continue
                         held = _held(pid, sym, datetime.combine(day, dtime(23, 59), ET))
@@ -431,7 +432,7 @@ def _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now) -> list[di
                         done(lvl, "filled", trade_id=tid, filled_at=str(day), fill_price=fill_ref)
                         _alert(sym, "tranche_filled", f"{sym} tranche {i + 1} back-filled at {fill_ref:.2f} on {day} "
                                                       f"(${amount:,.0f}; app was offline).", fill_ref)
-                        events.append({"symbol": sym, "event": "backfill_buy", "day": str(day), "trade_id": tid})
+                        events.append({"symbol": sym, "event": "backfill_buy", "day": str(day), "trade_id": tid, "level": lvl["price"], "px": fill_ref})
                     for i, lvl in enumerate(sells):
                         trig = _sell_trigger(lvl, iv)
                         if lvl["status"] not in ("pending", "alerted") or trig is None or bar["high"] < trig:
@@ -476,7 +477,7 @@ def _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now) -> list[di
                         continue
                     try:
                         res = engine.trade_stock(pid, sym, "BUY", dollars=amount, quote=qt, journal={
-                            "source": "auto", "tags": "auto-tranche",
+                            "source": "auto", "tags": "auto-tranche", "entry_type": "on_touch",
                             "context": _plan_ctx(plan, i, "buy", alloc, "live price")})
                     except Exception as exc:
                         done(lvl, "skipped", note=str(exc)[:200])
@@ -492,7 +493,7 @@ def _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now) -> list[di
                            "alert only" if not auto else "near level")
                     _alert(sym, "tranche_level", f"{sym} at {px:.2f} is at/near buy level {lvl['price']:.2f} ({why}).", px)
                     done(lvl, "alerted", note=why)
-                    events.append({"symbol": sym, "event": "level_alert", "why": why})
+                    events.append({"symbol": sym, "event": "level_alert", "why": why, "level": lvl["price"], "px": px})
             for i, lvl in enumerate(sells):
                 trig = _sell_trigger(lvl, iv)
                 if lvl["status"] not in ("pending", "alerted") or trig is None or px < trig:
@@ -522,4 +523,20 @@ def _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now) -> list[di
         if events:
             _log(plan, "run", events=events)
         s.commit()
+    _track_timing(events)
     return events
+
+
+def _track_timing(events: list[dict]) -> None:
+    """Entry-timing tracker (vmi/paper/entry_timing.py): a level that alerted is a touch; a back-filled buy is an on-touch entry.
+    Live auto-buys are linked by the engine (journal entry_type). Runs after the plan session closed (SQLite: one writer)."""
+    from vmi.paper import entry_timing
+    for e in events:
+        try:
+            if e["event"] in ("level_alert", "backfill_alert"):
+                entry_timing.record_touch(e["symbol"], e["level"], e["px"], "plan")
+            elif e["event"] == "backfill_buy":
+                entry_timing.record_touch(e["symbol"], e["level"], e["px"], "plan")
+                entry_timing.link_entry(e["symbol"], e["trade_id"], e["px"], "on_touch")
+        except Exception:              # tracking must never break trading
+            pass

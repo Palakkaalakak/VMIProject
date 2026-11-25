@@ -157,6 +157,8 @@ function trade(r) {
     <form id="trade-form" class="inline">
       <select id="trade-pf">${opts}</select>
       <select id="trade-side"><option>BUY</option><option>SELL</option></select>
+      <label class="small" title="How you are entering: on the touch of the support, after it confirmed, or for another reason. Feeds the 'wait or buy?' evidence on the Alerts page.">Entry
+        <select id="trade-entry"><option value="">choose…</option><option value="on_touch">on touch</option><option value="confirmed">confirmed</option><option value="special">special</option></select></label>
       <label class="check"><input type="checkbox" id="trade-tranche" checked> one VMI tranche (auto-size)</label>
       <label class="small">Position size ${sizeSelect("trade-mult", null, { auto: `automatic (category: ×${r.allocation_multiplier ?? 1})`, id: "trade-mult" })}</label>
       <input id="trade-qty" type="number" step="any" min="0" placeholder="or qty">
@@ -290,6 +292,10 @@ function bind(out, r) {
     const qty = parseFloat($("#trade-qty", out).value);
     const body = { symbol: r.ticker, side: $("#trade-side", out).value, multiplier: chosen(),
       tranche: $("#trade-tranche", out).checked && !qty, qty: qty || null };
+    if (body.side === "BUY") {
+      body.entry_type = $("#trade-entry", out).value;
+      if (!body.entry_type) return toast("Say how you are entering: on touch, confirmed or special", "error");
+    }
     run(e.submitter, async () => {
       const res = await api.stockOrder(pf.value, body);
       toast(`Filled ${res.trade.side} ${fmt.num(res.trade.qty, 4)} ${r.ticker} @ ${fmt.money(res.trade.price)} (${res.fill.liquidity}, ${res.fill.basis})`, "ok");

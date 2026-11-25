@@ -53,6 +53,13 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-25 — Entry-timing tracker (buy on the touch or wait for confirmation?) and alert-only gap stagger
+- **Tracker** (`vmi/paper/entry_timing.py`, table `support_touches`, `/api/touches`): every touch of a watchlist support or plan level is recorded once per level; the owner is asked "still waiting for confirmation?" on the Alerts page at most once per 2 days (showing the prompt counts as asking; **no answer = assumed waiting** until a buy). Every BUY carries an entry type: on touch / confirmed / special (required select in the Analysis trade form; automatic plan fills and back-fills are on touch); stored in the trade context and tag `entry:<type>` and linked to the open touch. A touch lapses when price leaves the zone (3x the alert tolerance) or after 42 days.
+- **Evidence** (Alerts page card): per group (on touch, confirmed, special, waited and never bought): count, price paid vs the touch price, 20- and 60-bar return, breakdown rate (fell >5% below the level within 20 bars) and unbought-then-rallied rate, plus a one-line verdict once 10 touches have finished. Owner evidence only: no trading rule changed.
+- **Gap rule** (already built 2026-11-11: highest tranche now, the others `gap_stagger_days` trading days apart, each fills only if price is still at/below its level and below IV): alert-only plans were not staggered; now they are (one alert now, the rest on their dates).
+- Evidence: tests/test_entry_timing.py (7), test_autotrade alert-only gap test; browser check of the prompt, answer and the "choose how you are entering" guard. 248 tests pass.
+
+
 ### 2026-11-19 — Update VMI.bat no longer stops on local changes
 - The owner's PC folder had local modifications they did not make, so the old script refused to pull. Now it sets any changes aside with `git stash push --include-untracked`, pulls (fast-forward only), and puts them back with `git stash pop`; if the pull or the pop fails it says the changes are safe in the stash. New `.gitattributes` (`* text=auto`, `*.bat` CRLF) so Windows line-ending rewrites stop showing up as changes.
 - Evidence: the exact git sequence tested in a temp repo (modified tracked file + untracked file: pulled, both restored, stash empty). The .bat itself UNVERIFIED on Windows (cannot run here); the file keeps CRLF endings (checked).

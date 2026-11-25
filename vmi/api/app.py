@@ -432,6 +432,44 @@ def scan_dropped():
     return funnel.dropped_reasons()
 
 
+# ======================================================================================== entry timing
+tr = APIRouter(prefix="/api/touches", tags=["entry timing"], route_class=SafeRoute)
+
+
+class TouchAnswer(BaseModel):
+    waiting: bool
+
+
+@tr.get("")
+def touches_open():
+    """Open support touches (no answer = assumed waiting for confirmation)."""
+    from vmi.paper import entry_timing
+    return entry_timing.open_touches()
+
+
+@tr.get("/prompts")
+def touches_prompts():
+    """Touches to ask about now; showing them counts as asking (not again for 2 days)."""
+    from vmi.paper import entry_timing
+    return entry_timing.prompts()
+
+
+@tr.post("/{touch_id}/answer")
+def touches_answer(touch_id: int, body: TouchAnswer):
+    from vmi.paper import entry_timing
+    try:
+        return entry_timing.answer(touch_id, body.waiting)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
+
+
+@tr.get("/stats")
+def touches_stats():
+    """On-touch vs confirmed vs special entries: cost, forward returns, breakdowns avoided, rallies missed."""
+    from vmi.paper import entry_timing
+    return entry_timing.stats()
+
+
 # ======================================================================================== portfolios
 pr = APIRouter(prefix="/api/portfolios", tags=["paper trading"], route_class=SafeRoute)
 
@@ -456,6 +494,7 @@ class StockOrder(BaseModel):
     fees: float = 0.0
     tags: list[str] = Field(default_factory=list)
     thesis: str = ""               # why: kept with the trade for later review
+    entry_type: str | None = None  # BUY: on_touch | special | confirmed (entry-timing tracker)
 
 
 class OptionOrder(BaseModel):
@@ -521,7 +560,7 @@ def stock_order(pid: int, body: StockOrder):
             raise ValueError(plan["warning"] or "full allocation reached")
         dollars, qty = min(plan["tranche_value"], plan["remaining_value"]), None
     return engine.trade_stock(pid, body.symbol, body.side, qty, dollars, body.note, fees=body.fees,
-                              journal={"tags": body.tags, "thesis": body.thesis, "source": "manual"})
+                              journal={"tags": body.tags, "thesis": body.thesis, "source": "manual", "entry_type": body.entry_type})
 
 
 @pr.post("/{pid}/orders/option")
@@ -931,7 +970,7 @@ def opt_suggest(symbol: str, strategy: str = "CSP", expiry: str | None = None):
     return chain.suggest(symbol, strategy, expiry, levels, iv)
 
 
-for r in (sysr, ar, sr, pr, lg, ob, wr, alr, orr):
+for r in (sysr, ar, sr, pr, lg, ob, wr, alr, orr, tr):
     app.include_router(r)
 
 _TOKEN: dict = {"t": 0.0, "v": ""}

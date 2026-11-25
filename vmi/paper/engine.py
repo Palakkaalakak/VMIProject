@@ -192,7 +192,18 @@ def trade_stock(pid: int, symbol: str, side: str, qty: float | None = None, doll
             qty = round(dollars / f.price, 4)   # fractional shares allowed (Lesson 8 §4.3)
         j = _journal(journal, symbol, "stock", q, p, _position(s, pid, symbol),
                      {"order": {"side": side.upper(), "qty": qty, "dollars": dollars}, "fill": f.to_dict()})
-        return _apply(s, p, symbol, symbol, "STK", side, float(qty), f, 1, note=note, fees=fees, journal=j)
+        entry_type = j.pop("entry_type", None)             # kept in the trade context + tags, linked to the touch below
+        if entry_type:
+            j["context"]["entry_type"] = entry_type
+            j["tags"] = ",".join(x for x in (j.get("tags") or "", f"entry:{entry_type}") if x)
+        res = _apply(s, p, symbol, symbol, "STK", side, float(qty), f, 1, note=note, fees=fees, journal=j)
+    if side.upper() == "BUY":                         # entry-timing tracker: on_touch / special / confirmed (vmi/paper/entry_timing.py)
+        try:
+            from vmi.paper import entry_timing
+            entry_timing.link_entry(symbol, res["trade"]["id"], res["trade"]["price"], entry_type)
+        except Exception:                             # tracking must never break trading
+            pass
+    return res
 
 
 def trade_option(pid: int, symbol: str, expiry: str, strike: float, right: str, side: str, contracts: int,
