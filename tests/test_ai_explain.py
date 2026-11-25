@@ -44,7 +44,7 @@ def test_prompts_hand_over_the_figures_and_forbid_guessing(monkeypatch, temp_db)
     calls = []
     AE.explain("RDDT", "Reddit Inc", REP, _fake(monkeypatch, calls), use_cache=False)
     section_prompts = [c for c in calls if "explaining" in c]
-    assert section_prompts and all("never recompute or contradict them" in c and "not found in the sources" in c and "No buy or sell advice" in c for c in section_prompts)
+    assert section_prompts and all("never recompute or contradict them" in c and "not found in the sources" in c and "No buy or sell advice" in c and "need NO source" in c for c in section_prompts)
     returns = next(c for c in section_prompts if 'section "Returns: ROE and ROIC"' in c)
     assert "latest fiscal year 32.0%" in returns and "why it is at THIS level" in returns
 

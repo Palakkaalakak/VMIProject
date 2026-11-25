@@ -55,4 +55,5 @@ Single runs flip on borderline stocks, so treat one grade as a prompt to check. 
 A separate, optional read (not a grade): `vmi/ai_explain.py`. Press "Explain this company" on the Analysis page (built-in AI must be ready).
 It researches the business, industry, history, management and risks, and explains WHY each metric group is what it is, handing the model the
 app's own numbers. Quick = 2 pages per question, deep = 3 and longer sections. Cached 3 days (tick "ignore the cache" to refresh). Every
-factual claim should carry a source link; otherwise it says "not found in the sources". Not advice, not saved.
+fact about the company from the web should carry a source link, otherwise it says "not found in the sources"; conclusions that follow
+logically from the app's own numbers need no source (owner, 2026-11-25). Not advice, not saved.

@@ -53,6 +53,10 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-25 — Explainer: logical conclusions need no source
+- Owner: things that are logically derived need no source. The explainer prompt now says web facts about the company need a URL (or "not found in the sources"), while conclusions that follow from the app's own figures or plain reasoning are stated without one, marked as reasoning. tests/test_ai_explain.py checks the rule is in every section prompt.
+
+
 ### 2026-11-25 — AI "Explain this company" (deeper read with context and links)
 - `vmi/ai_explain.py` + `POST /api/analysis/{symbol}/ai-explain?level=quick|deep&fresh=` + an "Explain this company" card at the bottom of the Analysis page (shown only when the built-in AI is ready). Reuses the moat AI's research helpers (code searches and reads pages, the local model extracts and writes). Sections: How it makes money, Industry and competitors, History, Management and capital use, What moves the business, Recent events and risks, then one section per metric group (Returns: ROE and ROIC, Margins, Growth and consistency, Debt and balance sheet, Cash flow and efficiency, Valuation), Glossary, Further reading (links found in the sources, the SEC filings page, Wikipedia search).
 - Each metric section is handed the app's OWN numbers (latest, judged basis, 5-year average, loss years, rules and PASS/FAIL, margin history) and asked: what it measures, why it is at this level (which business or trait), how it compares with the company's own average and what is usual and why, and the reasons found if it is below usual. Prompts: app figures are facts, every cause cites a URL or says "not found in the sources", general background labelled "(general knowledge)", no advice. Cached 3 days; never a verdict.

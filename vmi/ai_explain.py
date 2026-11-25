@@ -5,8 +5,8 @@ a different job: teach the owner the company, not grade its moat. Output section
   Overview, How it makes money, Industry and competitors, History, Management and capital use, What moves the business,
   Recent events and risks, one paragraph per metric group (returns, margins, growth, balance sheet, cash and efficiency, valuation),
   Glossary, Further reading.
-Rules baked into every prompt: the APP FIGURES are facts (never recomputed or contradicted); every cause names its source URL or is
-marked UNKNOWN / (general knowledge); no buy/sell advice. Results are cached 3 days. Never feeds a step or a verdict.
+Rules baked into every prompt: the APP FIGURES are facts (never recomputed or contradicted); every company fact from the web names its source URL or is
+marked UNKNOWN / (general knowledge); conclusions that follow logically from the app's figures need no source; no buy/sell advice. Results are cached 3 days. Never feeds a step or a verdict.
 Nothing here runs without the owner pressing the button (the model is a local one, see vmi.ai_runtime).
 """
 from __future__ import annotations
@@ -53,8 +53,10 @@ GROUPS = {
 SECTION_PROMPT = """You are explaining {name} ({ticker}) to an investor who knows nothing about it yet. Write the section "{title}" in plain,
 friendly language (at most {words} words, short paragraphs, no jargon without a quick definition, no markdown symbols).
 APP FIGURES are facts from the investor's app: never recompute or contradict them.
-Use ONLY the NOTES (fetched today, each ends with its source URL) for facts about the company. Cite a URL in brackets after each factual claim.
-If the notes do not say something, write "not found in the sources" instead of guessing. General background that is not company-specific
+Use ONLY the NOTES (fetched today, each ends with its source URL) for facts about the company, and cite a URL in brackets after each such fact.
+Statements that follow logically from the APP FIGURES or from plain reasoning (for example "ROE fell because net income fell while equity stayed the
+same", or "a 50% revenue jump with falling margins means costs grew faster") need NO source: just state them, and make clear they are your
+reasoning ("this suggests", "which means"). If the notes do not say a company fact, write "not found in the sources" instead of guessing. General background that is not company-specific
 (what a margin is, what is usual for the industry) is allowed if you label it "(general knowledge)". No buy or sell advice.
 {extra}
 APP FIGURES:
