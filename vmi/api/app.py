@@ -314,7 +314,8 @@ def ai_opinion(symbol: str, level: str = "quick", checker: bool = False):
 
 
 @ar.post("/{symbol}/ai-explain")
-def ai_explain(symbol: str, level: ai_settings.OverviewDepth | None = None, fresh: bool = False):
+def ai_explain(symbol: str, level: ai_settings.OverviewDepth | None = None, fresh: bool = False,
+               ten_year_only: bool = False, normalise: bool | None = None):
     """On-demand business overview. Never writes a moat verdict or changes analysis figures."""
     from vmi import ai_explain as overview, ai_helper
     from vmi.data.fundamentals import resolve
@@ -328,9 +329,11 @@ def ai_explain(symbol: str, level: ai_settings.OverviewDepth | None = None, fres
         f = resolve(symbol.upper())
         if f is None:
             raise HTTPException(404, "No fundamentals found for this ticker.")
+        depth = level or settings.overview_depth
+        report = analyse(symbol, ten_year_only=ten_year_only, normalise=normalise) if depth == "deep" else None
         return overview.explain(f, lambda msgs, tokens: ai_helper.overview_chat(backend, msgs, tokens),
-                                level=level or settings.overview_depth, use_cache=settings.cache_overviews,
-                                fresh=fresh, model=f"{backend}:{status['model']}")
+                                level=depth, use_cache=settings.cache_overviews, fresh=fresh,
+                                model=f"{backend}:{status['model']}", report=report)
     except HTTPException:
         raise
     except Exception as exc:

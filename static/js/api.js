@@ -48,7 +48,7 @@ export const api = {
   aiStatus: () => request("GET", "/api/ai/status"),
   aiSettings: () => request("GET", "/api/ai/settings"),
   saveAiSettings: (settings) => request("PUT", "/api/ai/settings", settings),
-  aiExplain: (s, level, fresh) => request("POST", `/api/analysis/${s}/ai-explain${qs({ level, fresh })}`),
+  aiExplain: (s, level, fresh, mode = {}) => request("POST", `/api/analysis/${s}/ai-explain${qs({ level, fresh, ...mode })}`),
   aiDownload: () => request("POST", "/api/ai/download"),
   aiRemove: () => request("DELETE", "/api/ai/model"),
   aiOpinion: (s, level = "quick", checker = false) => request("POST", `/api/analysis/${s}/ai-opinion?level=${level}&checker=${checker}`),
