@@ -249,37 +249,48 @@ async function bindOverrides(out, r) {
   });
 }
 
-const view = (r) => `${header(r)}<div class="cols"><div>${valuation(r)}${volatility(r)}${technicals(r)}</div><div>${trade(r)}${overrides()}</div></div>${steps(r)}${explainCard()}`;
+const view = (r) => `${header(r)}${overviewCard()}<div class="cols"><div>${valuation(r)}${volatility(r)}${technicals(r)}</div><div>${trade(r)}${overrides()}</div></div>${steps(r)}`;
 
-/** "Explain this company": AI read of what the company is and why each metric is what it is. Shown only when the built-in AI is ready. */
-const explainCard = () => `<section class="card" id="an-explain" hidden><h3>Explain this company <span class="badge na">AI, minor help</span></h3>
-  <p class="small muted">A plain-language read: what the company does and how it makes money, its industry, history, management, what moves it, and
-    WHY each of the numbers above is what it is, with links to read more. Uses the local AI (nothing leaves this PC except the web searches) and takes a few minutes.
-    Facts come from web pages it cites; the app's numbers are never changed; it is not advice.</p>
-  <div class="inline"><label class="small">Depth <select id="ex-level"><option value="quick">quick</option><option value="deep">deep (more sources, slower)</option></select></label>
-    <button id="ex-go">Explain this company</button><label class="small check"><input type="checkbox" id="ex-fresh"> ignore the 3-day cache</label></div>
-  <div id="ex-out" class="small"></div></section>`;
+const overviewCard = () => `<section class="card" id="an-overview"><h3>AI company overview</h3>
+  <p class="small muted">What the company does, who pays it and how it makes money. Deeper runs add financial history and explain what changed. No moat grade or investment advice.</p>
+  <div class="inline"><label class="small">Depth <select id="ex-level"><option value="quick">Quick — business and revenue model</option>
+    <option value="standard">Standard — company progress and profits</option><option value="deep">Deep — profit trends, returns and liquidity</option></select></label>
+    <button id="ex-go" disabled>Run company overview</button><label class="small check" id="ex-cache" hidden><input type="checkbox" id="ex-fresh"> Refresh cached result</label></div>
+  <p id="ex-status" class="small muted">Checking AI availability …</p>
+  <div id="ex-out" class="small" aria-live="polite"></div></section>`;
 
-function showExplain(box, ex) {
-  const links = (us) => us.length ? `<div class="muted">Read more: ${us.map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60))}</a>`).join(" · ")}</div>` : "";
-  box.innerHTML = `<p class="muted">${esc(ex.name)} · ${esc(ex.level)} · ${esc(ex.generated)}${ex.cached ? " · from cache" : ""}</p>` +
-    ex.sections.map((s) => `<h4>${esc(s.title)}</h4>${s.figures ? `<pre class="small muted" style="white-space:pre-wrap">${esc(s.figures)}</pre>` : ""}
-      <p style="white-space:pre-wrap">${esc(s.text)}</p>${links(s.links)}`).join("") +
-    `<h4>Further reading</h4>${links(ex.further_reading)}`;
+function showOverview(box, result) {
+  const links = (urls) => urls.length ? `<div class="muted">Sources: ${urls.map((u) =>
+    `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u.replace(/^https?:\/\/(www\.)?/, "").slice(0, 72))}</a>`).join(" · ")}</div>` : "";
+  box.innerHTML = `<p class="muted">${esc(result.name)} · ${esc(result.level)} · ${esc(result.generated)}${result.cached ? " · from cache" : ""}</p>` +
+    result.sections.map((s) => `<h4>${esc(s.title)}</h4><p style="white-space:pre-wrap">${esc(s.text)}</p>${links(s.links)}
+      ${s.figures ? `<details><summary>Financial figures used</summary><pre class="small muted" style="white-space:pre-wrap">${esc(s.figures)}</pre></details>` : ""}`).join("");
+}
+
+async function bindOverview(card, ticker) {
+  const go = $("#ex-go", card), level = $("#ex-level", card), output = $("#ex-out", card), status = $("#ex-status", card);
+  try {
+    const [ai, settings] = await Promise.all([api.aiStatus(), api.aiSettings()]);
+    level.value = settings.overview_depth;
+    if (!ai.available) {
+      status.innerHTML = 'Set up a model in <a href="#/ai-settings">AI Settings</a> to run an overview.';
+      return;
+    }
+    status.textContent = "Uses public sources. Deeper runs take longer; check the cited evidence.";
+    $("#ex-cache", card).hidden = !settings.cache_overviews;
+    go.disabled = false;
+    go.onclick = () => run(go, async () => {
+      output.textContent = "Researching and writing the overview …";
+      try { showOverview(output, await api.aiExplain(ticker, level.value, $("#ex-fresh", card).checked)); }
+      catch (err) { output.textContent = err.message; }
+    });
+  } catch (err) {
+    status.textContent = `Could not check AI availability: ${err.message}`;
+  }
 }
 
 function bind(out, r) {
-  api.aiStatus().then((a) => {
-    if (!a.builtin?.ready || !document.body.contains(out)) return;
-    const card = $("#an-explain", out);
-    if (!card) return;
-    card.hidden = false;
-    $("#ex-go", out).addEventListener("click", (e) => run(e.target, async () => {
-      $("#ex-out", out).textContent = "Researching and writing … this takes a few minutes. You can keep using the app.";
-      try { showExplain($("#ex-out", out), await api.aiExplain(r.ticker, $("#ex-level", out).value, $("#ex-fresh", out).checked)); }
-      catch (err) { $("#ex-out", out).innerHTML = `<span class="neg">${esc(err.message)}</span>`; }
-    }));
-  }).catch(() => {});
+  bindOverview($("#an-overview", out), r.ticker);
   const cb = $("#an-chart-box", out);
   if (cb) cb.addEventListener("toggle", () => { if (cb.open && !cb.dataset.done) { cb.dataset.done = "1"; mountChart($("#an-chart", out), r.ticker, { levels: r.technicals?.buy_levels || [] }).then((h) => { chartH = h; applyWl(); }).catch(() => {}); } });
   // supports stated in the chosen watchlist for this stock are drawn as the tranche lines (T1 = highest)

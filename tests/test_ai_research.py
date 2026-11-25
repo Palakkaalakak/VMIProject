@@ -92,13 +92,20 @@ def test_opinion_passes_the_level_through(monkeypatch):
 
 def test_ai_server_safeguards(monkeypatch):
     from vmi import ai_runtime as RT
+    from vmi.ai_settings import AISettings
+
+    limits = AISettings()
     monkeypatch.setattr(RT, "free_ram_mb", lambda: 500.0)
     monkeypatch.setattr(RT, "gpu_state", lambda: {"temp": 60.0, "free_mb": 9000.0})
-    assert "memory" in RT._danger()
+    assert "memory" in RT._danger(limits)
     monkeypatch.setattr(RT, "free_ram_mb", lambda: 9000.0)
     monkeypatch.setattr(RT, "gpu_state", lambda: {"temp": 90.0, "free_mb": 9000.0})
-    assert "°C" in RT._danger()
+    assert "°C" in RT._danger(limits)
     monkeypatch.setattr(RT, "gpu_state", lambda: {"temp": 60.0, "free_mb": 100.0})
-    assert "GPU memory" in RT._danger()
+    assert "GPU memory" in RT._danger(limits)
     monkeypatch.setattr(RT, "gpu_state", lambda: {"temp": 60.0, "free_mb": 9000.0})
-    assert RT._danger() == ""
+    assert RT._danger(limits) == ""
+    monkeypatch.setattr(RT, "gpu_state", lambda: {"temp": 77.0, "free_mb": 9000.0})
+    assert "°C" in RT._danger(AISettings(max_gpu_temp_c=75))
+    monkeypatch.setattr(RT, "free_ram_mb", lambda: 2000.0)
+    assert "memory" in RT._danger(AISettings(min_free_ram_mb=2500))

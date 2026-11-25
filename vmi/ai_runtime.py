@@ -1,8 +1,8 @@
 """Built-in local AI: no Ollama or LM Studio to install.
 
-On the owner's request (Settings > AI helper > Download) this fetches, into data/ai/:
+On the owner's request (AI Settings > Download) this fetches, into data/ai/:
   * the llama.cpp `llama-server` build for Windows + NVIDIA (newest CUDA 12/13 build; Vulkan as the fallback) and, for CUDA, its runtime zip
-  * one GGUF model file (default Qwen3-14B Q4_K_M, about 9 GB, from Hugging Face)
+  * one GGUF model file (Gemma 4 12B, about 7 GB, from Hugging Face)
 Downloads resume if interrupted. The server is started only when an opinion is asked for (all layers on the GPU) and stopped after
 `IDLE_SECONDS` without use. Nothing is sent anywhere except these downloads; prompts stay on this PC.
 
@@ -25,6 +25,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
+from vmi import ai_settings
 from vmi.config import get_settings
 
 log = logging.getLogger("vmi.ai")
@@ -42,14 +43,13 @@ IDLE_SECONDS = 600
 # ---- safeguards (a run once froze the PC and BitLocker locked it): the server is stopped, not left to grind, when the machine is stressed
 MAX_RUN_SECONDS = int(os.environ.get("VMI_AI_MAX_RUN_SECONDS", 40 * 60))     # hard ceiling on one server's life, busy or not
 MAX_GPU_TEMP_C = int(os.environ.get("VMI_AI_MAX_TEMP", 85))                  # stop at this GPU temperature; no start when already near it
-MIN_FREE_RAM_MB = 1536                                                       # stop when free system RAM falls below this
 MIN_START_RAM_MB = 2560                                                      # no start unless this much RAM is free (6 GB when layers are offloaded to RAM)
 MIN_FREE_VRAM_MB = 400                                                       # stop when the GPU has less than this left (the display needs some)
 COOLDOWN_SECONDS = 300                                                       # after a safety stop, no restart for this long
 
 DOWNLOAD: dict = {"running": False, "what": "", "done": 0, "total": 0, "error": ""}
 _server: dict = {"proc": None, "port": None, "last_used": 0.0, "started": 0.0, "tripped": "", "tripped_at": 0.0}
-_lock = threading.Lock()
+_lock = threading.RLock()
 
 
 def ai_dir() -> Path:
@@ -219,12 +219,12 @@ def gpu_state() -> dict | None:
         return None
 
 
-def _danger() -> str:
+def _danger(limits: ai_settings.AISettings) -> str:
     """Why the machine is too stressed for the AI right now ('' = fine)."""
     ram, gpu = free_ram_mb(), gpu_state()
-    if ram is not None and ram < MIN_FREE_RAM_MB:
+    if ram is not None and ram < limits.min_free_ram_mb:
         return f"free memory is down to {ram:.0f} MB"
-    if gpu and gpu["temp"] >= MAX_GPU_TEMP_C:
+    if gpu and gpu["temp"] >= min(MAX_GPU_TEMP_C, limits.max_gpu_temp_c):
         return f"the GPU reached {gpu['temp']:.0f} °C"
     if gpu and gpu["free_mb"] < MIN_FREE_VRAM_MB:
         return f"only {gpu['free_mb']:.0f} MB of GPU memory is left"
@@ -251,19 +251,21 @@ def kill_stale() -> None:
         pass
 
 
-def _guard() -> None:
-    """Watches the running server every few seconds and stops it before the machine is hurt."""
-    proc = _server["proc"]
-    while proc is not None and proc.poll() is None and _server["proc"] is proc:
+def _guard(proc: subprocess.Popen) -> None:
+    """Stop the same server we inspected, never a replacement process."""
+    while True:
         time.sleep(5)
-        if time.time() - _server["started"] > MAX_RUN_SECONDS:
-            why = f"it had run for {MAX_RUN_SECONDS // 60} minutes (the safety limit)"
-        else:
-            why = _danger()
-        if why:
-            _server["tripped"], _server["tripped_at"] = why, time.time()
-            stop()
-            return
+        with _lock:
+            if _server["proc"] is not proc or proc.poll() is not None:
+                return
+            limits = ai_settings.load()
+            max_seconds = min(MAX_RUN_SECONDS, limits.max_run_minutes * 60)
+            why = (f"it reached the {max_seconds // 60}-minute safety limit"
+                   if time.time() - _server["started"] >= max_seconds else _danger(limits))
+            if why:
+                _server["tripped"], _server["tripped_at"] = why, time.time()
+                stop()
+                return
 
 
 def ensure_running(wait: float = 120.0) -> str:
@@ -275,13 +277,11 @@ def ensure_running(wait: float = 120.0) -> str:
         if _server["tripped"] and time.time() - _server["tripped_at"] < COOLDOWN_SECONDS:
             raise RuntimeError(f"the AI was stopped for safety ({_server['tripped']}); try again in a few minutes")
         if not ready():
-            raise RuntimeError("the built-in AI is not downloaded yet (Settings > AI helper)")
+            raise RuntimeError("the built-in AI is not downloaded yet (AI Settings)")
         kill_stale()
-        ram, gpu = free_ram_mb(), gpu_state()
-        need = MIN_START_RAM_MB if gpu_layers() >= 99 else 6144
-        if ram is not None and ram < need:
-            raise RuntimeError(f"not enough free memory to start the AI safely ({ram:.0f} MB free, {need} MB needed): close other programs")
-        if gpu and gpu["temp"] >= MAX_GPU_TEMP_C - 8:
+        limits = ai_settings.load()
+        gpu = gpu_state()
+        if gpu and gpu["temp"] >= min(MAX_GPU_TEMP_C, limits.max_gpu_temp_c) - 8:
             raise RuntimeError(f"the GPU is already hot ({gpu['temp']:.0f} °C): let it cool before starting the AI")
         _server["tripped"] = ""
         first = gpu_layers()
@@ -289,6 +289,10 @@ def ensure_running(wait: float = 120.0) -> str:
         plan = [first] + ([max(0, min(first, MODEL_LAYERS) - 8), 0] if first > 0 else [])
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0
         for ngl in dict.fromkeys(plan):
+            ram = free_ram_mb()
+            need = max(limits.min_free_ram_mb, MIN_START_RAM_MB if ngl >= 99 else 6144)
+            if ram is not None and ram < need:
+                raise RuntimeError(f"not enough free memory to start the AI safely ({ram:.0f} MB free, {need} MB needed): close other programs")
             port = _free_port()
             cmd = [str(server_exe()), "-m", str(model_path()), "--port", str(port), "--host", "127.0.0.1", "-ngl", str(ngl), "-c", str(CTX), "--jinja", "-t", str(max(2, (os.cpu_count() or 4) // 2))] + SERVER_EXTRA
             low = getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0)       # the desktop stays responsive
@@ -298,14 +302,15 @@ def ensure_running(wait: float = 120.0) -> str:
                 _pidfile().write_text(str(_server["proc"].pid))
             except OSError:
                 pass
+            proc = _server["proc"]
             deadline = time.time() + wait
             died = False
             while time.time() < deadline:
                 try:
                     with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=2) as r:
                         if r.status == 200:
-                            threading.Thread(target=_idle_watch, daemon=True).start()
-                            threading.Thread(target=_guard, daemon=True, name="vmi-ai-guard").start()
+                            threading.Thread(target=_idle_watch, args=(proc,), daemon=True).start()
+                            threading.Thread(target=_guard, args=(proc,), daemon=True, name="vmi-ai-guard").start()
                             return f"http://127.0.0.1:{port}"
                 except Exception:
                     if _server["proc"].poll() is not None:
@@ -318,28 +323,31 @@ def ensure_running(wait: float = 120.0) -> str:
         raise RuntimeError("the AI server exited at start-up even on the CPU (driver or memory problem?)")
 
 
-def _idle_watch() -> None:
-    while _server["proc"] is not None and _server["proc"].poll() is None:
+def _idle_watch(proc: subprocess.Popen) -> None:
+    while True:
         time.sleep(30)
-        if time.time() - _server["last_used"] > IDLE_SECONDS:
-            stop()
-            return
+        with _lock:
+            if _server["proc"] is not proc or proc.poll() is not None:
+                return
+            if time.time() - _server["last_used"] > IDLE_SECONDS:
+                stop()
+                return
 
 
 def stop() -> None:
-    p = _server["proc"]
-    if p is not None and p.poll() is None:
-        p.terminate()
+    with _lock:
+        p = _server["proc"]
+        if p is not None and p.poll() is None:
+            p.terminate()
+            try:
+                p.wait(10)
+            except subprocess.TimeoutExpired:
+                p.kill()
+        _server["proc"] = None
         try:
-            p.wait(10)
-        except subprocess.TimeoutExpired:
-            p.kill()
-    _server["proc"] = None
-    try:
-        _pidfile().unlink(missing_ok=True)
-    except OSError:
-        pass
-
+            _pidfile().unlink(missing_ok=True)
+        except OSError:
+            pass
 
 import atexit  # noqa: E402
 atexit.register(stop)          # the server never outlives the app
@@ -414,4 +422,5 @@ def chat_with_tools(messages: list[dict], tools: list[dict], run_tool, max_round
 def status() -> dict:
     return {"server_present": server_exe() is not None, "model_present": model_present(), "ready": ready(),
             "running": _server["proc"] is not None and _server["proc"].poll() is None,
-            "download": dict(DOWNLOAD), "model": MODEL_FILE, "supported": sys.platform == "win32"}
+            "download": dict(DOWNLOAD), "model": MODEL_FILE, "supported": sys.platform == "win32",
+            "safety_stop": _server["tripped"]}

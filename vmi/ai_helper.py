@@ -78,3 +78,19 @@ def _opinion(prompt: str) -> str:
     with urllib.request.urlopen(req, timeout=s.ai_timeout) as r:
         text = json.loads(r.read()).get("response", "")
     return text.split("</think>")[-1].strip()           # reasoning models may print their thinking first
+
+
+def overview_chat(backend: str, messages: list[dict], max_tokens: int) -> str:
+    """Tool-free chat on the already selected backend; never silently switches models."""
+    if backend == "builtin":
+        return ai_runtime.chat_with_tools(messages, [], lambda *_: "", max_rounds=0, max_tokens=max_tokens, timeout=600)
+    if backend != "ollama":
+        raise RuntimeError("No AI model is available. See AI Settings.")
+    settings = get_settings()
+    body = {"model": settings.ai_model, "messages": messages, "stream": False,
+            "options": {"num_predict": max_tokens, "temperature": 0.3}}
+    req = urllib.request.Request(f"{settings.ai_url}/api/chat", data=json.dumps(body).encode(),
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=settings.ai_timeout) as response:
+        text = json.loads(response.read())["message"]["content"]
+    return text.split("</think>")[-1].strip()

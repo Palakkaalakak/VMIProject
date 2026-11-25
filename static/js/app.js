@@ -17,6 +17,7 @@ const ROUTES = {
   optionbook: { load: () => import("./views/optionbook.js"), param: "id" },
   plans: { load: () => import("./views/plans.js"), param: "id" },
   alerts: { load: () => import("./views/alerts.js") },
+  "ai-settings": { load: () => import("./views/ai_settings.js") },
   settings: { load: () => import("./views/settings.js") },
 };
 const DEFAULT = "analysis";

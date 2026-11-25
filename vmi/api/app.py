@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from vmi import store
+from vmi import ai_settings, store
 from vmi.api.jsonsafe import SafeJSONResponse, SafeRoute, clean
 from vmi.config import ROOT
 from vmi.data import ib_fundamentals, market
@@ -260,6 +260,16 @@ def ai_status():
     return ai_helper.status()
 
 
+@sysr.get("/ai/settings")
+def get_ai_settings():
+    return ai_settings.load()
+
+
+@sysr.put("/ai/settings")
+def save_ai_settings(body: ai_settings.AISettings):
+    return ai_settings.save(body)
+
+
 @sysr.post("/ai/download")
 def ai_download():
     """Download (or resume) the built-in AI runtime and model into data/ai/."""
@@ -304,23 +314,27 @@ def ai_opinion(symbol: str, level: str = "quick", checker: bool = False):
 
 
 @ar.post("/{symbol}/ai-explain")
-def ai_explain(symbol: str, level: str = "quick", fresh: bool = False):
-    """Optional, on request: a plain-language read of the company (what it does, history, industry, management) and WHY each metric is what
-    it is, with links. Slow (a few minutes on the local model); cached 3 days; never saved as a verdict."""
-    from vmi import ai_explain as AE, ai_helper, ai_research
-    from vmi.analysis import moat_evidence as ME
-    from vmi.analysis.pipeline import analyse_ticker
+def ai_explain(symbol: str, level: ai_settings.OverviewDepth | None = None, fresh: bool = False):
+    """On-demand business overview. Never writes a moat verdict or changes analysis figures."""
+    from vmi import ai_explain as overview, ai_helper
     from vmi.data.fundamentals import resolve
-    st = ai_helper.status()
-    if st["backend"] != "builtin":
-        raise HTTPException(503, "The company explainer needs the built-in AI (Settings > AI helper).")
-    rep = analyse_ticker(symbol, with_technicals=False, overrides=store.get_override(symbol))
-    f = resolve(symbol)
+
+    status = ai_helper.status()
+    backend = status["backend"]
+    if not backend:
+        raise HTTPException(503, "Set up the built-in AI or Ollama in AI Settings first.")
+    settings = ai_settings.load()
     try:
-        return AE.explain(symbol.upper(), rep.get("name", "") or symbol.upper(), rep, lambda msgs, mt: ai_research._chat(None, msgs, mt),
-                          margins=ME.margin_history(f) if f else None, level=level, cik=getattr(f, "cik", None), use_cache=not fresh)
+        f = resolve(symbol.upper())
+        if f is None:
+            raise HTTPException(404, "No fundamentals found for this ticker.")
+        return overview.explain(f, lambda msgs, tokens: ai_helper.overview_chat(backend, msgs, tokens),
+                                level=level or settings.overview_depth, use_cache=settings.cache_overviews,
+                                fresh=fresh, model=f"{backend}:{status['model']}")
+    except HTTPException:
+        raise
     except Exception as exc:
-        raise HTTPException(503, f"The local AI model did not finish ({exc}).")
+        raise HTTPException(503, f"The AI overview did not finish ({exc}).") from exc
 
 
 _AI_LAST: dict = {}      # last research opinion per ticker (this session only), so the optional checker can verify it
