@@ -2,6 +2,7 @@
 import { api } from "../api.js";
 import { $, esc, fmt, loading, run, table, toast, signClass } from "../ui.js";
 import { refreshPortfolios, state } from "../state.js";
+import { pieChart, bindChartTips } from "../charts.js";
 
 export async function render(root, params = {}) {
   root.innerHTML = loading("Loading portfolios…");
@@ -57,13 +58,50 @@ async function detail(box, id) {
       </div>
     </section>
     <section class="card"><h3>Positions</h3><div id="pf-pos"></div></section>
+    <section class="card" id="pf-break"><h3>Breakdown <span class="muted small">by market value · cash is its own slice · option positions are one "Options" slice (absolute market value of the legs)</span></h3>
+      <div class="inline"><span class="seg" id="pf-by">${BY.map(([k, l]) => `<button type="button" class="secondary small ${k === "sector" ? "on" : ""}" data-v="${k}">${esc(l)}</button>`).join("")}</span></div>
+      <div class="pf-break"><div id="pf-pie"></div><div id="pf-tags"></div></div></section>
     <section class="card"><h3>Trades</h3><div id="pf-trades"></div></section>`;
   $("#pf-pos", box).appendChild(table(POS_COLS, p.positions || [], { actions: posActions(id, () => detail(box, id)), empty: "No positions — analyse a stock and buy a tranche.", initialSort: { key: "market_value" } }));
   $("#pf-trades", box).appendChild(table(TRADE_COLS, trades || [], { empty: "No trades yet", initialSort: { key: "ts" } }));
+  breakdownCard(box, id, p.equity);
   $("#pf-reset", box).addEventListener("click", (e) => confirm(`Reset ${p.name} to ${fmt.money(p.starting_cash, 0)}? All positions and trades are deleted.`) &&
     run(e.target, async () => { await api.resetPortfolio(id); detail(box, id); }));
   $("#pf-delete", box).addEventListener("click", (e) => confirm(`Delete ${p.name}?`) &&
     run(e.target, async () => { await api.deletePortfolio(id); location.hash = "#/portfolios"; }));
+}
+
+const BY = [["sector", "Sector"], ["country", "Country"], ["category", "Category"], ["strategy", "Strategy"]];
+
+function breakdownCard(box, id, equity) {
+  const pie = $("#pf-pie", box), tags = $("#pf-tags", box);
+  let by = "sector", n = 0;
+  const load = async () => {
+    const mine = ++n;
+    pie.innerHTML = loading(by === "strategy" ? "Loading…" : "Looking up sector, country and category (cached after the first time)…");
+    let d;
+    try { d = await api.breakdown(id, by); }
+    catch (e) { if (mine === n) pie.innerHTML = `<p class="note neg">Breakdown unavailable: ${esc(e.message)}</p>`; return; }
+    if (mine !== n) return;
+    pie.innerHTML = pieChart({ slices: d.slices, fmtValue: (v) => fmt.money(v, 0), centre: d.total ? fmt.money(d.total, 0) : "" });
+    bindChartTips(pie);
+    tags.innerHTML = d.holdings.length ? `<table class="compact"><thead><tr><th>Holding</th><th class="num">Value</th><th>Strategy tag</th></tr></thead><tbody>
+      ${d.holdings.map((h) => `<tr><td><b>${esc(h.symbol)}</b></td><td class="num">${fmt.money(h.value, 0)}</td><td><select data-sym="${esc(h.symbol)}">
+        <option value="">— none —</option>${d.strategies.map((s) => `<option ${s === h.tag ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table>
+      <p class="small muted">Your own label per holding; the Strategy pie groups by it.</p>` : `<p class="muted">No stock holdings to tag.</p>`;
+  };
+  $("#pf-by", box).addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-v]");
+    if (!b) return;
+    by = b.dataset.v;
+    $("#pf-by", box).querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+    load();
+  });
+  tags.addEventListener("change", (e) => {
+    const sel = e.target.closest("select[data-sym]");
+    if (sel) run(null, async () => { await api.setTag(id, sel.dataset.sym, sel.value || null); toast(`${sel.dataset.sym}: ${sel.value || "tag cleared"}`, "ok"); if (by === "strategy") load(); });
+  });
+  load();
 }
 
 const label = (r) => (r.sec_type === "OPT" ? `${r.symbol} ${fmt.expiry(r.expiry)} ${r.strike}${r.right}` : r.symbol);

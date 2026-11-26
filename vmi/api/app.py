@@ -694,6 +694,31 @@ def option_order(pid: int, body: OptionOrder):
                                journal={"tags": body.tags, "thesis": body.thesis, "source": "manual"})
 
 
+@pr.get("/{pid}/breakdown")
+def portfolio_breakdown(pid: int, by: str = "sector"):
+    """Market value split by sector | country | category | strategy (cash and options as their own slices), plus the holdings
+    with their strategy tag for the editor."""
+    from vmi.paper import breakdown, engine
+    from vmi.paper.profiles import profiles
+    summ = engine.summary(pid)
+    tags = breakdown.get_tags(pid)
+    stocks = sorted({p["symbol"] for p in summ["positions"] if p["sec_type"] == "STK"})
+    prof = {} if by == "strategy" else profiles(stocks)        # the strategy view needs no analysis
+    return {**breakdown.breakdown(by, summ["positions"], summ["cash"], prof, tags),
+            "holdings": breakdown.holdings(summ["positions"], tags), "strategies": list(breakdown.STRATEGIES)}
+
+
+class TagIn(BaseModel):
+    symbol: str
+    tag: str | None = None      # empty / null clears the tag
+
+
+@pr.post("/{pid}/tags")
+def portfolio_tag(pid: int, body: TagIn):
+    from vmi.paper import breakdown
+    return {"tags": breakdown.set_tag(pid, body.symbol, body.tag)}
+
+
 # ======================================================================================== ledger / journal / review
 class AdminTrade(BaseModel):
     """Back-dated or corrected order. ts is ISO with offset, e.g. 2026-03-02T15:31:00-05:00 (naive = UTC)."""
@@ -1019,6 +1044,13 @@ def wl_autofill(wid: int, symbol: str):
     return service.autofill(wid, symbol)
 
 
+@wr.get("/{wid}/metrics")
+def wl_metrics(wid: int):
+    """Metric columns for the list: compact analysis per symbol (cached 6 h) with green / yellow / red flags from the rules."""
+    from vmi.watchlist import metrics
+    return metrics.watchlist_metrics(wid)
+
+
 @wr.get("/{wid}/stats")
 def wl_stats(wid: int, threshold: float = 0.15):
     """Average growth (of lowest / average / highest estimates), quality, valuation, mix and the stocks failing steps 1-5."""
@@ -1041,6 +1073,19 @@ def wl_scan(wid: int):
     # a re-run drops every stock failing a step the scan can verify from data (1, 2, 4, 5); 3 is judged by hand, 6/7 are price/chart
     return funnel.start_background({"universe": "list", "symbols": syms, "require_ten_year_uptrend": False,
                                     "require_steps": [1, 2, 4, 5]})
+
+
+hm = APIRouter(prefix="/api/heatmap", tags=["heatmap"], route_class=SafeRoute)
+
+
+@hm.get("")
+def heatmap(metric: str = "change_1d"):
+    """S&P 500 tiles (area = market cap) with the chosen colour metric; assembled data is cached 15 minutes."""
+    from vmi import heatmap as hmap
+    try:
+        return hmap.get_heatmap(metric)
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc)) from exc
 
 
 alr = APIRouter(prefix="/api/alerts", tags=["alerts"], route_class=SafeRoute)
@@ -1093,7 +1138,7 @@ def opt_suggest(symbol: str, strategy: str = "CSP", expiry: str | None = None):
     return chain.suggest(symbol, strategy, expiry, levels, iv)
 
 
-for r in (sysr, ar, sr, pr, lg, ob, wr, alr, orr, tr):
+for r in (sysr, ar, sr, pr, lg, ob, wr, hm, alr, orr, tr):
     app.include_router(r)
 
 _TOKEN: dict = {"t": 0.0, "v": ""}

@@ -158,3 +158,20 @@ table.stmt thead th.ttm { color: var(--accent); }
 .gmark { position: absolute; top: -2px; bottom: -2px; width: 3px; margin-left: -1px; background: var(--text); box-shadow: 0 0 0 1px var(--bg); }
 .gauge-scale { position: relative; height: 1.3rem; } .gauge-scale span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
 @media (max-width: 700px) { .ov-nav { top: 0; position: static; } .grid .wide { grid-column: span 1; } }
+
+/* watchlist metric flags, portfolio breakdown pies, S&P 500 heatmap */
+.flag { display: inline-block; padding: 0 .4rem; border-radius: 4px; }
+.flag.green { background: rgba(34, 197, 94, .2); color: var(--ok); } .flag.yellow { background: rgba(245, 158, 11, .2); color: var(--warn); }
+.flag.red { background: rgba(239, 68, 68, .2); color: var(--bad); }
+.pie-wrap { display: flex; flex-wrap: wrap; gap: 1rem 2rem; align-items: center; }
+.pie-slice { stroke: var(--panel); stroke-width: 1; } .pie-slice:hover { opacity: .8; }
+ul.pie-legend { min-width: 200px; } .pie-legend li { display: flex; align-items: center; gap: .5rem; }
+.pie-legend i { width: 11px; height: 11px; border-radius: 2px; flex: none; } .pie-legend .pie-l { flex: 1; } .pie-legend .pie-v { color: var(--muted); }
+.pf-break { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(280px, 1fr); gap: 1.5rem; align-items: start; }
+@media (max-width: 800px) { .pf-break { grid-template-columns: 1fr; } }
+.hm-wrap { position: relative; width: 100%; }
+.hm-wrap svg { display: block; width: 100%; height: auto; }
+.hm-tile { cursor: pointer; } .hm-tile rect { stroke: var(--bg); stroke-width: 1; } .hm-tile:hover rect { stroke: #fff; stroke-width: 2; }
+.hm-tile text, .hm-sector { fill: #fff; pointer-events: none; font-family: inherit; }
+.hm-sector { font-size: 11px; font-weight: 700; text-transform: uppercase; opacity: .85; }
+.hm-scale { display: flex; align-items: center; gap: .3rem; font-size: .8rem; flex-wrap: wrap; } .hm-scale i { display: inline-block; width: 34px; height: 12px; }

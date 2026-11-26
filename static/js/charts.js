@@ -179,3 +179,48 @@ export function bindChartTips(root) {
   });
   root.addEventListener("mouseleave", () => { tipEl().hidden = true; });
 }
+
+// ---------------------------------------------------------------------------------------------------------
+// Donut chart: pure arc geometry (testable in Node) + the SVG/HTML builder with hover values and a legend.
+// ---------------------------------------------------------------------------------------------------------
+export const PIE_COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#06b6d4", "#ef4444", "#84cc16", "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#eab308"];
+const FIXED_PIE = { Cash: "#94a3b8", Options: "#c084fc", Unknown: "#64748b", Untagged: "#64748b" };
+const pt = (cx, cy, r, a) => [cx + r * Math.sin(a), cy - r * Math.cos(a)];        // angle 0 = 12 o'clock, clockwise
+
+/** Donut slice geometry from weights (any positive numbers): [{index, frac, start, end, path}] with angles in radians clockwise
+ *  from 12 o'clock. A single 100% slice is drawn as two half arcs (one SVG arc cannot close a circle). */
+export function pieArcs(weights, { cx = 100, cy = 100, r = 90, r0 = 55 } = {}) {
+  const total = weights.reduce((s, w) => s + (w > 0 ? w : 0), 0);
+  if (!(total > 0)) return [];
+  let a = 0;
+  return weights.map((w, index) => {
+    if (!(w > 0)) return null;
+    const frac = w / total, start = a, end = a + frac * 2 * Math.PI;
+    a = end;
+    const f = (n) => n.toFixed(2), P = (rad, ang) => pt(cx, cy, rad, ang).map(f).join(" ");
+    let path;
+    if (frac > 0.9999) {
+      path = `M ${P(r, 0)} A ${r} ${r} 0 1 1 ${P(r, Math.PI)} A ${r} ${r} 0 1 1 ${P(r, 0)} M ${P(r0, 0)} A ${r0} ${r0} 0 1 0 ${P(r0, Math.PI)} A ${r0} ${r0} 0 1 0 ${P(r0, 0)} Z`;
+    } else {
+      const large = end - start > Math.PI ? 1 : 0;
+      path = `M ${P(r, start)} A ${r} ${r} 0 ${large} 1 ${P(r, end)} L ${P(r0, end)} A ${r0} ${r0} 0 ${large} 0 ${P(r0, start)} Z`;
+    }
+    return { index, frac, start, end, path };
+  }).filter(Boolean);
+}
+
+/** Donut + legend. slices: [{label, value, weight}]; fmtValue(v) formats money. Needs bindChartTips(root) for the hover values. */
+export function pieChart({ slices, fmtValue = (v) => String(v), size = 220, centre = "" }) {
+  const live = slices.filter((s) => s.value > 0);
+  if (!live.length) return `<p class="muted">Nothing to show yet.</p>`;
+  let k = 0;
+  const colors = live.map((s) => FIXED_PIE[s.label] || PIE_COLORS[k++ % PIE_COLORS.length]);
+  const arcs = pieArcs(live.map((s) => s.value));
+  const paths = arcs.map((a) => {
+    const s = live[a.index];
+    return `<path class="chart-hit pie-slice" d="${a.path}" fill="${colors[a.index]}" fill-rule="evenodd" data-tip="${esc(`<strong>${esc(s.label)}</strong><br>${esc(fmtValue(s.value))} · ${(a.frac * 100).toFixed(1)}%`)}"/>`;
+  }).join("");
+  const legend = live.map((s, i) => `<li><i style="background:${colors[i]}"></i><span class="pie-l">${esc(s.label)}</span><span class="pie-v">${(s.value / live.reduce((t, x) => t + x.value, 0) * 100).toFixed(1)}%</span></li>`).join("");
+  return `<div class="pie-wrap"><svg viewBox="0 0 200 200" width="${size}" height="${size}" role="img" aria-label="breakdown">${paths}
+    ${centre ? `<text x="100" y="104" text-anchor="middle" font-size="13" fill="currentColor" pointer-events="none">${esc(centre)}</text>` : ""}</svg><ul class="pie-legend plain">${legend}</ul></div>`;
+}

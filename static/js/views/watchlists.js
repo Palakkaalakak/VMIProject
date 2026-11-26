@@ -2,6 +2,7 @@
 // import (Adam's TICKER|s1,s2|IV format, CSV with header, TradingView lists), auto-fill from the analysis.
 import { api } from "../api.js";
 import { $, esc, fmt, badge, loading, modal, run, table, toast, signClass } from "../ui.js";
+import { METRIC_COLS, loadCols, saveCols, metricColumns, legendHtml } from "./watchlist_cols.js";
 
 export async function render(root, params = {}) {
   root.innerHTML = loading("Loading watchlists…");
@@ -38,11 +39,13 @@ async function detail(box, id) {
         <button type="button" id="wl-check" class="secondary">Check prices now</button>
         <button type="button" id="wl-scan" class="secondary">Run VMI scan on list</button>
         <button type="button" id="wl-stats" class="secondary">Watchlist stats</button>
+        <button type="button" id="wl-cols" class="secondary" title="Choose extra metric columns for this list">Columns</button>
         <button type="button" id="wl-del" class="danger">Delete list</button>
       </form>
     </section>
     <section id="wl-stats-box"></section>
-    <section class="card"><div id="wl-items"></div></section>
+    <section class="card" id="wl-cols-box" hidden></section>
+    <section class="card"><div id="wl-items"></div><div id="wl-legend"></div></section>
     <section class="card" id="wl-review-card" ${(w.items || []).some((i) => i.stage === "review") ? "" : "hidden"}><h3>Review queue <span class="muted small">candidates from the scanner that still need a full review; not counted in sizing, plans, stats or price alerts until promoted</span></h3><div id="wl-review"></div></section>`;
   const review = (w.items || []).filter((i) => i.stage === "review"), watching = (w.items || []).filter((i) => i.stage !== "review");
   $("#wl-review", box).appendChild(table([
@@ -53,15 +56,45 @@ async function detail(box, id) {
     promote: (r, b) => run(b, async () => { await api.promote(id, r.symbol); toast(`${r.symbol} is in the watchlist`, "ok"); detail(box, id); }),
     moat: (r) => window.open(`#/moat/${r.symbol}`, "_blank"),
     remove: (r, b) => run(b, async () => { await api.removeItem(id, r.symbol); detail(box, id); }) } }));
-  $("#wl-items", box).appendChild(table(COLS, watching, {
-    empty: "Empty — add tickers or import a list.",
-    initialSort: { key: "distance_to_level", desc: false },
-    onRow: (r) => { location.hash = `#/analysis/${r.symbol}`; },
-    actions: {
-      autofill: (r, b) => run(b, async () => { await api.autofill(id, r.symbol); toast(`${r.symbol}: IV + levels filled from analysis`, "ok"); detail(box, id); }),
-      remove: (r, b) => run(b, async () => { await api.removeItem(id, r.symbol); detail(box, id); }),
-    },
-  }));
+  // metric columns: chosen per list (saved in this browser), data from GET /metrics (cached analysis) fetched on first use
+  let chosen = loadCols(id), metrics = null, loadingMetrics = false;
+  const drawItems = () => {
+    const extra = metricColumns(chosen, metrics, loadingMetrics);
+    const cols = [...COLS.slice(0, -1), ...extra, COLS[COLS.length - 1]];
+    const holder = $("#wl-items", box);
+    holder.innerHTML = "";
+    holder.appendChild(table(cols, watching, {
+      empty: "Empty — add tickers or import a list.",
+      initialSort: { key: "distance_to_level", desc: false },
+      onRow: (r) => { location.hash = `#/analysis/${r.symbol}`; },
+      actions: {
+        autofill: (r, b) => run(b, async () => { await api.autofill(id, r.symbol); toast(`${r.symbol}: IV + levels filled from analysis`, "ok"); detail(box, id); }),
+        remove: (r, b) => run(b, async () => { await api.removeItem(id, r.symbol); detail(box, id); }),
+      },
+    }));
+    $("#wl-legend", box).innerHTML = chosen.length ? legendHtml(metrics, loadingMetrics) : "";
+  };
+  const ensureMetrics = async () => {
+    if (!chosen.length || metrics || loadingMetrics) return drawItems();
+    loadingMetrics = true; drawItems();
+    try { metrics = await api.watchlistMetrics(id); }
+    catch (e) { toast(`Metric columns: ${e.message}`, "error", 7000); metrics = { metrics: {}, rules: {} }; }
+    loadingMetrics = false; drawItems();
+  };
+  const colsPane = $("#wl-cols-box", box);
+  colsPane.addEventListener("change", (e) => {
+    const key = e.target?.dataset?.col;
+    if (!key) return;
+    chosen = METRIC_COLS.map((c) => c.key).filter((k) => (k === key ? e.target.checked : chosen.includes(k)));
+    saveCols(id, chosen);
+    ensureMetrics();
+  });
+  $("#wl-cols", box).addEventListener("click", () => {
+    colsPane.hidden = !colsPane.hidden;
+    colsPane.innerHTML = `<h3>Columns <span class="muted small">extra metrics next to the standard ones; saved for this list in this browser</span></h3>
+      <div class="inline">${METRIC_COLS.map((c) => `<label class="check"><input type="checkbox" data-col="${c.key}" ${chosen.includes(c.key) ? "checked" : ""}> ${esc(c.label)}</label>`).join("")}</div>`;
+  });
+  ensureMetrics();
   $("#wl-stats", box).addEventListener("click", (e) => run(e.target, async () => { $("#wl-stats-box", box).innerHTML = statsHtml(await api.watchlistStats(id)); }));
   const refresh = () => detail(box, id);
   $("#wl-add", box).addEventListener("submit", (e) => {

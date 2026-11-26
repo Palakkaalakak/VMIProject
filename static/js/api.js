@@ -75,6 +75,9 @@ export const api = {
   createPortfolio: (body) => request("POST", "/api/portfolios", body),
   deletePortfolio: (id) => request("DELETE", `/api/portfolios/${id}`),
   resetPortfolio: (id) => request("POST", `/api/portfolios/${id}/reset`),
+  breakdown: (id, by) => request("GET", `/api/portfolios/${id}/breakdown${qs({ by })}`),
+  setTag: (id, symbol, tag) => request("POST", `/api/portfolios/${id}/tags`, { symbol, tag }),
+  heatmap: (metric) => request("GET", `/api/heatmap${qs({ metric })}`),
   trades: (id) => request("GET", `/api/portfolios/${id}/trades`),
   stockOrder: (id, body) => request("POST", `/api/portfolios/${id}/orders/stock`, body),
   optionOrder: (id, body) => request("POST", `/api/portfolios/${id}/orders/option`, body),
@@ -90,6 +93,7 @@ export const api = {
   autofill: (id, s) => request("POST", `/api/watchlists/${id}/items/${s}/autofill`),
   importList: (id, text, auto_fill) => request("POST", `/api/watchlists/${id}/import`, { text, auto_fill }),
   watchlistStats: (id, threshold) => request("GET", `/api/watchlists/${id}/stats${qs({ threshold })}`),
+  watchlistMetrics: (id) => request("GET", `/api/watchlists/${id}/metrics`),
   scanWatchlist: (id) => request("POST", `/api/watchlists/${id}/scan`),
   // alerts
   alerts: () => request("GET", "/api/alerts"),

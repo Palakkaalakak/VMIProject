@@ -156,6 +156,16 @@ class DailyMark(Base):
     data: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class PositionTag(Base):
+    """Owner's strategy tag per portfolio holding (Growth, Dividend, ...); feeds the portfolio Breakdown card."""
+    __tablename__ = "position_tags"
+    __table_args__ = (UniqueConstraint("portfolio_id", "symbol"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    portfolio_id: Mapped[int] = mapped_column(Integer, index=True)
+    symbol: Mapped[str] = mapped_column(String(20))
+    tag: Mapped[str] = mapped_column(String(30))
+
+
 class Watchlist(Base):
     __tablename__ = "watchlists"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

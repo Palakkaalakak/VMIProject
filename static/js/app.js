@@ -10,6 +10,7 @@ const ROUTES = {
   moat: { load: () => import("./views/moat.js"), param: "symbol" },
   scanner: { load: () => import("./views/scanner.js") },
   watchlists: { load: () => import("./views/watchlists.js"), param: "id" },
+  heatmap: { load: () => import("./views/heatmap.js") },
   portfolios: { load: () => import("./views/portfolios.js"), param: "id" },
   options: { load: () => import("./views/options.js"), param: "symbol" },
   ledger: { load: () => import("./views/ledger.js"), param: "id" },

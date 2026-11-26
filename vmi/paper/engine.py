@@ -61,6 +61,8 @@ def delete_portfolio(pid: int) -> None:
         p = s.get(store.Portfolio, pid)
         if p:
             s.delete(p)
+            for t in s.scalars(select(store.PositionTag).where(store.PositionTag.portfolio_id == pid)):
+                s.delete(t)
             s.commit()
 
 
