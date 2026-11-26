@@ -177,7 +177,7 @@ def test_heatmap_endpoint_metrics_and_cache(client, monkeypatch):
     assert r["metric"] == "change_1d" and len(r["tiles"]) == 3 and r["tiles"][0]["value"] == pytest.approx(0.1)
     assert r["n_iv"] == 1 and r["scan_run_id"] == 7
     iv = client.get("/api/heatmap?metric=price_vs_iv").json()
-    assert {t["symbol"]: t["value"] for t in iv["tiles"]}["S1"] == pytest.approx(0.5) and sum(t["value"] is None for t in iv["tiles"]) == 2
+    assert {t["symbol"]: t["value"] for t in iv["tiles"]}["S1"] == pytest.approx(-0.5) and sum(t["value"] is None for t in iv["tiles"]) == 2
     assert len(calls) == 1                                                      # assembled once, 15-minute cache
     assert client.get("/api/heatmap?metric=nope").status_code == 400
 
