@@ -107,6 +107,6 @@ const LOT_COLS = [
   { key: "atoday", label: "Since sale", cls: "num", sort: (r) => r.stats.after_today, render: pct("after_today") },
   { key: "kept", label: "If kept $", cls: "num", sort: (r) => r.stats.if_kept_extra_pnl, render: (r) => `<span class="${signClass(r.stats.if_kept_extra_pnl)}">${fmt.money(r.stats.if_kept_extra_pnl)}</span>` },
   { key: "evi", label: "Entry vs IV", cls: "num", sort: (r) => r.stats.entry_vs_iv, render: pct("entry_vs_iv") },
-  { key: "mos", label: "MOS at entry", cls: "num", sort: (r) => r.entry.margin_of_safety, render: (r) => fmt.pct(r.entry.margin_of_safety) },
+  { key: "mos", label: "Price vs IV at entry", cls: "num", sort: (r) => r.entry.margin_of_safety, render: (r) => fmt.gap(r.entry.margin_of_safety) },
   { key: "why", label: "Tags / thesis", sort: (r) => r.entry.tags?.join(","), render: (r) => esc([...(r.entry.tags || []), r.entry.thesis].filter(Boolean).join(" — ")) },
 ];

@@ -5,7 +5,7 @@ import { esc, fmt } from "../ui.js";
 const pct = (v) => fmt.pct(v, 1), num = (v) => fmt.num(v, 2);
 export const METRIC_COLS = [
   { key: "growth", label: "Growth", fmt: pct }, { key: "roe", label: "ROE", fmt: pct }, { key: "roic", label: "ROIC", fmt: pct },
-  { key: "net_margin", label: "Net margin", fmt: pct }, { key: "margin_of_safety", label: "MOS (VMI IV)", fmt: pct },
+  { key: "net_margin", label: "Net margin", fmt: pct }, { key: "margin_of_safety", label: "Price vs IV (VMI IV)", fmt: (v) => fmt.gap(v, 1) },
   { key: "peg", label: "PEG", fmt: num }, { key: "pe", label: "P/E", fmt: num }, { key: "dividend_yield", label: "Div. yield", fmt: pct },
   { key: "steps_passed", label: "Steps", fmt: (v) => (v == null ? "—" : `${v}/7`) }, { key: "moat", label: "Moat", fmt: (v) => v || "—" },
   { key: "distance_to_level", label: "Dist. (flagged)", fmt: pct },

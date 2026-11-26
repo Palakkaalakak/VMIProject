@@ -53,6 +53,11 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-26 — "Price vs IV" replaces the margin-of-safety display (sign inverted)
+- Owner: show how far the price is from intrinsic value with undervalued NEGATIVE: IV 100, price 80 = -20% (undervalued); price 120 = +20% (overvalued). Same number as the margin of safety with the opposite sign (price/IV - 1), so only the DISPLAY changed (`fmt.gap` in ui.js): scanner column, watchlist column and picker, Analysis KPI, overview calculator, review table, and the scanner's condition builder ("Price vs IV %"). Stored field `margin_of_safety` and Adam's rules unchanged (a 10-15% margin of safety = price 10-15% below IV = -10% to -15% here); the older "Min/Max margin of safety %" filters keep their original meaning and say so.
+- Evidence: tests/js/lists.mjs (IV 100: price 80 -> -20.0%, price 120 -> +20.0%, at IV 0.0%); suite passes. Not re-checked in the browser.
+
+
 ### 2026-11-26 — Stock Oracle features, step 5: watchlist columns, portfolio breakdown, S&P 500 heatmap (Sonnet-built, Opus-reviewed)
 - **Watchlist columns:** "Columns" picker (growth, ROE, ROIC, margin, MOS, PEG, yield, steps, moat, distance to level, cap, beta...), saved per watchlist in the browser, green/yellow/red flags from one table (`vmi/watchlist/flags.py`) using the app's rule thresholds; `GET /api/watchlists/{id}/metrics` (cached analyses, 6 h). Flag cut-offs with no course rule (chosen by the builder, change freely in flags.py): MOS green above 0; steps green at 5+, yellow 3-4; yield green at the 5% rule, yellow at the 3% screen; distance to level green within the near-level rule, yellow within 3x; net margin red only for a loss.
 - **Portfolio Breakdown card:** donut pies by sector, country, category, strategy tag (by market value, cash and an "Options" slice at absolute leg value); strategy tag per holding (new table `position_tags`, deleted with the portfolio). `GET /api/portfolios/{pid}/breakdown`, `POST .../tags`.

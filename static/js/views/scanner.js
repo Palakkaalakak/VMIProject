@@ -31,7 +31,7 @@ const VIEW_OPTIONS = {
   "view.min_roe": { label: "ROE at least % (shown results)", help: "Display filter on the scan's ROE column", def: 15 },
   "view.min_roic": { label: "ROIC at least % (shown results)", help: "Display filter on the ROIC column (provider ROIC nets out cash: huge for cash-rich companies)", def: 12 },
   "view.min_margin": { label: "Net margin at least %", help: "Display filter", def: 10 },
-  "view.min_mos": { label: "Margin of safety at least %", help: "How far below the intrinsic value the price is", def: 10 },
+  "view.min_mos": { label: "Margin of safety at least % (price this far BELOW IV)", help: "How far below the intrinsic value the price is (positive = undervalued; the columns now show this as a negative Price vs IV)", def: 10 },
   "view.max_peg": { label: "PEG at most", help: "Adam only uses PEG as a screen: 1.5 fine, above 2 expensive", def: 2 },
   "view.min_yield": { label: "Dividend yield at least %", help: "Dividend stocks", def: 3 },
   "view.min_cap": { label: "Market cap at least ($B, shown results)", help: "Display filter", def: 10 },
@@ -311,7 +311,7 @@ async function loadResults(root, runId = null) {
   try {
     const res = await api.scanResults(runId ? { run_id: runId } : {});
     shownRun = res.run_id ?? runId;
-    allRows = addIndustryStats(res.results || []);
+    allRows = addIndustryStats(res.results || []).map((r) => ({ ...r, price_vs_iv: r.margin_of_safety == null ? null : -r.margin_of_safety }));
     const fb = $("#scan-filter-box", root);
     const wasOpen = fb.querySelector("details")?.open;
     fb.innerHTML = filterPanel(allRows);
@@ -364,7 +364,7 @@ const COLUMNS = [
   { key: "industry", label: "Industry", render: (r) => `${esc(r.industry || "")}<div class="small muted">#${r.industry_rank ?? "—"} of ${r.industry_n ?? "—"} · ${fmt.pct(r.industry_share, 0)} of its cap</div>` },
   { key: "price", label: "Price", cls: "num", render: (r) => fmt.money(r.price) },
   { key: "intrinsic_value", label: "IV", cls: "num", render: (r) => `${fmt.money(r.intrinsic_value)}${r.iv_low_confidence ? ` <span class="badge na" title="${esc(r.iv_note)}">IV may be high</span>` : ""}` },
-  { key: "margin_of_safety", label: "MOS", cls: "num", render: (r) => `<span class="${signClass(r.margin_of_safety)}">${fmt.pct(r.margin_of_safety)}</span>` },
+  { key: "margin_of_safety", label: "Price vs IV", cls: "num", render: (r) => `<span class="${signClass(r.margin_of_safety)}" title="Price versus intrinsic value: −20% = price 20% below IV (undervalued); +20% = 20% above IV (overvalued)">${fmt.gap(r.margin_of_safety)}</span>` },
   { key: "growth", label: "Growth (low / avg / high)", cls: "num", render: (r) => `${fmt.pct(r.growth)}<div class="small muted" title="${esc(Object.entries(r.growth_sources || {}).map(([k, v]) => `${k} ${fmt.pct(v)}`).join(", "))}">${r.growth_low != null ? `${fmt.pct(r.growth_low, 0)} / ${fmt.pct(r.growth_avg, 0)} / ${fmt.pct(r.growth_high, 0)}` : ""}</div>` },
   { key: "roe", label: "ROE", cls: "num", render: (r) => `${fmt.pct(r.roe)}${basisTag(r)}${r.basis_kind === "avg" && r.roe_latest != null ? `<div class="small muted">latest FY ${fmt.pct(r.roe_latest)}</div>` : ""}${r.roe_loss_years ? `<div class="small neg" title="ROE was negative in ${r.roe_loss_years} of the last 5 years: a normalised (multi-year average) Step 4 uses the 5-year average ${fmt.pct(r.roe_avg5)}, not this latest value">${r.roe_loss_years} loss yr · avg ${fmt.pct(r.roe_avg5, 0)}</div>` : ""}` },
   { key: "roic", label: "ROIC", cls: "num", render: (r) => `${fmt.pct(r.roic)}${basisTag(r)}${r.basis_kind === "avg" && r.roic_latest != null ? `<div class="small muted">latest FY ${fmt.pct(r.roic_latest)}</div>` : ""}` },

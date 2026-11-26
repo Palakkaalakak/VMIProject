@@ -7,6 +7,8 @@ export const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&a
 export const fmt = {
   money: (v, d = 2) => (v == null || isNaN(v) ? "—" : "$" + Number(v).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d })),
   num: (v, d = 2) => (v == null || isNaN(v) ? "—" : Number(v).toLocaleString(undefined, { maximumFractionDigits: d })),
+  /** Price versus intrinsic value from the margin of safety: -20% = price 20% BELOW IV (undervalued), +20% = 20% above (overvalued). */
+  gap: (mos, d = 1) => (mos == null || isNaN(mos) ? "—" : `${mos <= 0 ? "+" : "−"}${Math.abs(mos * 100).toFixed(d)}%`.replace(/^\+0\.0%$|^−0\.0%$/, "0.0%")),
   pct: (v, d = 1) => (v == null || isNaN(v) ? "—" : (v * 100).toFixed(d) + "%"),
   big: (v) => {
     if (v == null || isNaN(v)) return "—";

@@ -109,7 +109,7 @@ function header(r) {
     <div class="kpis">
       <div class="kpi"><span>Price</span><b>${fmt.money(r.price)}</b></div>
       <div class="kpi"><span>Intrinsic value</span><b>${fmt.money(r.intrinsic_value)}</b></div>
-      <div class="kpi"><span>Margin of safety</span><b class="${signClass(v.margin_of_safety)}">${fmt.pct(v.margin_of_safety)}</b></div>
+      <div class="kpi" title="Price versus intrinsic value: −20% = price 20% below IV (undervalued); +20% = 20% above IV (overvalued)"><span>Price vs IV</span><b class="${signClass(v.margin_of_safety)}">${fmt.gap(v.margin_of_safety)}</b></div>
       <div class="kpi"><span>Conservative</span><b>${fmt.money(v.conservative_value)}</b></div>
       ${verdict(r)}
     </div>

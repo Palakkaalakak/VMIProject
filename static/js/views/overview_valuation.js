@@ -1,7 +1,7 @@
 // Valuation calculator: edit the growth / discount-rate / cash-flow inputs and see the intrinsic value move live.
 // Nothing is saved unless "Save as my override" is pressed (it reuses the normal overrides API).
 import { api } from "../api.js";
-import { esc, run, toast } from "../ui.js";
+import { esc, run, toast, fmt } from "../ui.js";
 import { kpi, pct, usd, muted } from "./overview_util.js";
 
 // [override key, label, key in the report's method inputs, unit]; "pct" fields are typed as percent, "m" as millions
@@ -62,7 +62,7 @@ export function mountValuation(body, symbol, report) {
       <td class="num">${esc(usd(m.intrinsic_value))}</td><td>${m.applicable === false ? '<span class="badge na">caveat</span>' : ""}</td></tr>`).join("");
     const mos = res.margin_of_safety;
     out.innerHTML = `<div class="kpis">${kpi("Price", usd(res.price ?? report.price))}${kpi("Intrinsic value", usd(res.intrinsic_value), "", (methods[res.selected] || res.methods?.[res.selected] || {}).label || "")}
-      ${kpi("Conservative value", usd(res.conservative_value))}${kpi("Margin of safety", pct(mos), mos == null ? "" : mos >= 0 ? "pos" : "neg")}
+      ${kpi("Conservative value", usd(res.conservative_value))}${kpi("Price vs IV", fmt.gap(mos), mos == null ? "" : mos >= 0 ? "pos" : "neg")}
       ${kpi("Method", (res.methods?.[res.selected] || {}).label || res.selected || "—")}</div>
       ${preview ? `<p class="small"><span class="badge warn">preview</span> changed: ${esc((res.changed || []).join(", ") || "nothing")}</p>` : ""}
       ${gauge(res.price ?? report.price, res.intrinsic_value, res.conservative_value)}

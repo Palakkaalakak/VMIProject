@@ -52,7 +52,7 @@ const FIELDS = [
 const cap = (v) => (num(v) == null ? null : num(v) * 1e9);
 export const METRICS = [
   { id: "steps", label: "Steps passed (of 7)", field: "steps_passed", parse: num },
-  { id: "mos", label: "Margin of safety %", field: "margin_of_safety", parse: pctOf },
+  { id: "mos", label: "Price vs IV % (−20 = 20% below IV)", field: "price_vs_iv", parse: pctOf },
   { id: "growth", label: "Growth (valuation blend) %", field: "growth", parse: pctOf },
   { id: "growth_low", label: "Growth: lowest estimate %", field: "growth_low", parse: pctOf },
   { id: "growth_avg", label: "Growth: average estimate %", field: "growth_avg", parse: pctOf },

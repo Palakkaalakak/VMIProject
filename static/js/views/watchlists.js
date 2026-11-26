@@ -138,7 +138,7 @@ const COLS = [
   { key: "symbol", label: "Ticker", render: (r) => `<b>${esc(r.symbol)}</b>${r.notes ? `<div class="small muted">${esc(r.notes)}</div>` : ""}` },
   { key: "price", label: "Price", cls: "num", render: (r) => fmt.money(r.price) },
   { key: "intrinsic_value", label: "IV", cls: "num", render: (r) => `${fmt.money(r.intrinsic_value)} <span class="small muted">${esc(r.iv_source || "")}</span>` },
-  { key: "margin_of_safety", label: "MOS", cls: "num", render: (r) => `<span class="${signClass(r.margin_of_safety)}">${fmt.pct(r.margin_of_safety)}</span>` },
+  { key: "margin_of_safety", label: "Price vs IV", cls: "num", render: (r) => `<span class="${signClass(r.margin_of_safety)}" title="Price versus intrinsic value: −20% = price 20% below IV (undervalued); +20% = 20% above IV (overvalued)">${fmt.gap(r.margin_of_safety)}</span>` },
   { key: "supports", label: "Supports", render: (r) => (r.supports || []).map((s) => `<span class="chip ${r.price && s >= r.price ? "hit" : ""}">${fmt.num(s)}</span>`).join(" ") },
   { key: "next_level", label: "Next level", cls: "num", render: (r) => fmt.money(r.next_level) },
   { key: "distance_to_level", label: "Distance", cls: "num", render: (r) => fmt.pct(r.distance_to_level) },

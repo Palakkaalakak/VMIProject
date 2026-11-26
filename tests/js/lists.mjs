@@ -54,3 +54,11 @@ eq(heatColor(0.05, 0.1).startsWith("hsl(142"), true, "up is green"); eq(heatColo
 eq(heatColor(0.5, 0.1), heatColor(0.1, 0.1), "colour saturates at the limit");
 eq(Object.keys(HEAT_LIMITS), ["change_1d", "change_1m", "ytd", "discount_to_iv"], "one limit per metric");
 console.log("done");
+{
+  const { fmt } = await import("../../static/js/ui.js");
+  const chk = (a, b, m) => { if (a !== b) { console.log("FAIL", m, a, b); process.exitCode = 1; } };
+  chk(fmt.gap(0.2), "−20.0%", "IV 100, price 80 -> -20% (undervalued)");
+  chk(fmt.gap(-0.2), "+20.0%", "IV 100, price 120 -> +20% (overvalued)");
+  chk(fmt.gap(0), "0.0%", "at IV");
+  chk(fmt.gap(null), "—", "missing");
+}
