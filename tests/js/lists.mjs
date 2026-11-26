@@ -52,7 +52,7 @@ near(lay.reduce((a, s) => a + s.w * s.h, 0), 800 * 500, "sectors fill the area",
 eq(heatColor(null, 0.1), heatColor(NaN, 0.1), "missing is the neutral grey");
 eq(heatColor(0.05, 0.1).startsWith("hsl(142"), true, "up is green"); eq(heatColor(-0.05, 0.1).startsWith("hsl(2 "), true, "down is red");
 eq(heatColor(0.5, 0.1), heatColor(0.1, 0.1), "colour saturates at the limit");
-eq(Object.keys(HEAT_LIMITS), ["change_1d", "change_1m", "ytd", "discount_to_iv"], "one limit per metric");
+eq(Object.keys(HEAT_LIMITS), ["change_1d", "change_1m", "ytd", "price_vs_iv"], "one limit per metric");
 console.log("done");
 {
   const { fmt } = await import("../../static/js/ui.js");

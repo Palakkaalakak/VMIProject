@@ -14,7 +14,7 @@ from vmi.data import market, universe
 from vmi.data.cache import get_cache
 
 log = logging.getLogger("vmi.heatmap")
-METRICS = ("change_1d", "change_1m", "ytd", "discount_to_iv")
+METRICS = ("change_1d", "change_1m", "ytd", "price_vs_iv")
 TTL = 15 * 60
 MONTH_ROWS = 21            # trading days in about a month
 
@@ -48,7 +48,7 @@ def build_tiles(constituents: list[dict], caps: dict[str, float], histories: dic
         iv = ivs.get(sym)
         tiles.append({"symbol": sym, "name": c.get("name", ""), "sector": c.get("sector") or "Other", "market_cap": cap,
                       **ch, "intrinsic_value": iv,
-                      "discount_to_iv": (iv - ch["price"]) / iv if iv and ch["price"] else None})
+                      "price_vs_iv": (ch["price"] - iv) / iv if iv and ch["price"] else None})   # -20% = price 20% below IV (undervalued)
     return tiles
 
 

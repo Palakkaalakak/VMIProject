@@ -156,7 +156,7 @@ def test_build_tiles_skips_no_cap_and_greys_without_iv():
     tiles = heatmap.build_tiles(members, {"AAA": 2e12, "BBB": 1e11}, hist, {"AAA": 220.0})
     assert [t["symbol"] for t in tiles] == ["AAA", "BBB"]                       # CCC has no market cap
     a, b = tiles
-    assert a["discount_to_iv"] == pytest.approx(0.5) and b["discount_to_iv"] is None and b["sector"] == "Other"
+    assert a["price_vs_iv"] == pytest.approx(-0.5) and b["price_vs_iv"] is None and b["sector"] == "Other"
     assert b["change_1d"] == pytest.approx(-0.1)
 
 
@@ -176,7 +176,7 @@ def test_heatmap_endpoint_metrics_and_cache(client, monkeypatch):
     r = client.get("/api/heatmap?metric=change_1d").json()
     assert r["metric"] == "change_1d" and len(r["tiles"]) == 3 and r["tiles"][0]["value"] == pytest.approx(0.1)
     assert r["n_iv"] == 1 and r["scan_run_id"] == 7
-    iv = client.get("/api/heatmap?metric=discount_to_iv").json()
+    iv = client.get("/api/heatmap?metric=price_vs_iv").json()
     assert {t["symbol"]: t["value"] for t in iv["tiles"]}["S1"] == pytest.approx(0.5) and sum(t["value"] is None for t in iv["tiles"]) == 2
     assert len(calls) == 1                                                      # assembled once, 15-minute cache
     assert client.get("/api/heatmap?metric=nope").status_code == 400

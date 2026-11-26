@@ -53,6 +53,10 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-26 — Heatmap uses Price vs IV too
+- Heatmap metric `discount_to_iv` became `price_vs_iv` = (price - IV) / IV: -20% = price 20% below IV (undervalued, drawn green), +20% = overvalued (red); labels and legend follow. Tests updated; suite passes. Not re-checked in the browser.
+
+
 ### 2026-11-26 — "Price vs IV" replaces the margin-of-safety display (sign inverted)
 - Owner: show how far the price is from intrinsic value with undervalued NEGATIVE: IV 100, price 80 = -20% (undervalued); price 120 = +20% (overvalued). Same number as the margin of safety with the opposite sign (price/IV - 1), so only the DISPLAY changed (`fmt.gap` in ui.js): scanner column, watchlist column and picker, Analysis KPI, overview calculator, review table, and the scanner's condition builder ("Price vs IV %"). Stored field `margin_of_safety` and Adam's rules unchanged (a 10-15% margin of safety = price 10-15% below IV = -10% to -15% here); the older "Min/Max margin of safety %" filters keep their original meaning and say so.
 - Evidence: tests/js/lists.mjs (IV 100: price 80 -> -20.0%, price 120 -> +20.0%, at IV 0.0%); suite passes. Not re-checked in the browser.

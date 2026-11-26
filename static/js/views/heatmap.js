@@ -4,7 +4,7 @@ import { $, esc, fmt, loading } from "../ui.js";
 import { bindChartTips } from "../charts.js";
 import { sectorLayout, heatColor, HEAT_LIMITS } from "../treemap.js";
 
-const METRICS = [["change_1d", "1 day"], ["change_1m", "1 month"], ["ytd", "Year to date"], ["discount_to_iv", "Discount to intrinsic value"]];
+const METRICS = [["change_1d", "1 day"], ["change_1m", "1 month"], ["ytd", "Year to date"], ["price_vs_iv", "Price vs intrinsic value (−20% = undervalued)"]];
 const W = 1200, H = 700;
 const pct = (v, d = 2) => (v == null ? "—" : `${v > 0 ? "+" : ""}${(v * 100).toFixed(d)}%`);
 let metric = "change_1d";
@@ -41,9 +41,9 @@ async function load(root) {
   const byKey = Object.fromEntries(data.tiles.map((t) => [t.symbol, t]));
   const parts = layout.map((sec) => {
     const tiles = sec.stocks.map((p) => {
-      const t = byKey[p.symbol], fill = heatColor(t.value, limit), big = p.w > 46 && p.h > 26;
+      const t = byKey[p.symbol], fill = heatColor(my === "price_vs_iv" && t.value != null ? -t.value : t.value, limit)   // undervalued (negative) is green, big = p.w > 46 && p.h > 26;
       const tip = `<strong>${esc(t.symbol)}</strong> ${esc(t.name)}<br>${esc(t.sector)}<br>Price ${esc(fmt.money(t.price))}<br>
-        ${esc(label)}: <b>${esc(pct(t.value))}</b>${t.value == null && my === "discount_to_iv" ? " (not in the latest scan)" : ""}<br>
+        ${esc(label)}: <b>${esc(pct(t.value))}</b>${t.value == null && my === "price_vs_iv" ? " (not in the latest scan)" : ""}<br>
         1d ${esc(pct(t.change_1d))} · 1m ${esc(pct(t.change_1m))} · YTD ${esc(pct(t.ytd))}<br>Market cap ${esc(fmt.big(t.market_cap))}`;
       return `<g class="hm-tile" data-sym="${esc(t.symbol)}"><rect class="chart-hit" x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" width="${p.w.toFixed(1)}" height="${p.h.toFixed(1)}" style="fill:${fill}" data-tip="${esc(tip)}"/>
         ${big ? `<text x="${(p.x + p.w / 2).toFixed(1)}" y="${(p.y + p.h / 2 - 1).toFixed(1)}" text-anchor="middle" font-size="${Math.min(15, Math.max(9, p.w / 5)).toFixed(0)}" font-weight="700">${esc(t.symbol)}</text>
@@ -52,12 +52,12 @@ async function load(root) {
     return `<text class="hm-sector" x="${(sec.x + 4).toFixed(1)}" y="${(sec.y + 12).toFixed(1)}">${esc(sec.sector)}</text>${tiles}`;
   }).join("");
   body.innerHTML = `<div class="hm-wrap" id="hm-wrap"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="S&amp;P 500 heatmap">${parts}</svg></div>
-    ${my === "discount_to_iv" ? `<p class="small muted">Grey tiles have no intrinsic value: only stocks in the latest saved scan${data.scan_run_id ? ` (run ${data.scan_run_id})` : ""} have one. Run the Superscanner on the S&amp;P 500 to fill more.</p>` : ""}`;
+    ${my === "price_vs_iv" ? `<p class="small muted">Grey tiles have no intrinsic value: only stocks in the latest saved scan${data.scan_run_id ? ` (run ${data.scan_run_id})` : ""} have one. Run the Superscanner on the S&amp;P 500 to fill more.</p>` : ""}`;
   const wrap = $("#hm-wrap", body);
   bindChartTips(wrap);
   wrap.addEventListener("click", (e) => { const g = e.target.closest(".hm-tile"); if (g) location.hash = `#/analysis/${g.dataset.sym}`; });
   $("#hm-info", root).textContent = `${data.n_priced} of ${data.n_members} stocks priced · area = market cap · prices from the last close, cached up to 15 minutes`;
-  const steps = [-1, -0.5, 0, 0.5, 1].map((f) => ({ v: f * limit, c: heatColor(f * limit, limit) }));
+  const steps = [-1, -0.5, 0, 0.5, 1].map((f) => ({ v: f * limit, c: heatColor(my === "price_vs_iv" ? -f * limit : f * limit, limit) }));
   $("#hm-scale", root).innerHTML = `${steps.map((s) => `<i style="background:${s.c}"></i><span>${pct(s.v, 0)}</span>`).join(" ")}<i style="background:${heatColor(null, 1)}"></i><span>no data</span>
     <span class="muted">· ${esc(label)}; colour is full at ±${(limit * 100).toFixed(0)}%</span>`;
 }

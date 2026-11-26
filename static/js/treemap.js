@@ -58,4 +58,4 @@ export function heatColor(v, limit) {
 }
 
 /** Full-colour value of each metric (fractions): the colour saturates at +/- this. */
-export const HEAT_LIMITS = { change_1d: 0.03, change_1m: 0.10, ytd: 0.30, discount_to_iv: 0.40 };
+export const HEAT_LIMITS = { change_1d: 0.03, change_1m: 0.10, ytd: 0.30, price_vs_iv: 0.40 };
