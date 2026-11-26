@@ -60,11 +60,40 @@ async function load(root, symbol) {
   try {
     const mode = readMode(root);
     const r = await api.analyse(symbol, $("#analysis-tech", root).checked, { ten_year_only: mode.ten_year_only, normalise: mode.normalise ?? undefined });
-    out.innerHTML = view(r);
+    out.innerHTML = tabBar() + `<div id="an-pane-analysis">${view(r)}</div><div id="an-pane-overview" hidden></div>`;
     bind(out, r);
+    bindTabs(out, r);
   } catch (e) {
     out.innerHTML = `<div class="card error">${esc(e.message)}</div>`;
   }
+}
+
+// Two tabs at the top of the result: today's analysis, and the lazily loaded "More detailed overview" (views/overview.js).
+const TAB_KEY = "vmi.analysis.tab";
+const tabBar = () => `<div class="tabs an-tabs" role="tablist">
+  <button type="button" class="tab" role="tab" data-tab="analysis">Analysis</button>
+  <button type="button" class="tab" role="tab" data-tab="overview">More detailed overview</button></div>`;
+
+function bindTabs(out, r) {
+  let loaded = false;
+  const show = async (tab) => {
+    try { localStorage.setItem(TAB_KEY, tab); } catch { /* private window */ }
+    for (const b of out.querySelectorAll(".an-tabs .tab")) {
+      b.classList.toggle("active", b.dataset.tab === tab);
+      b.setAttribute("aria-selected", String(b.dataset.tab === tab));
+    }
+    $("#an-pane-analysis", out).hidden = tab !== "analysis";
+    $("#an-pane-overview", out).hidden = tab !== "overview";
+    if (tab === "overview" && !loaded) {
+      loaded = true;
+      try { (await import("./overview.js")).mountOverview($("#an-pane-overview", out), r.ticker, r); }
+      catch (e) { $("#an-pane-overview", out).innerHTML = `<p class="muted">The overview could not be loaded (${esc(e.message)}).</p>`; }
+    }
+  };
+  out.querySelectorAll(".an-tabs .tab").forEach((b) => b.addEventListener("click", () => show(b.dataset.tab)));
+  let saved = "analysis";
+  try { saved = localStorage.getItem(TAB_KEY) === "overview" ? "overview" : "analysis"; } catch { /* ignore */ }
+  show(saved);
 }
 
 const verdict = (r) => [

@@ -36,3 +36,146 @@ export function heat(v, maxAbs) {
   const a = Math.min(1, Math.abs(v) / maxAbs) * 0.55;
   return `background:${v >= 0 ? `rgba(22,163,74,${a})` : `rgba(220,38,38,${a})`}`;
 }
+
+// ---------------------------------------------------------------------------------------------------------
+// Period charts for the "More detailed overview" tab: grouped bars (or lines) per period with a hover tooltip,
+// an optional right-axis price line, plus sparklines. Everything below the pure helpers builds SVG/HTML strings.
+// ---------------------------------------------------------------------------------------------------------
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+export const PALETTE = ["#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#06b6d4", "#ef4444"];
+
+/** "Nice" axis ticks covering [min, max]: {ticks, min, max}. Always spans at least one step, so flat data still has an axis. */
+export function niceTicks(min, max, count = 5) {
+  if (!isFinite(min) || !isFinite(max)) return { ticks: [0, 1], min: 0, max: 1 };
+  if (min === max) { const d = Math.abs(min) || 1; min -= d / 2; max += d / 2; }
+  const raw = (max - min) / Math.max(1, count);
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw) || 10 * mag;
+  const lo = Math.floor(min / step + 1e-9) * step, hi = Math.ceil(max / step - 1e-9) * step;
+  const ticks = [];
+  for (let v = lo; v <= hi + step / 1e6; v += step) ticks.push(Math.abs(v) < step / 1e6 ? 0 : +v.toPrecision(12));
+  return { ticks, min: lo, max: hi };
+}
+
+/** Linear scale: value in [d0, d1] -> pixel in [r0, r1] (r0 > r1 for a y axis that grows upwards). */
+export function linearScale(d0, d1, r0, r1) {
+  const span = d1 - d0 || 1;
+  return (v) => r0 + ((v - d0) / span) * (r1 - r0);
+}
+
+/** Money given in MILLIONS as "$1.23B" / "$456M" (T above a million millions); null -> "—". */
+export function fmtMillions(v, digits = 2) {
+  if (v == null || !isFinite(v)) return "—";
+  const a = Math.abs(v), s = v < 0 ? "-" : "";
+  if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(digits)}T`;
+  if (a >= 1e3) return `${s}$${(a / 1e3).toFixed(digits)}B`;
+  return `${s}$${a.toFixed(a >= 100 ? 0 : 1)}M`;
+}
+
+/** Pick, for every period end date, the last price on or before it (null when the prices start later). */
+export function alignPrices(prices, ends) {
+  const sorted = [...(prices || [])].sort((a, b) => (a.date < b.date ? -1 : 1));
+  return ends.map((e) => {
+    let best = null;
+    for (const p of sorted) { if (p.date <= e) best = p.close; else break; }
+    return best;
+  });
+}
+
+/** Sparkline points "x,y x,y …" for a series (nulls skipped) inside a w x h box; "" when fewer than 2 points. */
+export function sparkPoints(values, w = 90, h = 24, pad = 2) {
+  const pts = values.map((v, i) => [i, v]).filter(([, v]) => v != null && isFinite(v));
+  if (pts.length < 2) return "";
+  const lo = Math.min(...pts.map((p) => p[1])), hi = Math.max(...pts.map((p) => p[1]));
+  const X = linearScale(0, values.length - 1, pad, w - pad), Y = linearScale(lo, hi === lo ? lo + 1 : hi, h - pad, pad);
+  return pts.map(([i, v]) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
+}
+
+/** Tiny inline SVG line for a table cell. */
+export function sparkline(values, { w = 90, h = 24, color = "var(--accent)" } = {}) {
+  const pts = sparkPoints(values, w, h);
+  return pts ? `<svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="trend"><polyline fill="none" stroke="${color}" stroke-width="1.6" points="${pts}"/></svg>` : `<span class="muted">—</span>`;
+}
+
+/**
+ * Grouped bars (or lines, kind: "line") per period.
+ *   categories: ["2019", …]; series: [{name, values (aligned, null ok), color?}]
+ *   line: optional {name, values, color?, fmt?} drawn on a right axis (e.g. price)
+ *   fmtY(v) formats axis ticks; fmtTip(v) the tooltip values (defaults to fmtY). Hover tooltips need bindChartTips(root) afterwards.
+ */
+export function barChart({ categories, series, kind = "bar", line = null, width = 1100, height = 320, fmtY = (v) => String(v), fmtTip = fmtY, fmtLine = (v) => String(v), yLabel = "" }) {
+  const all = series.flatMap((s) => s.values).filter((v) => v != null && isFinite(v));
+  if (!categories.length || !all.length) return `<p class="muted">No data.</p>`;
+  const pad = { l: 66, r: line ? 58 : 14, t: 12, b: 30 };
+  const lo = Math.min(...all, kind === "bar" ? 0 : Infinity), hi = Math.max(...all, kind === "bar" ? 0 : -Infinity);
+  const ax = niceTicks(lo, hi, 5);
+  const Y = linearScale(ax.min, ax.max, height - pad.b, pad.t);
+  const plotW = width - pad.l - pad.r, band = plotW / categories.length;
+  const cx = (i) => pad.l + band * (i + 0.5);
+  const colorOf = (s, k) => s.color || PALETTE[k % PALETTE.length];
+  const grid = ax.ticks.map((v) => `<line x1="${pad.l}" x2="${width - pad.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="currentColor" opacity="${v === 0 ? 0.5 : 0.12}"/>
+    <text x="${pad.l - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="currentColor">${esc(fmtY(v))}</text>`).join("");
+  const step = Math.max(1, Math.ceil(categories.length / Math.max(2, Math.floor(plotW / 54))));
+  const xl = categories.map((c, i) => (i % step === 0 ? `<text x="${cx(i)}" y="${height - pad.b + 16}" text-anchor="middle" font-size="11" fill="currentColor">${esc(c)}</text>` : "")).join("");
+  let marks = "";
+  if (kind === "bar") {
+    const inner = band * 0.78, bw = inner / series.length;
+    marks = series.map((s, k) => s.values.map((v, i) => {
+      if (v == null || !isFinite(v)) return "";
+      const x = cx(i) - inner / 2 + k * bw, y0 = Y(0), y1 = Y(v);
+      return `<rect x="${x.toFixed(1)}" y="${Math.min(y0, y1).toFixed(1)}" width="${Math.max(1, bw - 1).toFixed(1)}" height="${Math.max(0.5, Math.abs(y1 - y0)).toFixed(1)}" fill="${colorOf(s, k)}" opacity=".9"/>`;
+    }).join("")).join("");
+  } else {
+    marks = series.map((s, k) => {
+      const pts = s.values.map((v, i) => (v == null || !isFinite(v) ? null : [cx(i), Y(v)]));
+      // break the line at gaps so a missing year is not bridged
+      const runs = []; let cur = [];
+      pts.forEach((p) => { if (p) cur.push(p); else { if (cur.length) runs.push(cur); cur = []; } });
+      if (cur.length) runs.push(cur);
+      const c = colorOf(s, k);
+      return runs.map((r) => `<polyline fill="none" stroke="${c}" stroke-width="2" points="${r.map((p) => p.map((n) => n.toFixed(1)).join(",")).join(" ")}"/>`).join("")
+        + pts.filter(Boolean).map((p) => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.6" fill="${c}"/>`).join("");
+    }).join("");
+  }
+  let overlay = "", axisR = "";
+  if (line) {
+    const lv = line.values.filter((v) => v != null && isFinite(v));
+    if (lv.length) {
+      const ay = niceTicks(Math.min(...lv), Math.max(...lv), 5), Y2 = linearScale(ay.min, ay.max, height - pad.b, pad.t);
+      const c = line.color || "#f59e0b";
+      const pts = line.values.map((v, i) => (v == null ? null : `${cx(i).toFixed(1)},${Y2(v).toFixed(1)}`)).filter(Boolean);
+      overlay = `<polyline fill="none" stroke="${c}" stroke-width="2" stroke-dasharray="5 3" points="${pts.join(" ")}"/>`;
+      axisR = ay.ticks.map((v) => `<text x="${width - pad.r + 6}" y="${Y2(v) + 4}" font-size="11" fill="${c}">${esc(fmtLine(v))}</text>`).join("");
+    }
+  }
+  // one transparent hit area per period; bindChartTips() shows data-tip on hover
+  const hits = categories.map((c, i) => {
+    const rows = series.map((s, k) => `<i style="background:${colorOf(s, k)}"></i>${esc(s.name)}: <b>${esc(fmtTip(s.values[i]))}</b>`);
+    if (line && line.values[i] != null) rows.push(`<i style="background:${line.color || "#f59e0b"}"></i>${esc(line.name)}: <b>${esc(fmtLine(line.values[i]))}</b>`);
+    return `<rect class="chart-hit" x="${(cx(i) - band / 2).toFixed(1)}" y="${pad.t}" width="${band.toFixed(1)}" height="${height - pad.t - pad.b}" fill="transparent" data-tip="${esc(`<strong>${esc(c)}</strong><br>${rows.join("<br>")}`)}"/>`;
+  }).join("");
+  const legend = [...series.map((s, k) => [s.name, colorOf(s, k), false]), ...(line ? [[line.name + " (right axis)", line.color || "#f59e0b", true]] : [])]
+    .map(([n, c, dash]) => `<span class="lg"><i style="background:${dash ? "transparent" : c};border-top:${dash ? `2px dashed ${c}` : "0"}"></i>${esc(n)}</span>`).join("");
+  return `<div class="chart-legend small">${legend}</div><div class="chart-box"><svg viewBox="0 0 ${width} ${height}" style="width:100%;max-width:${width}px" role="img">
+    ${grid}${marks}${overlay}${xl}${axisR}${hits}
+    ${yLabel ? `<text x="12" y="${height / 2}" transform="rotate(-90 12 ${height / 2})" text-anchor="middle" font-size="11" fill="currentColor">${esc(yLabel)}</text>` : ""}</svg></div>`;
+}
+
+/** Shared hover tooltip for every `.chart-hit[data-tip]` under root (tooltip text is already escaped HTML). */
+export function bindChartTips(root) {
+  root.style.position ||= "relative";
+  const tipEl = () => {
+    let t = root.querySelector(":scope > .chart-tip");     // re-created when a redraw replaced the root's content
+    if (!t) { t = document.createElement("div"); t.className = "chart-tip"; t.hidden = true; root.appendChild(t); }
+    return t;
+  };
+  root.addEventListener("mousemove", (e) => {
+    const tip = tipEl(), hit = e.target.closest?.(".chart-hit");
+    if (!hit) { tip.hidden = true; return; }
+    tip.innerHTML = hit.dataset.tip; tip.hidden = false;
+    const box = root.getBoundingClientRect();
+    tip.style.left = `${Math.max(0, Math.min(e.clientX - box.left + 14, box.width - tip.offsetWidth - 4))}px`;
+    tip.style.top = `${Math.max(0, e.clientY - box.top - tip.offsetHeight - 10)}px`;
+  });
+  root.addEventListener("mouseleave", () => { tipEl().hidden = true; });
+}

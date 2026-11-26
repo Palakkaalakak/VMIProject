@@ -157,7 +157,8 @@ def _summary(label: str, by_year: dict[int, float]) -> dict:
 
 
 def _ratio_years(f: Fundamentals, name: str) -> dict[int, float]:
-    return {int(p.end[:4]): p.value for p in f.ratios.get(name, []) if _num(p.value) is not None}
+    # ratio series end with a "TTM" point (end == "TTM"); only dated fiscal-year points belong in a yearly series
+    return {int(p.end[:4]): p.value for p in f.ratios.get(name, []) if p.end[:4].isdigit() and _num(p.value) is not None}
 
 
 def _growth_series(by_year: dict[int, float]) -> dict[int, float]:

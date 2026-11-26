@@ -96,6 +96,14 @@ def test_metrics_bank_without_gross_profit_and_short_history():
     assert short["avg5"] == pytest.approx(0.1) and short["avg10"] is None
 
 
+def test_metrics_ignore_the_ttm_ratio_point():
+    f = fund()
+    f.ratios["roe"].append(Point("TTM", 0.5))          # real data ends ratio series with a point whose end is "TTM"
+    f.ratios["roic"].append(Point("TTM", 0.5))
+    out = overview.metrics(f)
+    assert out["metrics"]["roe"]["latest"] == pytest.approx(0.19) and len(out["metrics"]["roe"]["series"]) == 10
+
+
 # ---------------------------------------------------------------------------------------- dividends
 def divs():
     out = []

@@ -118,3 +118,43 @@ table.compact tr.fail td { background: rgba(220, 38, 38, .10); }
 .chart-full #ch-stoch-box { flex: 0 0 18vh; height: 18vh !important; }
 body.chart-full-open { overflow: hidden; }
 .chart-read { min-height: 1.4em; margin: .2rem 0; }
+
+/* "More detailed overview" tab (views/overview*.js, charts.js period charts) */
+.an-tabs { margin-bottom: 1rem; }
+.ov-nav { position: sticky; top: 52px; z-index: 5; display: flex; gap: .2rem .9rem; flex-wrap: wrap; padding: .45rem .8rem; margin-bottom: 1rem;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.ov-sec { scroll-margin-top: 10rem; min-height: 4rem; }
+.ov-sec h4 { margin: 1rem 0 .4rem; }
+.ov-controls { gap: .5rem 1rem; margin-bottom: .6rem; }
+.seg { display: inline-flex; } .seg button { border-radius: 0; border: 1px solid var(--line); margin-left: -1px; }
+.seg button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; } .seg button:last-child { border-radius: 0 6px 6px 0; }
+.seg button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.badge.warn { background: rgba(245, 158, 11, .18); color: var(--warn); }
+ul.plain { list-style: none; margin: 0; padding: 0; } ul.plain li { padding: .25rem 0; border-bottom: 1px solid var(--line); }
+.chart-box { overflow-x: auto; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: .3rem 1rem; margin: .2rem 0; }
+.chart-legend .lg i { display: inline-block; width: 12px; height: 10px; border-radius: 2px; margin-right: .35rem; vertical-align: middle; }
+.chart-tip { position: absolute; z-index: 20; pointer-events: none; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+  padding: .35rem .55rem; font-size: .8rem; line-height: 1.5; white-space: nowrap; box-shadow: 0 4px 14px rgba(0, 0, 0, .35); }
+.chart-tip i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: .35rem; }
+.chart-hit:hover { fill: rgba(127, 127, 127, .12); }
+.spark { vertical-align: middle; }
+.range { display: flex; align-items: center; gap: .6rem; margin: .8rem 0 .3rem; }
+.range-bar { position: relative; flex: 0 1 320px; min-width: 120px; height: 6px; background: var(--panel-2); border-radius: 3px; }
+.range-bar i { position: absolute; top: -4px; width: 4px; height: 14px; margin-left: -2px; background: var(--accent); border-radius: 2px; }
+/* statements: scroll inside the card, header row and first column stay in view */
+.stmt-wrap { max-height: 70vh; overflow: auto; }
+table.stmt th, table.stmt td { white-space: nowrap; }
+table.stmt thead th { position: sticky; top: 0; z-index: 2; }
+table.stmt th.rowh { position: sticky; left: 0; z-index: 1; background: var(--panel); text-align: left; font-size: .85rem; color: var(--text); font-weight: 500; cursor: default; }
+table.stmt thead th:first-child { left: 0; z-index: 3; }
+table.stmt .ttm { background: rgba(59, 130, 246, .12); }
+table.stmt thead th.ttm { color: var(--accent); }
+/* valuation gauge */
+.gauge-wrap { margin: .8rem 0; }
+.gauge { position: relative; height: 16px; border-radius: 8px; overflow: hidden; background: var(--panel-2); }
+.gz { position: absolute; top: 0; bottom: 0; left: 0; }
+.gz.good { background: #16a34a; } .gz.mid { background: #d4a017; } .gz.bad { background: #dc2626; }
+.gmark { position: absolute; top: -2px; bottom: -2px; width: 3px; margin-left: -1px; background: var(--text); box-shadow: 0 0 0 1px var(--bg); }
+.gauge-scale { position: relative; height: 1.3rem; } .gauge-scale span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+@media (max-width: 700px) { .ov-nav { top: 0; position: static; } .grid .wide { grid-column: span 1; } }
