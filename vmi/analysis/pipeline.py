@@ -89,6 +89,27 @@ def failed_checks(step: dict) -> list[str]:
     return [c["name"] for c in step.get("checks", []) if c.get("passed") is False] or ([] if step.get("passed") else ["failed"])
 
 
+def classify_business(f, est, ov: dict) -> BizType:
+    """Business type from the statements, estimates and the optional `biz_type` override."""
+    rev = f.series("revenue")
+    rg = (rev[-1] / rev[-2] - 1) if len(rev) >= 2 and rev[-2] > 0 else None
+    prof = sum(1 for v in f.series("net_income")[-5:] if v > 0)
+    return classify(f.sic, f.sic_description, est.sector or f.sector, est.industry or f.industry, rg, prof,
+                    override=ov.get("biz_type"))
+
+
+def build_context(f, est, price: float, hist, ov: dict, rules: VMIRules = RULES) -> ValuationContext:
+    """The valuation inputs for one stock: statements + estimates + price, with every per-ticker override applied."""
+    return ValuationContext(f, est, price, hist, rules,
+                            growth_override=ov.get("growth"), growth_controls=growth_controls(ov),
+                            growth_6_10_override=ov.get("growth_6_10"),
+                            growth_11_20_override=ov.get("growth_11_20"), discount_override=ov.get("discount_rate"),
+                            base_cf_override=ov.get("base_cf"), base_period=ov.get("base_period"),
+                            beta_override=ov.get("beta"), shares_override=ov.get("shares"),
+                            cash_override=ov.get("cash"), debt_override=ov.get("debt"),
+                            haircut_override=ov.get("iv_haircut"))
+
+
 def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict | None = None,
                    rules: VMIRules = RULES, quick_reject: tuple[list[int], int] | None = None) -> dict[str, Any]:
     """The full 7-step report. `quick_reject=(required_steps, allowed_misses)` is the scanner's speed-up: the steps that need only
@@ -101,11 +122,7 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
     if f is None:
         raise ValueError(f"No fundamentals found for {ticker} from any source")
     est = get_estimates(ticker)
-    rev = f.series("revenue")
-    rg = (rev[-1] / rev[-2] - 1) if len(rev) >= 2 and rev[-2] > 0 else None
-    prof = sum(1 for v in f.series("net_income")[-5:] if v > 0)
-    biz = classify(f.sic, f.sic_description, est.sector or f.sector, est.industry or f.industry, rg, prof,
-                   override=ov.get("biz_type"))
+    biz = classify_business(f, est, ov)
     if quick_reject and not ov:
         required, allowed = quick_reject
         early = {1: S.step1_track_record(f, biz, rules), 2: S.step2_growth(est, f, rules),
@@ -126,14 +143,7 @@ def analyse_ticker(ticker: str, *, with_technicals: bool = True, overrides: dict
     s4 = S.step4_profitability(f, biz, rules)
     s5 = S.step5_debt(f, biz, est, rules)
 
-    ctx = ValuationContext(f, est, price, hist, rules,
-                           growth_override=ov.get("growth"), growth_controls=growth_controls(ov),
-                           growth_6_10_override=ov.get("growth_6_10"),
-                           growth_11_20_override=ov.get("growth_11_20"), discount_override=ov.get("discount_rate"),
-                           base_cf_override=ov.get("base_cf"), base_period=ov.get("base_period"),
-                           beta_override=ov.get("beta"), shares_override=ov.get("shares"),
-                           cash_override=ov.get("cash"), debt_override=ov.get("debt"),
-                           haircut_override=ov.get("iv_haircut"))
+    ctx = build_context(f, est, price, hist, ov, rules)
     val = value_company(ctx, biz, ov.get("method"))
     iv = ov.get("iv_override") or val.intrinsic_value
     if ov.get("conservative_override"):

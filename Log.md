@@ -53,6 +53,12 @@ Related docs: `README.md` (overview, architecture, recipes), `docs/GROUND_RULES.
 
 ## Entries
 
+### 2026-11-26 — Stock Oracle features, step 1: data endpoints for the "More detailed overview" tab
+- Owner picked from the Stock Oracle research (Sonnet sub-agent over the course docs, stockoracle.com and a review): financial trends chart, statements tables, company metrics, preset ratio charts, overview snapshot, live IV calculator + gauge, dividends tab, earnings tab, watchlist metric columns, portfolio visualizer, S&P 500 heatmap. Built by Sonnet sub-agents, orchestrated and reviewed by Opus; the current analyser stays unchanged.
+- Backend (`vmi/analysis/overview.py`, routes under `/api/analysis/{symbol}`): `statements` (millions, TTM column on annual), `trends` (+ month-end price), `metrics` (margins, ROE, ROIC: latest, 5y/10y average, trend word; revenue vs receivables; cash conversion cycle), `snapshot`, `valuation/preview` (POST, saves nothing, uses the SAME `classify_business` / `build_context` now extracted from `analyse_ticker`, so unchanged inputs give the analysis IV), `dividends` (history, yield history, payout, 3/5/10y growth, next dates), `earnings` (next date, EPS actual vs estimate, quarters, SEC 8-K Item 2.02 releases; call transcripts are paid data and not included). New cached helpers in `market.py` (dividends, calendar, earnings dates) and `filings.recent_8k`.
+- Evidence: tests/test_overview.py (19), full suite 272 pass; live check for KO of calendar, dividends, earnings dates and 8-K releases. UNVERIFIED live: valuation preview, trends, metrics, snapshot routes; ROIC and cash-conversion series only on fixtures.
+
+
 ### 2026-11-25 — Explainer: logical conclusions need no source
 - Owner: things that are logically derived need no source. The explainer prompt now says web facts about the company need a URL (or "not found in the sources"), while conclusions that follow from the app's own figures or plain reasoning are stated without one, marked as reasoning. tests/test_ai_explain.py checks the rule is in every section prompt.
 

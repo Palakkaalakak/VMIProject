@@ -87,3 +87,20 @@ def excerpts(cik: int) -> dict:
                 "customer_concentration": concentration_sentences(text)}
 
     return get_cache().get_or_set(f"filings:excerpts:{filing['accession']}", 365 * 24 * 3600, fetch)
+
+
+def recent_8k(cik: int) -> list[dict]:
+    """Recent 8-K filings from SEC's submissions index, newest first: [{form, accession, document, filed, items}].
+    `items` is SEC's own list of item numbers, e.g. "2.02,9.01" (2.02 = results of operations = the earnings release)."""
+    def fetch():
+        raw = http.get(f"https://data.sec.gov/submissions/CIK{cik:010d}.json", headers=sec._headers())
+        recent = raw.get("filings", {}).get("recent", {})
+        items = recent.get("items", [])
+        return [{"form": form, "accession": recent["accessionNumber"][i], "document": recent["primaryDocument"][i],
+                 "filed": recent["filingDate"][i], "items": items[i] if i < len(items) else ""}
+                for i, form in enumerate(recent.get("form", [])) if form.startswith("8-K")]
+
+    try:
+        return get_cache().get_or_set(f"filings:8k:{cik}", 24 * 3600, fetch) or []
+    except http.HttpError:
+        return []

@@ -192,3 +192,59 @@ def bars(symbol: str, interval: str = "1d") -> dict:
     ttl = 120 if intraday else get_settings().ttl_history
     rows = get_cache().get_or_set(f"bars:{symbol.upper()}:{interval}", ttl, fetch) or []
     return {"source": "Yahoo", "interval": interval, "bars": rows}
+
+
+# ------------------------------------------------------------------------------------------ dividends & calendar
+def dividends(symbol: str) -> list[dict]:
+    """Cash dividend history [{date, amount}], oldest first (Yahoo; empty for non-payers). Cached like prices."""
+    def fetch():
+        import yfinance as yf
+
+        s = yf.Ticker(_yf_symbol(symbol)).dividends
+        if s is None or len(s) == 0:
+            return []
+        return [{"date": str(idx)[:10], "amount": float(v)} for idx, v in s.items() if v == v and v > 0]
+
+    try:
+        return get_cache().get_or_set(f"divs:{symbol.upper()}", get_settings().ttl_history, fetch) or []
+    except Exception as exc:
+        log.debug("dividends failed for %s: %s", symbol, exc)
+        return []
+
+
+def calendar(symbol: str) -> dict:
+    """Upcoming events from Yahoo: {earnings_date, ex_dividend_date, dividend_date} as ISO strings (None when unknown)."""
+    def fetch():
+        import yfinance as yf
+
+        cal = yf.Ticker(_yf_symbol(symbol)).calendar or {}
+        first = lambda v: (v[0] if isinstance(v, (list, tuple)) and v else v)  # noqa: E731 (Yahoo gives a list of dates)
+        iso = lambda v: str(v)[:10] if v else None  # noqa: E731
+        return {"earnings_date": iso(first(cal.get("Earnings Date"))), "ex_dividend_date": iso(cal.get("Ex-Dividend Date")),
+                "dividend_date": iso(cal.get("Dividend Date"))}
+
+    try:
+        return get_cache().get_or_set(f"cal:{symbol.upper()}", 6 * 3600, fetch) or {}
+    except Exception as exc:
+        log.debug("calendar failed for %s: %s", symbol, exc)
+        return {}
+
+
+def earnings_dates(symbol: str, limit: int = 12) -> list[dict]:
+    """Earnings dates, newest first: [{date, eps_estimate, eps_actual, surprise_pct}] (actual is None for future dates)."""
+    def fetch():
+        import yfinance as yf
+
+        df = yf.Ticker(_yf_symbol(symbol)).get_earnings_dates(limit=limit)
+        if df is None or df.empty:
+            return []
+        num = lambda v: float(v) if v == v and v is not None else None  # noqa: E731 (NaN -> None)
+        return [{"date": str(idx)[:10], "eps_estimate": num(r.get("EPS Estimate")),
+                 "eps_actual": num(r.get("Reported EPS")), "surprise_pct": num(r.get("Surprise(%)"))}
+                for idx, r in df.iterrows()]
+
+    try:
+        return get_cache().get_or_set(f"earn:{symbol.upper()}:{limit}", 6 * 3600, fetch) or []
+    except Exception as exc:
+        log.debug("earnings dates failed for %s: %s", symbol, exc)
+        return []

@@ -366,6 +366,92 @@ def fundamentals(symbol: str):
     return f.to_dict()
 
 
+# ---- "More detailed overview" tab: one endpoint per section so each loads on its own (logic: vmi/analysis/overview.py)
+def _fund_or_404(symbol: str):
+    from vmi.data.fundamentals import resolve
+    f = resolve(symbol)
+    if f is None:
+        raise HTTPException(404, "no fundamentals")
+    return f
+
+
+def _period(period: str) -> str:
+    if period not in ("annual", "quarterly"):
+        raise HTTPException(400, "period must be annual or quarterly")
+    return period
+
+
+@ar.get("/{symbol}/statements")
+def overview_statements(symbol: str, period: str = "annual"):
+    from vmi.analysis import overview
+    return overview.statements(_fund_or_404(symbol), _period(period))
+
+
+@ar.get("/{symbol}/trends")
+def overview_trends(symbol: str, period: str = "annual"):
+    from vmi.analysis import overview
+    prices = overview.month_end_prices(market.history(symbol, "10y"))
+    return overview.trends(_fund_or_404(symbol), _period(period), prices)
+
+
+@ar.get("/{symbol}/metrics")
+def overview_metrics(symbol: str):
+    from vmi.analysis import overview
+    return overview.metrics(_fund_or_404(symbol))
+
+
+@ar.get("/{symbol}/snapshot")
+def overview_snapshot(symbol: str):
+    from vmi.analysis import overview
+    from vmi.data.estimates import get_estimates
+    f = _fund_or_404(symbol)
+    return overview.snapshot(f, get_estimates(symbol), market.last_price(symbol), market.history(symbol, "2y"),
+                             market.calendar(symbol).get("earnings_date"))
+
+
+class ValuationPreviewIn(BaseModel):
+    """Edited valuation inputs (all optional; omitted = as in the saved analysis). Rates are decimals (0.08 = 8%);
+    base_cf, cash and debt are in the statement currency, shares in units (not millions)."""
+    growth: float | None = None
+    growth_6_10: float | None = None
+    growth_11_20: float | None = None
+    discount_rate: float | None = None
+    base_cf: float | None = None
+    shares: float | None = None
+    cash: float | None = None
+    debt: float | None = None
+    method: str | None = None
+
+
+@ar.post("/{symbol}/valuation/preview")
+def valuation_preview(symbol: str, body: ValuationPreviewIn):
+    """Recompute the intrinsic value with edited inputs. Saves nothing (use PUT .../override to keep the numbers)."""
+    from vmi.analysis import overview
+    from vmi.data.estimates import get_estimates
+    f = _fund_or_404(symbol)
+    price = market.last_price(symbol) or 0.0
+    return overview.preview_valuation(f, get_estimates(symbol), price, market.history(symbol, "10y"),
+                                      store.get_override(symbol), body.model_dump(exclude_none=True))
+
+
+@ar.get("/{symbol}/dividends")
+def overview_dividends(symbol: str):
+    from vmi.analysis import overview
+    from vmi.data.estimates import get_estimates
+    f = _fund_or_404(symbol)
+    prices = overview.month_end_prices(market.history(symbol, "10y"))
+    return overview.dividends(f, market.dividends(symbol), prices, get_estimates(symbol), market.calendar(symbol))
+
+
+@ar.get("/{symbol}/earnings")
+def overview_earnings(symbol: str):
+    from vmi.analysis import overview
+    from vmi.data import filings
+    f = _fund_or_404(symbol)
+    return overview.earnings(f, market.earnings_dates(symbol), filings.recent_8k(f.cik) if f.cik else [],
+                             market.calendar(symbol))
+
+
 @ar.get("/{symbol}/size")
 def size(symbol: str, portfolio_id: int, multiplier: float = 1.0, price: float | None = None):
     from vmi.paper.engine import size_for
