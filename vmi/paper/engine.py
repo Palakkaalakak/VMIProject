@@ -329,15 +329,25 @@ def summary(pid: int, quotes: bool = True) -> dict[str, Any]:
                 "n_stocks": sum(1 for r in rows if r["sec_type"] == "STK")}
 
 
-def premarket_price(q) -> float | None:
-    """The extended-hours price in an IB quote: the mid of a tight bid/ask (it moves even when nothing trades), else the last trade."""
+def premarket_price(q, now: datetime | None = None) -> float | None:
+    """The live extended-hours price in an IB quote: the mid of a tight bid/ask (it moves even when nothing trades), else a
+    last trade made in the current extended session. None outside extended hours or when `last` is an older trade."""
+    from vmi.data import market_hours
+    now = (now or datetime.now(market_hours.ET)).astimezone(market_hours.ET)
+    if market_hours.session_now(now) != market_hours.EXTENDED:
+        return None
     if q.bid and q.ask and q.bid > 0 and q.ask >= q.bid and (q.ask - q.bid) / q.ask <= 0.02:
         return (q.bid + q.ask) / 2
-    return q.last or None
+    if not (q.last and q.last_ts):
+        return None
+    t = datetime.fromtimestamp(q.last_ts, market_hours.ET)
+    same = t.date() == now.date() and market_hours.session_now(t) == market_hours.EXTENDED and (t.hour < 12) == (now.hour < 12)
+    return q.last if same else None
 
 
 def premarket_view(pid: int) -> dict:
     """The portfolio as if the market opened at the current IBKR extended-hours prices (view only, nothing is saved).
+    A stock without one uses its after-hours price of the previous trading day (IBKR history).
     Needs IBKR: no Yahoo fallback. Options keep their normal mark (they do not trade pre-market)."""
     from concurrent.futures import ThreadPoolExecutor
     from vmi.data.ib import gateway
@@ -356,17 +366,29 @@ def premarket_view(pid: int) -> dict:
 
     with ThreadPoolExecutor(max_workers=8) as ex:
         quotes = dict(ex.map(one, syms))
+    live = "pre-market" if datetime.now(market_hours.ET).hour < 12 else "after-hours today"
+    prices = {s: (px, live) for s, q in quotes.items() if q and (px := premarket_price(q))}
+
+    def previous(sym):                                        # history only for the stocks without a live price
+        try:
+            ah = gw.after_hours(sym)
+        except Exception:
+            ah = None
+        return sym, (ah[0], f"previous after-hours {ah[1]}") if ah else None
+
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        prices.update({s: v for s, v in ex.map(previous, [s for s in syms if s not in prices]) if v})
     rows, mv, missing = [], 0.0, []
     for r in base["positions"]:
         q = quotes.get(r["symbol"]) if r["sec_type"] == "STK" else None
-        pm = premarket_price(q) if q else None
+        pm, source = prices.get(r["symbol"], (None, None)) if r["sec_type"] == "STK" else (None, None)
         if r["sec_type"] == "STK" and not pm:
             missing.append(r["symbol"])
         value = pm * r["qty"] * r["multiplier"] if pm else r["market_value"]
         prev = (q.close if q else None) or r["price"]
         mv += value
         rows.append({"key": r["key"], "symbol": r["symbol"], "sec_type": r["sec_type"], "qty": r["qty"], "prev_close": prev,
-                     "pre_price": pm, "move": (pm / prev - 1) if pm and prev else None, "value": value,
+                     "pre_price": pm, "source": source, "move": (pm / prev - 1) if pm and prev else None, "value": value,
                      "value_change": value - r["market_value"],
                      "unrealized_pnl": (pm - r["avg_cost"]) * r["qty"] * r["multiplier"] if pm else r["unrealized_pnl"]})
     equity = base["cash"] + mv

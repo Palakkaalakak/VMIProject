@@ -69,16 +69,16 @@ async function detail(box, id) {
   breakdownCard(box, id, p.equity);
   $("#pf-pre", box).addEventListener("click", async (e) => {
     const out = $("#pf-pre-box", box), btn = e.currentTarget;
-    out.hidden = false; btn.disabled = true; out.innerHTML = loading("Asking IBKR for pre-market prices…");
+    out.hidden = false; btn.disabled = true; out.innerHTML = loading("Asking IBKR for extended-hours prices…");
     try {
       const v = await api.premarket(id);
       const k = (label, val, cls = "") => `<div class="kpi"><span>${label}</span><b class="${cls}">${val}</b></div>`;
       out.innerHTML = `<h3>Pre-market view <span class="muted small">if the market opened at these prices · view only</span></h3>
-        ${v.session === "extended" ? "" : `<p class="small neg">The market is not in an extended session right now (${esc(v.session)}): these are IBKR's latest prices, not pre-market ones.</p>`}
+        ${v.session === "extended" ? "" : `<p class="small neg">The market is not in an extended session right now (${esc(v.session)}): there are no live pre-market prices, so stocks use the previous trading day's after-hours price.</p>`}
         <div class="kpis">${k("Equity at these prices", fmt.money(v.equity))}${k("Equity now", fmt.money(v.equity_now))}
           ${k("Change", `${fmt.money(v.change)} (${fmt.pct(v.change_pct, 2)})`, signClass(v.change))}${k("Unrealised", fmt.money(v.unrealized_pnl), signClass(v.unrealized_pnl))}</div>
-        ${v.missing.length ? `<p class="small muted">No pre-market price (kept at the current mark): ${esc(v.missing.join(", "))}</p>` : ""}
-        <table class="compact"><thead><tr><th>Position</th><th>Qty</th><th>Previous close</th><th>Pre-market</th><th>Move</th><th>Value</th><th>Value change</th><th>Weight</th></tr></thead><tbody>${v.positions.map((r) => `<tr><td>${esc(r.sec_type === "OPT" ? r.key : r.symbol)}</td><td class="num">${fmt.num(r.qty, 4)}</td><td class="num">${fmt.money(r.prev_close)}</td><td class="num">${r.pre_price ? fmt.money(r.pre_price) : "—"}</td><td class="num ${signClass(r.move)}">${r.move == null ? "—" : fmt.pct(r.move, 2)}</td><td class="num">${fmt.money(r.value)}</td><td class="num ${signClass(r.value_change)}">${fmt.money(r.value_change)}</td><td class="num">${fmt.pct(r.weight)}</td></tr>`).join("")}</tbody></table>`;
+        ${v.missing.length ? `<p class="small muted">Neither a pre-market nor a previous after-hours price (kept at the current mark): ${esc(v.missing.join(", "))}</p>` : ""}
+        <table class="compact"><thead><tr><th>Position</th><th>Qty</th><th>Previous close</th><th>Extended price</th><th>Source</th><th>Move</th><th>Value</th><th>Value change</th><th>Weight</th></tr></thead><tbody>${v.positions.map((r) => `<tr><td>${esc(r.sec_type === "OPT" ? r.key : r.symbol)}</td><td class="num">${fmt.num(r.qty, 4)}</td><td class="num">${fmt.money(r.prev_close)}</td><td class="num">${r.pre_price ? fmt.money(r.pre_price) : "—"}</td><td class="small">${esc(r.source || (r.sec_type === "OPT" ? "current mark" : "neither"))}</td><td class="num ${signClass(r.move)}">${r.move == null ? "—" : fmt.pct(r.move, 2)}</td><td class="num">${fmt.money(r.value)}</td><td class="num ${signClass(r.value_change)}">${fmt.money(r.value_change)}</td><td class="num">${fmt.pct(r.weight)}</td></tr>`).join("")}</tbody></table>`;
     } catch (err) { out.innerHTML = `<p class="small neg">${esc(err.message)}</p>`; }
     btn.disabled = false;
   });

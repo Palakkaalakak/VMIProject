@@ -21,6 +21,7 @@ import math
 import threading
 import time
 from collections import OrderedDict
+from datetime import datetime
 from typing import Any
 
 from vmi.config import get_settings
@@ -49,6 +50,19 @@ AUTO_PORTS = (7496, 7497, 4001, 4002)  # TWS live, TWS paper, IB Gateway live, I
 def candidate_ports(configured: int) -> tuple[int, ...]:
     """Ports to try, in order: the configured one, or (0 = auto) the usual TWS / IB Gateway ports."""
     return (configured,) if configured else AUTO_PORTS
+
+
+def last_after_hours(bars, now: datetime | None = None) -> tuple[float, str] | None:
+    """From intraday bars (tz-aware start times): the last 16:00-20:00 New York close on the previous trading day.
+    Today counts as previous only once its after-hours have ended. No after-hours trade on that day = None."""
+    now = (now or datetime.now(market_hours.ET)).astimezone(market_hours.ET)
+    timed = [(b.date.astimezone(market_hours.ET), b.close) for b in bars]
+    timed = [(t, px) for t, px in timed if t.date() < now.date() or (t.date() == now.date() and now.hour >= 20)]
+    if not timed:
+        return None
+    day = max(t for t, _ in timed).date()
+    post = sorted((t, px) for t, px in timed if t.date() == day and 16 <= t.hour < 20 and px and px > 0)
+    return (float(post[-1][1]), day.isoformat()) if post else None
 
 
 class IBGateway:
@@ -213,9 +227,10 @@ class IBGateway:
             end = time.time() + wait
             while time.time() < end and not (_clean(t.bid) and _clean(t.ask)) and not _clean(t.last):
                 await asyncio.sleep(0.1)
+            lt = getattr(t, "lastTimestamp", None) or getattr(t, "delayedLastTimestamp", None)
             return Quote(symbol=symbol, last=_clean(t.last), bid=_clean(t.bid), ask=_clean(t.ask),
                          close=_clean(t.close), volume=_clean(t.volume), ts=time.time(), source="ib",
-                         session=market_hours.session_now())
+                         session=market_hours.session_now(), last_ts=lt.timestamp() if lt else None)
         return self.call(run, timeout=wait + 10)
 
     def history(self, symbol: str, duration: str = "10 Y", bar: str = "1 day") -> list[dict]:
@@ -227,6 +242,14 @@ class IBGateway:
             return [{"date": str(b.date)[:10], "open": b.open, "high": b.high, "low": b.low,
                      "close": b.close, "volume": b.volume} for b in bars]
         return self.call(run, timeout=60)
+
+    def after_hours(self, symbol: str, now: datetime | None = None, timeout: float = 12.0) -> tuple[float, str] | None:
+        """(price, date) of the last after-hours trade (16:00-20:00 New York) of the previous trading day, or None."""
+        async def run():
+            c = await self._stock(symbol)
+            return await self.ib.reqHistoricalDataAsync(c, endDateTime="", durationStr="5 D", barSizeSetting="5 mins",
+                                                        whatToShow="TRADES", useRTH=False, formatDate=2, timeout=timeout)
+        return last_after_hours(self.call(run, timeout=timeout + 3), now)
 
     def option_params(self, symbol: str) -> dict:
         async def run():

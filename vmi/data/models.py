@@ -109,6 +109,7 @@ class Quote:
     ts: float = 0.0
     source: str = ""
     session: str = "regular"     # regular | extended | closed (vmi.data.market_hours)
+    last_ts: float | None = None  # when `last` traded (epoch seconds), if the provider says
 
     # Sources whose bid/ask is a real-time NBBO. Yahoo's bid/ask is delayed/indicative (AAPL showed a 4%
     # "spread" mid-session), so it must never drive liquidity or fill prices.

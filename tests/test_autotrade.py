@@ -263,11 +263,35 @@ def test_premarket_view_needs_ib_and_revalues(pid, monkeypatch):
         def quote(self, s, wait=2.0):
             return Quote(s, last=110, bid=None, ask=None, close=100, source="ib")
 
+        def after_hours(self, s):
+            return self.ah
+
     gw = GW()
     monkeypatch.setattr(ib, "gateway", lambda: gw)
     monkeypatch.setattr(engine, "_mark", lambda pos, quotes=True: 100.0)
     with pytest.raises(engine.TradeError):
         engine.premarket_view(pid)
     gw.connected = True
+    gw.ah = (110.0, "2026-11-25")                                     # the quote's undated `last` must not count
     v = engine.premarket_view(pid)
     assert v["change"] == pytest.approx(100) and v["positions"][0]["move"] == pytest.approx(0.10) and v["missing"] == []
+    assert v["positions"][0]["source"] == "previous after-hours 2026-11-25"
+    gw.ah = None
+    v = engine.premarket_view(pid)
+    assert v["missing"] == ["AAA"] and v["change"] == pytest.approx(0)
+
+
+def test_premarket_price_and_previous_after_hours():
+    from types import SimpleNamespace as NS
+    from vmi.data.ib import last_after_hours
+    from vmi.data.market_hours import ET
+    from vmi.paper import engine
+    at = lambda d, h, m=0: datetime(2026, 11, d, h, m, tzinfo=ET)
+    now = at(24, 8)                                                   # Tuesday pre-market
+    q = lambda ts: Quote("AAA", last=110, last_ts=ts.timestamp(), source="ib")
+    assert engine.premarket_price(q(at(24, 7)), now) == 110
+    assert engine.premarket_price(q(at(23, 15, 59)), now) is None and engine.premarket_price(q(at(23, 19)), now) is None
+    assert engine.premarket_price(q(at(24, 7)), at(24, 11)) is None   # regular session
+    bars = [NS(date=at(20, 19), close=1), NS(date=at(23, 15, 55), close=2), NS(date=at(23, 19, 55), close=3), NS(date=at(24, 7), close=4)]
+    assert last_after_hours(bars, now) == (3.0, "2026-11-23")
+    assert last_after_hours(bars[:2], now) is None                    # no after-hours trade: never the regular close
