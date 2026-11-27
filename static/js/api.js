@@ -118,7 +118,7 @@ export const api = {
   savePlan: (id, body) => request("PUT", `/api/portfolios/${id}/plans`, body),
   deletePlan: (id, symbol) => request("DELETE", `/api/portfolios/${id}/plans/${symbol}`),
   plansFromWatchlist: (id, wid, overwrite = false) => request("POST", `/api/portfolios/${id}/plans/from-watchlist/${wid}${qs({ overwrite })}`),
-  runPlans: (id) => request("POST", `/api/portfolios/${id}/plans/run`),
+  runPlans: (id, backdate_days) => request("POST", `/api/portfolios/${id}/plans/run${qs({ backdate_days })}`),
   snapshots: (params) => request("GET", `/api/optionbook/snapshots${qs(params)}`),
   snapshot: (sid) => request("GET", `/api/optionbook/snapshots/${sid}`),
   createSnapshot: (body) => request("POST", "/api/optionbook/snapshots", body),

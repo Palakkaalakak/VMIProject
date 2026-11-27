@@ -326,8 +326,10 @@ def _fill_backfill(pid: int, plan, idx: int, side: str, bar_day: date, open_px: 
 
 
 def run(pid: int | None = None, *, quote_fn: Callable | None = None, history_fn: Callable | None = None,
-        in_session: Callable[[], bool] | None = None, now: datetime | None = None) -> list[dict]:
-    """One automation pass. Returns the events (also stored in plan history + alerts)."""
+        in_session: Callable[[], bool] | None = None, now: datetime | None = None, backdate_days: int | None = None) -> list[dict]:
+    """One automation pass. Returns the events (also stored in plan history + alerts).
+    backdate_days (the "Run backdater now" button): re-scan that many past days (max 365) and EXECUTE missed buys / sells, whatever
+    the last-check date or the alert-only / backfill settings say; live prices are not touched. Filled or skipped levels never fill again."""
     from vmi.paper import engine
 
     quote_fn, history_fn, in_session = quote_fn or _default_quote, history_fn or _default_history, in_session or _in_session
@@ -340,7 +342,7 @@ def run(pid: int | None = None, *, quote_fn: Callable | None = None, history_fn:
         plan_ids = [p.id for p in s.scalars(q)]
     for plan_id in plan_ids:
         try:
-            events += _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now)
+            events += _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now, backdate_days)
         except Exception as exc:
             events.append({"plan_id": plan_id, "event": "error", "error": f"{type(exc).__name__}: {exc}"[:300]})
     return events
@@ -376,7 +378,7 @@ def _release_and_stagger(buys: list[dict], day, reached: Callable[[dict], bool],
     events.append({"symbol": sym, "event": "gap_stagger", "day": str(day), "scheduled": sched})
 
 
-def _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now) -> list[dict]:
+def _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now, backdate_days: int | None = None) -> list[dict]:
     events: list[dict] = []
     with store.session() as s:
         plan = s.get(store.TranchePlan, plan_id)
@@ -395,7 +397,10 @@ def _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now) -> list[di
         last = last if last.tzinfo else last.replace(tzinfo=timezone.utc)
         start = max(last.astimezone(ET).date(), (now - timedelta(days=cfg["max_backfill_days"])).astimezone(ET).date())
         today = now.astimezone(ET).date()
-        if cfg["backfill"] and start < today:
+        live_auto = auto
+        if backdate_days:
+            start, auto = today - timedelta(days=max(1, min(365, int(backdate_days)))), True
+        if (cfg["backfill"] or backdate_days) and start < today:
             try:
                 bars = history_fn(sym)
             except Exception:
@@ -456,9 +461,10 @@ def _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now) -> list[di
                         events.append({"symbol": sym, "event": "backfill_sell", "day": str(day), "trade_id": tid})
 
         # ---- 2. live price
+        auto = live_auto
         session_ok = (not cfg["market_hours_only"]) or in_session()
         try:
-            qt = quote_fn(sym)
+            qt = None if backdate_days else quote_fn(sym)
             px = qt.last or qt.close
         except Exception:
             qt, px = None, None

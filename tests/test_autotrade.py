@@ -240,3 +240,14 @@ def test_size_for_takes_an_explicit_price(pid):
     from vmi.paper import engine
     s = engine.size_for(pid, "ZZZ", 1.0, 50.0)
     assert s["price"] == 50.0 and abs(s["shares_next_tranche"] - s["tranche_value"] / 50) < 0.01
+
+
+def test_run_backdater_executes_missed_levels_once_even_when_alert_only(pid):
+    now = datetime.now(timezone.utc)
+    day = pd.bdate_range(end=now.date() - timedelta(days=3), periods=1)[0]
+    bars = pd.DataFrame({"open": [105.0], "high": [106.0], "low": [89.0], "close": [95.0]}, index=[day])
+    autotrade.upsert_plan(pid, "AAA", buy_levels=[100, 50], require_below_iv=False)
+    kw = dict(quote_fn=quote(200), history_fn=lambda s: bars, in_session=lambda: True)
+    ev = autotrade.run(pid, backdate_days=20, **kw)                    # alert-only portfolio, plan made after the bar
+    assert [e["event"] for e in ev] == ["backfill_buy"] and len(_trades(pid)) == 1
+    assert autotrade.run(pid, backdate_days=20, **kw) == [] and len(_trades(pid)) == 1       # never twice

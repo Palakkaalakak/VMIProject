@@ -35,6 +35,8 @@ async function draw(root, id) {
         <label>Gap through several levels: trading days between tranches <input name="gap_stagger_days" type="number" min="0" max="30" value="${c.gap_stagger_days ?? 3}"></label>
         <label>Fill levels hit while offline <select name="backfill"><option value="true" ${c.backfill ? "selected" : ""}>Yes (back-dated)</option><option value="false" ${c.backfill ? "" : "selected"}>No</option></select></label>
         <button class="primary">Save settings</button></form>
+      <div class="inline"><label>Backdater: look back <input id="pl-bd-days" type="number" min="1" max="365" value="30" style="width:6em"> days</label>
+        <button type="button" id="pl-bd" class="secondary" title="Check the past days for buy / sell levels that were hit but not filled, and place those paper orders back-dated">Run backdater now</button></div>
       <p class="small muted">Full allocation per stock right now: <b>${fmt.money(d.full_allocation.full, 0)}</b> (${esc(d.full_allocation.basis)}).
         Backfill uses daily bars: it fills at the level, or at the open if the price gapped through it, dated that day.</p></section>
     <section class="card"><div class="inline"><h3>Plans (${d.plans.length})</h3>
@@ -67,6 +69,17 @@ async function draw(root, id) {
     const r = await api.plansFromWatchlist(id, +e.target.value);
     toast(`${r.created.length} plans created${Object.keys(r.skipped).length ? `, ${Object.keys(r.skipped).length} skipped` : ""}`, "ok"); draw(root, id);
   }));
+  $("#pl-bd", root).addEventListener("click", (e) => {
+    const days = Math.round(+$("#pl-bd-days", root).value);
+    if (!(days >= 1 && days <= 365)) return toast("Enter 1 to 365 days", "error");
+    if (!confirm(`Check the last ${days} days for missed levels in this portfolio and place the missed paper orders, back-dated? This also executes plans set to alert only.`)) return;
+    run(e.target, async () => {
+      const ev = await api.runPlans(id, days);
+      const n = (k) => ev.filter((x) => x.event === k).length;
+      toast(`Backdater: ${n("backfill_buy")} missed buy(s), ${n("backfill_sell")} sell(s) placed${n("error") ? `, ${n("error")} error(s)` : ""}`, n("error") ? "error" : "ok");
+      draw(root, id);
+    });
+  });
   $("#pl-run", root).addEventListener("click", (e) => run(e.target, async () => { const ev = await api.runPlans(id); toast(ev.length ? `${ev.length} event(s): ${ev.map((x) => x.event).join(", ")}` : "Nothing to do", "ok"); draw(root, id); }));
 }
 
