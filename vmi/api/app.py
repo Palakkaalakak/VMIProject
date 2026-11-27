@@ -667,6 +667,12 @@ def reset_portfolio(pid: int):
     return engine.reset_portfolio(pid)
 
 
+@pr.get("/{pid}/premarket")
+def portfolio_premarket(pid: int):
+    from vmi.paper import engine
+    return engine.premarket_view(pid)
+
+
 @pr.get("/{pid}/trades")
 def portfolio_trades(pid: int):
     from vmi.paper import engine

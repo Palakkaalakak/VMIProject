@@ -78,6 +78,7 @@ export const api = {
   breakdown: (id, by) => request("GET", `/api/portfolios/${id}/breakdown${qs({ by })}`),
   setTag: (id, symbol, tag) => request("POST", `/api/portfolios/${id}/tags`, { symbol, tag }),
   heatmap: (metric) => request("GET", `/api/heatmap${qs({ metric })}`),
+  premarket: (id) => request("GET", `/api/portfolios/${id}/premarket`),
   trades: (id) => request("GET", `/api/portfolios/${id}/trades`),
   stockOrder: (id, body) => request("POST", `/api/portfolios/${id}/orders/stock`, body),
   optionOrder: (id, body) => request("POST", `/api/portfolios/${id}/orders/option`, body),

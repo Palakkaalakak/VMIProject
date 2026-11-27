@@ -329,6 +329,54 @@ def summary(pid: int, quotes: bool = True) -> dict[str, Any]:
                 "n_stocks": sum(1 for r in rows if r["sec_type"] == "STK")}
 
 
+def premarket_price(q) -> float | None:
+    """The extended-hours price in an IB quote: the mid of a tight bid/ask (it moves even when nothing trades), else the last trade."""
+    if q.bid and q.ask and q.bid > 0 and q.ask >= q.bid and (q.ask - q.bid) / q.ask <= 0.02:
+        return (q.bid + q.ask) / 2
+    return q.last or None
+
+
+def premarket_view(pid: int) -> dict:
+    """The portfolio as if the market opened at the current IBKR extended-hours prices (view only, nothing is saved).
+    Needs IBKR: no Yahoo fallback. Options keep their normal mark (they do not trade pre-market)."""
+    from concurrent.futures import ThreadPoolExecutor
+    from vmi.data.ib import gateway
+    from vmi.data import market_hours
+    gw = gateway()
+    if not gw.connected:
+        raise TradeError("IBKR is not connected: the pre-market view only works with IBKR connected")
+    base = summary(pid)
+    syms = sorted({r["symbol"] for r in base["positions"] if r["sec_type"] == "STK"})
+
+    def one(sym):
+        try:
+            return sym, gw.quote(sym, wait=4.0)               # asked fresh: the cached quote may be old
+        except Exception:
+            return sym, None
+
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        quotes = dict(ex.map(one, syms))
+    rows, mv, missing = [], 0.0, []
+    for r in base["positions"]:
+        q = quotes.get(r["symbol"]) if r["sec_type"] == "STK" else None
+        pm = premarket_price(q) if q else None
+        if r["sec_type"] == "STK" and not pm:
+            missing.append(r["symbol"])
+        value = pm * r["qty"] * r["multiplier"] if pm else r["market_value"]
+        prev = (q.close if q else None) or r["price"]
+        mv += value
+        rows.append({"key": r["key"], "symbol": r["symbol"], "sec_type": r["sec_type"], "qty": r["qty"], "prev_close": prev,
+                     "pre_price": pm, "move": (pm / prev - 1) if pm and prev else None, "value": value,
+                     "value_change": value - r["market_value"],
+                     "unrealized_pnl": (pm - r["avg_cost"]) * r["qty"] * r["multiplier"] if pm else r["unrealized_pnl"]})
+    equity = base["cash"] + mv
+    for r in rows:
+        r["weight"] = r["value"] / equity if equity else 0
+    return {"session": market_hours.session_now(), "equity": equity, "equity_now": base["equity"], "change": equity - base["equity"],
+            "change_pct": equity / base["equity"] - 1 if base["equity"] else 0, "unrealized_pnl": sum(r["unrealized_pnl"] for r in rows),
+            "positions": sorted(rows, key=lambda r: -abs(r["value"])), "missing": missing}
+
+
 def trades(pid: int, limit: int = 200) -> list[dict]:
     with store.session() as s:
         q = select(store.Trade).where(store.Trade.portfolio_id == pid).order_by(store.Trade.id.desc()).limit(limit)

@@ -251,3 +251,23 @@ def test_run_backdater_executes_missed_levels_once_even_when_alert_only(pid):
     ev = autotrade.run(pid, backdate_days=20, **kw)                    # alert-only portfolio, plan made after the bar
     assert [e["event"] for e in ev] == ["backfill_buy"] and len(_trades(pid)) == 1
     assert autotrade.run(pid, backdate_days=20, **kw) == [] and len(_trades(pid)) == 1       # never twice
+
+
+def test_premarket_view_needs_ib_and_revalues(pid, monkeypatch):
+    from vmi.data import ib
+    engine.trade_stock(pid, "AAA", "BUY", qty=10, quote=quote(100)("AAA"))
+
+    class GW:
+        connected = False
+
+        def quote(self, s, wait=2.0):
+            return Quote(s, last=110, bid=None, ask=None, close=100, source="ib")
+
+    gw = GW()
+    monkeypatch.setattr(ib, "gateway", lambda: gw)
+    monkeypatch.setattr(engine, "_mark", lambda pos, quotes=True: 100.0)
+    with pytest.raises(engine.TradeError):
+        engine.premarket_view(pid)
+    gw.connected = True
+    v = engine.premarket_view(pid)
+    assert v["change"] == pytest.approx(100) and v["positions"][0]["move"] == pytest.approx(0.10) and v["missing"] == []
