@@ -121,15 +121,28 @@ function payload(form) {
 function addModal(root, id) {
   const m = modal("Add a real order (back-dated allowed)", orderForm());
   const frm = $("form", m.el);
+  // The tranche's $ amount does not depend on the price, but asking the server is slow (it values the whole portfolio):
+  // ask once per symbol (at $1, so "shares" = dollars), then work out the shares here, instantly, on every keystroke.
+  const sizes = new Map();
   const autosize = async () => {          // shares = one tranche at the price typed in (this portfolio's sizing, tranche count and cash)
     if (!frm.auto.checked) return;
-    const sym = frm.symbol.value.trim().toUpperCase(), px = +frm.price.value, note = $("#auto-note", m.el);
-    if (!sym || !(px > 0) || frm.side.value !== "BUY" || frm.sec_type.value !== "STK") { note.textContent = "Needs a stock BUY with a symbol and a fill price."; return; }
-    try {
-      const s = await api.size(sym, id, 1, px);
-      frm.qty.value = s.shares_next_tranche;
-      note.textContent = `Tranche ${fmt.money(s.tranche_value, 0)} (1 of ${s.tranches}) at ${fmt.money(px, 2)} = ${s.shares_next_tranche} shares${s.warning ? " · ⚠ " + s.warning : ""}`;
-    } catch (err) { note.textContent = err.message; }
+    const note = $("#auto-note", m.el);
+    const sym = frm.symbol.value.trim().toUpperCase();
+    if (!sym || frm.side.value !== "BUY" || frm.sec_type.value !== "STK") { note.textContent = "Needs a stock BUY with a symbol and a fill price."; return; }
+    if (!sizes.has(sym)) {
+      note.textContent = `Working out the tranche for ${sym} …`;
+      sizes.set(sym, api.size(sym, id, 1, 1));
+    }
+    let s;
+    try { s = await sizes.get(sym); } catch (err) { sizes.delete(sym); note.textContent = err.message; return; }
+    if (sym !== frm.symbol.value.trim().toUpperCase() || !frm.auto.checked) return;     // the form moved on while we waited
+    const px = +frm.price.value;                                                       // read now, never the value at request time
+    if (!(px > 0)) { note.textContent = `Tranche ready (1 of ${s.tranches}): type the fill price.`; return; }
+    const dollars = s.fractional_shares_next;
+    const whole = Number.isInteger(s.shares_next_tranche) && dollars % 1 >= 0.01;       // rule: whole shares only
+    const qty = whole ? Math.floor(dollars / px) : Math.floor((dollars / px) * 100 + 1e-9) / 100;
+    frm.qty.value = qty;
+    note.textContent = `Tranche ${fmt.money(s.tranche_value, 0)} (1 of ${s.tranches}) at ${fmt.money(px, 2)} = ${qty} shares${s.warning ? " · ⚠ " + s.warning : ""}`;
   };
   ["symbol", "price", "side", "sec_type", "auto"].forEach((n) => frm.elements[n] && frm.elements[n].addEventListener("change", autosize));
   frm.price.addEventListener("input", autosize);
