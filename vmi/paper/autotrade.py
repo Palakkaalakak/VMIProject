@@ -304,10 +304,14 @@ def _fill_backfill(pid: int, plan, idx: int, side: str, bar_day: date, open_px: 
     gap = open_px <= trigger if side == "BUY" else open_px >= trigger
     ref = open_px if gap else trigger
     f = fills.stock_fill(side, Quote(plan.symbol, last=ref, avg_volume=None, source="history"))
+    # owner: a back-dated fill is made a little worse than the level, scaled to the share price (nobody gets the exact print)
+    debuff = f.mid * RULES.execution.backfill_debuff_bps / 10_000
+    f.price = round(f.price + (debuff if side == "BUY" else -debuff), 4)
+    f.slippage_per_share = round(f.slippage_per_share + debuff, 6)
     when = datetime.combine(bar_day, dtime(9, 30) if gap else dtime(12, 0), ET)
     qty = amount_or_qty if is_qty else round(amount_or_qty / f.price, 4)
     note = (f"auto-backfill: {'gapped through' if gap else 'touched'} {trigger:.2f} on {bar_day} while offline "
-            f"(daily bar; intraday time unknown, {'open' if gap else 'level'} used)")
+            f"(daily bar; intraday time unknown, {'open' if gap else 'level'} used, filled {debuff:.2f}/share worse for realism)")
     ctx = _plan_ctx(plan, idx, "buy" if side == "BUY" else "sell", alloc, "backfill",
                     {"bar_day": str(bar_day), "gap": gap, "fill": f.to_dict()})
     res = ledger.add_trade(pid, {"symbol": plan.symbol, "side": side, "qty": qty, "price": f.price, "mid": ref,

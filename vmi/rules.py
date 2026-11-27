@@ -222,6 +222,7 @@ class ExecutionRules:
     names at the low end. Retail option fills usually land between mid and the touch.
     """
     stock_slippage_bps: float = 5.0
+    backfill_debuff_bps: float = 30.0         # owner: extra unfavourable price on back-dated auto fills (0.30% of price: $1.20 on $400, under 1c on $2)
     option_slippage_per_share: float = 0.01   # $1 per contract
     illiquid_spread_pct: float = 0.005        # spread > 0.5% of mid ⇒ illiquid (stocks)
     illiquid_option_spread_pct: float = 0.10  # spread > 10% of mid ⇒ illiquid (options)

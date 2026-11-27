@@ -128,6 +128,7 @@ SOURCES: dict[str, tuple[str, str]] = {
     "portfolio.min_stocks": (ADAM, "diversification 8–30 positions (l.12102)"),
     "portfolio.max_stocks": (INTERP, "Adam: 8–30 positions (l.12102); the cap here is looser (kept from earlier work; confirm)"),
     "portfolio.default_target_stocks": (OWNER, "default number of positions used for sizing"),
+    "execution.backfill_debuff_bps": (OWNER, "back-dated auto fills are made worse by this share of the price, for realism during market hours"),
     "portfolio.fractional_shares": (OWNER, "size orders in fractional shares, to 2 decimals"),
     "portfolio.tranches": (ADAM, "buy in 3–4 tranches (checklist 16)"),
     "portfolio.dynamic_tranches": (OWNER, "number of tranches follows the levels stated for the stock (3, 4, 5 or 6)"),
