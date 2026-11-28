@@ -83,14 +83,17 @@ def build(pid: int, start: date | None, end: date | None, benchmark: str | None 
     kpis = [("Ending equity", _money(last["equity"])), ("Change in equity", _money(delta)),
             ("Period return", _pct(report["period_return"])), ("Maximum drawdown", _pct(report["max_drawdown"]))]
     cards = ''.join(f'<div class="kpi">{label}<strong>{value}</strong></div>' for label, value in kpis)
-    equity_chart = _plot(days, [("Account equity", "#155b80", [p["equity"] for p in points])])
+    equity = [("Account equity", "#155b80", [p["equity"] for p in points])]
     returns = [("Portfolio return", "#155b80", [p["equity"] / opening - 1 if opening > 0 else None for p in points])]
     bm = report["benchmark"]
     benchmark_text = ""
     if bm:
+        equity.append((f'100% {bm["symbol"]}', '#9c4518', bm["value"]))
         returns.append((f'{bm["symbol"]} price return', '#9c4518', bm["price_return"]))
         benchmark_text = (f'<p>The selected benchmark is {escape(bm["symbol"])}. Its price-only return was '
-                          f'{_pct(bm["price_return"][-1])}; baseline close: {escape(bm["base_day"] or "unavailable")}.</p>')
+                          f'{_pct(bm["price_return"][-1])}; baseline close: {escape(bm["base_day"] or "unavailable")}. '
+                          f'Investing the opening balance of {_money(bm["starting_value"])} entirely in it '
+                          f'would end at {_money(bm["value"][-1])}, excluding dividends and fees.</p>')
     risk_chart = _plot(days, [("Drawdown from peak", "#9c4518", [-p["drawdown"] for p in points])], percentage=True)
     holdings = last["positions"]
     stock_exposure = sum(abs(p["market_value"]) for p in holdings if p["sec_type"] == "STK")
@@ -128,7 +131,7 @@ def build(pid: int, start: date | None, end: date | None, benchmark: str | None 
 <section><h2>Executive summary</h2><div class="kpis">{cards}</div>
 <p>Over this period, equity {movement}, from {_money(opening)} to {_money(last['equity'])}. There were {report['range_trades']} ledger transactions and {_money(report['range_fees'])} in recorded fees.</p></section>
 <section><h2>Performance and risk</h2><p>Equity is your cash plus the net marked value of positions. The drawdown chart measures how far equity fell below its running peak in this period.</p>
-{equity_chart}{_plot(days, returns, percentage=True)}{benchmark_text}{risk_chart}</section>
+{_plot(days, equity)}{_plot(days, returns, percentage=True)}{benchmark_text}{risk_chart}</section>
 <section><h2>Exposure and holdings</h2><p>{allocation_sentence}</p>
 {('<div class="scroll"><table><thead><tr><th>Holding</th><th>Quantity</th><th>Net value</th><th>Equity weight</th><th>Mark source</th></tr></thead><tbody>' + hold_rows + '</tbody></table></div>') if hold_rows else '<p>No open positions at the end of this range.</p>'}</section>
 <section><h2>Stock performance and contribution</h2><p>{contributors}Stock positions contributed {_money(stock_total)} in total. The remaining {_money(residual)} of the account change is not in the stock lines; it can include option positions and associated cash flows.</p>

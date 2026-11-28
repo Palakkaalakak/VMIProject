@@ -198,7 +198,8 @@ def read(default_pid: int, args: dict):
         if benchmark:
             benchmark_return = benchmark["price_return"][-1]
             fund = {"ticker": benchmark["symbol"], "first_price_day": benchmark["base_day"],
-                    "price_return": benchmark_return, "holdings_and_weights": "Not supplied by historical price data."}
+                    "price_return": benchmark_return, "starting_value": benchmark["starting_value"],
+                    "ending_value_if_fully_invested": benchmark["value"][-1], "holdings_and_weights": "Not supplied by historical price data."}
             if benchmark_return is not None and result["period_return"] is not None and benchmark["base_day"] < start.isoformat():
                 fund["portfolio_minus_benchmark_pct_points"] = 100 * (result["period_return"] - benchmark_return)
             else:

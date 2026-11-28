@@ -189,11 +189,16 @@ ul.pie-legend { min-width: 200px; } .pie-legend li { display: flex; align-items:
 .ph-ai-options label { display: inline-flex; align-items: center; gap: .35rem; }
 #ph-presets { margin-bottom: .55rem; }
 #ph-ai textarea { width: 100%; resize: vertical; }
-#ph-answer { white-space: normal; line-height: 1.55; overflow-wrap: anywhere; }
-#ph-answer :is(h4, h5, h6) { margin: 1.1em 0 .3em; }
-#ph-answer :is(p, ul, ol, blockquote) { margin: .65em 0; }
-#ph-answer pre { overflow: auto; white-space: pre; }
-#ph-answer blockquote { border-left: 3px solid var(--line); padding-left: .65em; }
+#ph-conversation:not(:empty) { display: grid; gap: .7rem; margin: .65rem 0; }
+.ph-chat-message { border: 1px solid var(--line); border-radius: .55rem; padding: .65rem .85rem; background: var(--panel-2); }
+.ph-chat-message > div { margin-top: .35rem; overflow-wrap: anywhere; }
+#ph-suggestions { gap: .35rem; margin: .65rem 0; }
+#ph-stock-menu[hidden] { display: none; }
+.ph-chat-response { white-space: normal; line-height: 1.55; overflow-wrap: anywhere; }
+.ph-chat-response :is(h4, h5, h6) { margin: 1.1em 0 .3em; }
+.ph-chat-response :is(p, ul, ol, blockquote) { margin: .65em 0; }
+.ph-chat-response pre { overflow: auto; white-space: pre; }
+.ph-chat-response blockquote { border-left: 3px solid var(--line); padding-left: .65em; }
 .ph-answer-table { overflow-x: auto; margin: .75em 0; }
 .ph-answer-table table { width: max-content; min-width: 100%; border-collapse: collapse; }
 .ph-answer-table :is(th, td) { border: 1px solid var(--line); padding: .45em .7em; white-space: normal; text-align: left; max-width: 26rem; }

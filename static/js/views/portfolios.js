@@ -143,6 +143,7 @@ function download(data, name, type) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+const portfolioChats = new Map(); // transient, scoped by portfolio; nothing stored on disk
 const HISTORY_PRESETS = ["1W", "1M", "3M", "6M", "YTD", "1Y", "3Y", "5Y", "ALL"];
 
 export function historyPreset(preset, today = new Date()) {
@@ -192,13 +193,13 @@ function historyCard(box, portfolio) {
     </div>
     <details class="ph-section" id="ph-holdings"><summary>Performance vs holdings &amp; benchmark</summary>
       <p class="small muted ph-subtitle">Compare the portfolio and any number of stocks held during this range, including positions that were sold.</p>
-      <div class="inline"><label>Show <select id="ph-units"><option value="percent">% · price returns</option><option value="dollars">$ · portfolio gains and losses</option></select></label>
+      <div class="inline"><label>Show <select id="ph-units"><option value="percent">% · price returns</option><option value="dollars">$ · account and benchmark value</option><option value="contributions">$ · stock contributions</option></select></label>
         <label>Benchmark <select id="ph-benchmark"><option value="">None</option><option>SPY</option><option>QQQ</option><option>VTI</option></select></label>
         <details id="ph-stock-menu"><summary>Choose stocks <span id="ph-count"></span></summary><div class="inline">
           <button type="button" class="small secondary" id="ph-stock-all">All</button><button type="button" class="small secondary" id="ph-stock-none">None</button></div>
           <div id="ph-stock-list"></div></details></div>
       <p class="small muted" id="ph-units-help"></p><div id="ph-performance-status" class="small" aria-live="polite"></div>
-      <div id="ph-performance-chart"></div><div id="ph-performance-ranking"></div>
+      <div id="ph-performance-chart"></div><div id="ph-benchmark-summary"></div><div id="ph-performance-ranking"></div>
     </details>
     <div class="ph-section"><h4>Find a point in time</h4>
       <form id="ph-at" class="inline">
@@ -211,9 +212,11 @@ function historyCard(box, portfolio) {
     <details class="ph-section"><summary>Daily history data (primary portfolio)</summary><div id="ph-days"></div></details>
     <div class="ph-section"><h4>Ask local AI <small class="muted" id="ph-ai-mode">Quick</small></h4>
       <p class="small muted ph-subtitle">Quick uses the displayed chart data. Let the model look up more with Read app data or Web research. Deep analysis expands the enabled lookups.</p>
+      <div id="ph-conversation" role="log" aria-label="Portfolio conversation"></div>
+      <div id="ph-suggestions" class="inline" aria-label="Suggested questions"></div>
       <form id="ph-ai">
         <div class="inline"><label class="grow">Question <textarea name="question" rows="3" required placeholder="Why did I underperform SPY from April through October 2025? Compare my actual holdings with the benchmark."></textarea></label>
-          <button class="secondary">Ask</button><a href="#/ai-settings" class="small">AI Settings</a></div>
+          <button class="secondary" id="ph-ask">Ask</button><button type="button" class="secondary" id="ph-new-chat" hidden>New conversation</button><a href="#/ai-settings" class="small">AI Settings</a></div>
         <div class="ph-ai-options">
           <label title="Read-only access to trades, holdings, plans, market data and other app sections"><input type="checkbox" name="app_data"> Read app data</label>
           <label><input type="checkbox" name="web_research"> Web research</label>
@@ -221,8 +224,7 @@ function historyCard(box, portfolio) {
         </div>
         <p id="ph-public" class="small muted" hidden>Search providers receive the queries the model writes. The model is instructed to keep private details out of searches. Leave web research off to prevent public web searches.</p>
       </form>
-      <div class="ph-answer" id="ph-answer" aria-live="polite"></div>
-      <details id="ph-sources" hidden><summary>Sources and app lookups</summary><p class="ph-answer small"></p></details>
+      <p id="ph-ask-status" class="small" aria-live="polite"></p>
     </div>`;
   const range = $("#ph-range", box), atForm = $("#ph-at", box), chart = $("#ph-chart", box),
     stats = $("#ph-stats", box), days = $("#ph-days", box), snapshot = $("#ph-snapshot", box),
@@ -357,40 +359,95 @@ function historyCard(box, portfolio) {
     const all = await api.exportAll(id, { history: true, as_of: activeAt });
     download(JSON.stringify(all, null, 2), `portfolio-${id}-export.json`, "application/json");
   });
-  const aiForm = $("#ph-ai", box), sources = $("#ph-sources", box);
+  const aiForm = $("#ph-ai", box), chatLog = $("#ph-conversation", box), suggestions = $("#ph-suggestions", box);
+  const input = aiForm.elements.question, ask = $("#ph-ask", box), newChat = $("#ph-new-chat", box);
+  const askStatus = $("#ph-ask-status", box), benchmarkChoice = $("#ph-benchmark", box);
+  const conversation = portfolioChats.get(id) || { turns: [], pending: null, error: "" };
+  portfolioChats.set(id, conversation);
+  const suggest = () => {
+    const benchmark = benchmarkChoice.value || "SPY";
+    const prompts = conversation.turns.length ? [
+      "Which holdings mattered most, and by how much?", "Show me the trades and dates behind that.",
+      "Which parts of that answer are verified, and what is still uncertain?",
+    ] : [
+      `How did my portfolio compare with ${benchmark} over the displayed range?`,
+      "Which holdings helped or hurt my returns the most over this range?", "What caused the largest drawdown in this range?",
+    ];
+    suggestions.replaceChildren(...prompts.map((prompt) => {
+      const button = document.createElement("button");
+      button.type = "button"; button.className = "secondary small"; button.textContent = prompt;
+      button.onclick = () => { input.value = prompt; input.focus(); };
+      return button;
+    }));
+  };
+  const chatMessage = (label, text, reply) => {
+    const panel = document.createElement("article");
+    panel.className = "ph-chat-message";
+    const title = document.createElement("strong"); title.textContent = label; panel.append(title);
+    const body = document.createElement("div");
+    body.className = reply ? "ph-answer ph-chat-response" : "ph-answer";
+    if (reply) body.innerHTML = answerMarkdown(text);
+    else body.textContent = text;
+    panel.append(body);
+    if (reply?.research || reply?.lookups) {
+      const sources = document.createElement("details"), title = document.createElement("summary"), content = document.createElement("p");
+      title.textContent = "Sources and app lookups"; content.className = "ph-answer small";
+      const research = reply.research?.map(({ query, url, excerpts }) => `${url ? `Source read: ${url}` : `Public search: ${query}`}\n${excerpts}`);
+      const lookups = reply.lookups?.map(({ section, status, ...args }) =>
+        `${section} (${status})${Object.keys(args).length ? ` · ${JSON.stringify(args)}` : ""}`);
+      content.textContent = [research && (research.join("\n\n") || "No public searches used."),
+        lookups && `App lookups:\n${lookups.join("\n") || "None used."}`].filter(Boolean).join("\n\n");
+      sources.append(title, content); panel.append(sources);
+    }
+    return panel;
+  };
+  function renderChat() {
+    const pending = conversation.pending;
+    const turns = conversation.turns.flatMap((turn) => [chatMessage("You", turn.question), chatMessage(`Local AI · ${turn.model}`, turn.answer, turn)]);
+    if (pending) turns.push(chatMessage("You", pending.question));
+    chatLog.replaceChildren(...turns);
+    ask.disabled = Boolean(pending);
+    newChat.hidden = !conversation.turns.length;
+    newChat.disabled = Boolean(pending);
+    ask.textContent = conversation.turns.length ? "Send follow-up" : "Ask";
+    askStatus.textContent = pending ? (pending.deep ? "Researching and comparing evidence…" : "Asking the local model…") : conversation.error;
+    suggest();
+  }
+  conversation.onchange = renderChat;
+  newChat.onclick = () => {
+    if (conversation.pending) return;
+    conversation.turns = []; conversation.error = ""; input.value = "";
+    renderChat(); input.focus();
+  };
+  benchmarkChoice.addEventListener("change", suggest);
   aiForm.onchange = () => {
     const { app_data, web_research, deep_research } = aiForm.elements;
     $("#ph-public", aiForm).hidden = !web_research.checked;
     $("#ph-ai-mode", box).textContent = deep_research.checked ? "Deep" : app_data.checked || web_research.checked ? "Assistant" : "Quick";
   };
-  aiForm.onsubmit = (e) => {
+  aiForm.onsubmit = async (e) => {
     e.preventDefault();
-    const answer = $("#ph-answer", box);
-    const fields = e.currentTarget.elements;
-    const question = fields.question.value.trim();
+    const fields = aiForm.elements, question = input.value.trim();
+    if (!question || conversation.pending) return;
     const use_app_data = fields.app_data.checked, use_web_research = fields.web_research.checked, deep_research = fields.deep_research.checked;
-    sources.hidden = true;
-    sources.open = false;
-    if (!question) return;
-    answer.textContent = deep_research ? "Researching and comparing evidence on the local model…" : "Asking the local model…";
-    run(e.submitter, async () => {
-      try {
-        const askedDays = [...new Set(question.match(/\b\d{4}-\d{2}-\d{2}\b/g) || [])].slice(0, 2);
-        const res = await api.portfolioAsk(id, { question, use_app_data, use_web_research, deep_research, context: JSON.stringify({ metric, range: activeRange,
-          benchmark: $("#ph-benchmark", box).value || null,
+    conversation.pending = { question, deep: deep_research }; conversation.error = "";
+    input.value = ""; renderChat();
+    try {
+      const askedDays = [...new Set(question.match(/\b\d{4}-\d{2}-\d{2}\b/g) || [])].slice(0, 2);
+      const res = await api.portfolioAsk(id, { question, use_app_data, use_web_research, deep_research,
+        conversation: conversation.turns.map(({ question, answer }) => ({ question, answer })),
+        context: JSON.stringify({ metric, range: activeRange, benchmark: benchmarkChoice.value || null,
           primary: data ? quickFacts(name, data, snapshotData, askedDays) : { name }, comparison: peerData && quickFacts(peer()?.name, peerData, peerSnapshot, askedDays) }) });
-        answer.innerHTML = answerMarkdown(res.answer) + `<p class="small muted">Local AI · ${esc(res.model)}</p>`;
-        if (res.public_research || res.app_lookups) {
-          const research = (res.public_research || []).map(({ query, url, excerpts }) => `${url ? `Source read: ${url}` : `Public search: ${query}`}\n${excerpts}`);
-          const lookups = (res.app_lookups || []).map(({ section, status, ...args }) =>
-            `${section} (${status})${Object.keys(args).length ? ` · ${JSON.stringify(args)}` : ""}`);
-          $("p", sources).textContent = [use_web_research && (research.join("\n\n") || "No public searches used."),
-            use_app_data && `App lookups:\n${lookups.join("\n") || "None used."}`].filter(Boolean).join("\n\n");
-          sources.hidden = false;
-        }
-      } catch (error) { answer.textContent = error.message; }
-    });
+      conversation.turns.push({ question, answer: res.answer, model: res.model, research: res.public_research, lookups: res.app_lookups });
+    } catch (error) {
+      conversation.error = error.message;
+      if (!input.value) input.value = question;
+    } finally {
+      conversation.pending = null;
+      conversation.onchange?.();
+    }
   };
+  renderChat();
   const performance = holdingsPerformance(box, id, name, selectDay);
   mountHistoryChart(chart, selectDay).then((mounted) => {
     if (destroyed) { mounted?.destroy(); return; }
@@ -398,7 +455,7 @@ function historyCard(box, portfolio) {
     paintChart();
   }).catch((e) => { if (!destroyed) chart.textContent = e.message; });
   paintChart(); load();
-  return () => { destroyed = true; widget?.destroy(); performance.destroy(); };
+  return () => { destroyed = true; delete conversation.onchange; widget?.destroy(); performance.destroy(); };
 }
 
 function holdingsPerformance(box, id, name, selectDay) {
@@ -411,26 +468,45 @@ function holdingsPerformance(box, id, name, selectDay) {
   };
   const paint = () => {
     if (!report) return;
-    const dollar = units.value === "dollars";
+    const dollar = units.value === "dollars", contributions = units.value === "contributions";
+    const bm = report.benchmark;
+    const div = report.opening_equity;
     $("#ph-units-help", box).textContent = dollar
-      ? "Stock lines show each holding’s contribution to your account in dollars, including its trades and fees. The benchmark is available in % mode only."
-      : "The portfolio line is its account return. Stock and benchmark lines show price changes, not your trade returns or dividends. A later starting price is shown in the table.";
-    benchmark.disabled = dollar;
+      ? "Actual account equity versus investing the entire opening balance in the benchmark, with fractional shares. Price changes only; no dividends or fees."
+      : contributions ? "Stock lines show their contributions through price changes, trades and fees. The portfolio line shows its total change in equity."
+      : "The portfolio line is its account return. Stock and benchmark lines show price changes, not your trade returns or dividends.";
+    benchmark.disabled = contributions;
+    $("#ph-stock-menu", box).hidden = dollar;
     $("#ph-count", box).textContent = `(${report.stocks.filter((s) => selected.has(s.symbol)).length} of ${report.stocks.length})`;
     const visible = report.stocks.filter((s) => selected.has(s.symbol));
     const points = report.points;
     const chartData = (values) => values.flatMap((value, i) => Number.isFinite(value) ? [{ time: points[i].day, value }] : []);
-    const div = report.opening_equity;
-    const entries = [{ name, lineWidth: 3, data: chartData(points.map((p) => dollar ? p.equity - div : div > 0 ? p.equity / div - 1 : null)) }];
-    for (const stock of visible) {
+    const entries = [{ name, lineWidth: 3, data: chartData(points.map((p) => dollar ? p.equity : contributions ? p.equity - div : div > 0 ? p.equity / div - 1 : null)) }];
+    if (!dollar) for (const stock of visible) {
       const index = report.stocks.indexOf(stock);
       entries.push({ name: stock.symbol, color: stockChartColor(index), lineStyle: 0,
-        data: chartData(dollar ? stock.pnl : stock.price_return) });
+        data: chartData(contributions ? stock.pnl : stock.price_return) });
     }
-    if (!dollar && report.benchmark) entries.push({ name: `${report.benchmark.symbol} benchmark`, color: "#a7b0be", lineStyle: 2,
-      data: chartData(report.benchmark.price_return) });
-    widget?.setData({ entries, format: dollar ? fmt.money : pct2, minMove: dollar ? .01 : .0001,
-      drawingKey: `${id}.holding-performance.${dollar ? "dollars" : "percent"}.${points[0].day}` });
+    if (!contributions && bm) entries.push({ name: dollar ? `100% ${bm.symbol}` : `${bm.symbol} benchmark`, color: "#a7b0be", lineStyle: 2,
+      data: chartData(dollar ? bm.value : bm.price_return) });
+    widget?.setData({ entries, format: dollar || contributions ? fmt.money : pct2, minMove: dollar || contributions ? .01 : .0001,
+      drawingKey: `${id}.holding-performance.${units.value}.${points[0].day}` });
+    const comparison = $("#ph-benchmark-summary", box);
+    comparison.replaceChildren();
+    if (dollar && bm) {
+      const end = bm.value.at(-1), equity = points.at(-1).equity;
+      const note = document.createElement("p"); note.className = "small muted";
+      note.textContent = `Benchmark baseline close: ${bm.base_day || "unavailable"}.` +
+        (bm.base_day >= points[0].day ? " The benchmark line starts when its first eligible price becomes available." : "");
+      if (Number.isFinite(end)) {
+        const kpis = document.createElement("div"); kpis.className = "kpis";
+        kpis.innerHTML = historyKpi("Starting balance (both)", fmt.money(bm.starting_value)) +
+          historyKpi("Portfolio ending equity", fmt.money(equity)) + historyKpi(`100% ${esc(bm.symbol)} ending value`, fmt.money(end)) +
+          historyKpi("Portfolio minus benchmark", fmt.money(equity - end));
+        comparison.append(kpis);
+      } else note.textContent += " No dollar benchmark value is available for this range.";
+      comparison.append(note);
+    }
     $("#ph-performance-ranking", box).replaceChildren(table([
       { key: "symbol", label: "Stock" }, numCol("pnl", "Range contribution ($)"), numCol("return", "Price return", pct2),
       { key: "base_day", label: "Price baseline" },

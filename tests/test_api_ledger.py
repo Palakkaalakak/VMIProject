@@ -229,12 +229,20 @@ def test_holdings_performance_and_printable_report(client, monkeypatch):
     assert stock["AAA"]["price_return"] == pytest.approx([.2, .3, .5])
     assert stock["BBB"]["pnl"] == [0, 0, -100]
     assert data["benchmark"]["price_return"][-1] == pytest.approx(.1)
+    assert data["benchmark"]["starting_value"] == 10_000
+    assert data["benchmark"]["value"] == pytest.approx([10_200, 10_400, 11_000])
+    shifted = client.get(base + "/history/performance", params={**params, "start": "2026-01-07"}).json()
+    assert shifted["opening_equity"] == 10_200
+    assert shifted["benchmark"]["value"][-1] == pytest.approx(10_200 * 55 / 51)
+    delayed = client.get(base + "/history/performance", params={**params, "start": "2026-01-04"}).json()
+    assert delayed["benchmark"]["value"][:2] == [None, 10_000]
     assert data["points"][-1]["equity"] == 10_195
     import json
     from vmi import ai_portfolio
     run, _ = ai_portfolio.runner(pid)
     evidence = json.loads(run("read_app_data", {"section": "performance", **params}))
     assert evidence["benchmark"]["portfolio_minus_benchmark_pct_points"] == pytest.approx(-8.05)
+    assert evidence["benchmark"]["ending_value_if_fully_invested"] == pytest.approx(11_000)
     assert evidence["attribution"]["non_stock_and_other_residual"] == 0
     assert evidence["attribution"]["average_daily_cash_weight"] < 1
     aaa, bbb = evidence["stocks_by_absolute_contribution"]["rows"]
@@ -248,6 +256,7 @@ def test_holdings_performance_and_printable_report(client, monkeypatch):
     assert "&lt;Growth &amp; Income&gt;" in report.text and "<Growth & Income>" not in report.text
     assert report.text.count("<svg") == 5 and "SPY price return" in report.text
     assert "$10,195.00" in report.text and "AAA added the most" in report.text
+    assert "100% SPY" in report.text and "$11,000.00" in report.text
     export = client.get(base + "/history/report", params={**params, "download": True})
     assert 'attachment;' in export.headers["content-disposition"] and "report.html" in export.headers["content-disposition"]
     assert "<svg" in export.text and 'window.print' not in export.text
@@ -397,3 +406,25 @@ def test_deep_research_reads_only_approved_benchmark_sources(monkeypatch):
         assert "approved" in run("read_benchmark_source", {"url": bad})
     assert "Dated evidence" in run("read_benchmark_source", {"url": url})
     assert seen == [(url, 0)] and activity["public_research"][0]["url"] == url
+
+
+def test_portfolio_follow_up_preserves_dialogue_and_current_context(client, monkeypatch):
+    from vmi import ai_helper
+
+    monkeypatch.setattr(ai_helper, "status", lambda *, local_only: {"backend": "builtin", "model": "test"})
+    turns = []
+
+    def chat(backend, messages, tools, run_tool, *, deep):
+        turns.append(messages)
+        assert tools == []  # prior turns do not grant new tool permissions
+        return "AAA mattered most." if len(turns) == 1 else "AAA contributed $295."
+
+    monkeypatch.setattr(ai_helper, "assistant_chat", chat)
+    path = f"/api/portfolios/{_pf(client)}/history/ask"
+    question = "Which holding mattered most?"
+    answer = client.post(path, json={"question": question, "context": "{}"}).json()["answer"]
+    result = client.post(path, json={"question": "By how much?", "context": '{"benchmark":"SPY"}',
+                                    "conversation": [{"question": question, "answer": answer}]})
+    assert result.json()["answer"] == "AAA contributed $295."
+    assert turns[1][1:3] == [{"role": "user", "content": question}, {"role": "assistant", "content": answer}]
+    assert "By how much?" in turns[1][-1]["content"] and '"benchmark":"SPY"' in turns[1][-1]["content"]

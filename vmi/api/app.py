@@ -831,12 +831,18 @@ def pf_history_report(pid: int, start: date | None = None, end: date | None = No
     return Response(html, media_type="text/html", headers=headers)
 
 
+class PortfolioTurn(BaseModel):
+    question: str = Field(min_length=1)
+    answer: str = Field(min_length=1)
+
+
 class PortfolioQuestion(BaseModel):
     question: str = Field(min_length=1)
     context: str = Field(min_length=2, max_length=6000)
     use_app_data: bool = False
     use_web_research: bool = False
     deep_research: bool = False
+    conversation: list[PortfolioTurn] = Field(default_factory=list)
 
 
 @pr.post("/{pid}/history/ask")
@@ -866,6 +872,9 @@ def pf_history_ask(pid: int, body: PortfolioQuestion):
          "Equity = cash + net market value. Drawdown is a decline from a peak; range return and lifetime return differ. "
          "If trade-level details, prices, or a date are missing, say so and tell the user which snapshot or ledger entry to inspect. "
          "Do not invent trades or give buy or sell recommendations."},
+        *[message for turn in body.conversation for message in (
+            {"role": "user", "content": turn.question}, {"role": "assistant", "content": turn.answer},
+        )],
         {"role": "user", "content": f"Question: {question}\nPortfolio data (JSON):\n{body.context}"},
     ]
     result = {"model": status["model"]}
@@ -894,10 +903,15 @@ def pf_history_ask(pid: int, body: PortfolioQuestion):
                 "Distinguish cash exposure from proof of cash drag, and unrealised P&L from realised and total return. "
                 "Use headings, lists or Markdown tables with a header separator where useful. Do not invent trades or recommend orders."
             )
-            answer = ai_helper.assistant_chat(backend, messages, tools, run_tool, deep=body.deep_research)
             result.update(activity)
         else:
-            answer = ai_helper.assistant_chat(backend, messages, [], None, deep=body.deep_research)
+            tools, run_tool = [], None
+        messages[0]["content"] += (
+            " Use as much detail as needed to answer well; there is no requested length limit. "
+            "Use previous conversation turns to resolve follow-ups. Previous answers are context, not verified data; "
+            "updated dates, chart values and tool results supersede them. Use only the tools enabled for this turn."
+        )
+        answer = ai_helper.assistant_chat(backend, messages, tools, run_tool, deep=body.deep_research)
     except ai_helper.AssistantUnavailable as exc:
         raise HTTPException(503, str(exc)) from exc
     if not answer:

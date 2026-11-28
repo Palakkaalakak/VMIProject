@@ -78,3 +78,52 @@ def test_assistant_processes_all_chunks_of_long_input(monkeypatch):
     assert h.assistant_chat("builtin", [{"role": "user", "content": text}], [], None) == "Pass 4"
     assert "FIRST" in prompts[0] and "LAST" in prompts[2]
     assert "Pass 2" in prompts[2] and "Pass 3" in prompts[3]
+
+
+def test_assistant_continues_beyond_previous_context_cutoff(monkeypatch):
+    from vmi import ai_helper as h
+
+    monkeypatch.setattr(h.ai_runtime, "ensure_running", lambda: "local")
+    chunks = [f"Part {i}. " + str(i) * 8500 + "." for i in range(8)]
+    remaining = iter(chunks)
+    compacted = []
+
+    def reply(base, body, timeout):
+        last = body["messages"][-1]["content"]
+        if "Transcript excerpt:" in last:
+            compacted.append(last)
+            return {"content": "The earlier sections were delivered.", "finish_reason": "stop"}
+        if "Continue exactly" in last:
+            assert len(body["messages"][-2]["content"]) <= 7000
+        chunk = next(remaining)
+        return {"content": chunk, "finish_reason": "stop" if chunk == chunks[-1] else "length"}
+
+    monkeypatch.setattr(h.ai_runtime, "_post_chat", reply)
+    result = h.assistant_chat("builtin", [{"role": "user", "content": "Give a detailed report"}], [], None)
+    assert result == "\n\n".join(chunks)
+    assert len(result) > 65_000 and len(compacted) >= 7
+
+
+def test_assistant_compacts_older_turns_but_preserves_latest_follow_up(monkeypatch):
+    from vmi import ai_helper as h
+
+    monkeypatch.setattr(h.ai_runtime, "ensure_running", lambda: "local")
+
+    def reply(base, body, timeout):
+        messages = body["messages"]
+        if "Transcript excerpt" in messages[-1]["content"]:
+            return {"content": "Earlier ticker BBB", "finish_reason": "stop"}
+        assert messages[1:3] == [{"role": "user", "content": "Latest prior question"},
+                                 {"role": "assistant", "content": "Latest prior answer"}]
+        assert "Earlier ticker BBB" in messages[-1]["content"] and messages[-1]["content"].endswith("Current follow-up")
+        return {"content": "Follow-up grounded in context", "finish_reason": "stop"}
+
+    monkeypatch.setattr(h.ai_runtime, "_post_chat", reply)
+    assert h.assistant_chat("builtin", [
+        {"role": "system", "content": "Answer follow-ups"},
+        {"role": "user", "content": "First question"},
+        {"role": "assistant", "content": "BBB " + "x" * 20000},
+        {"role": "user", "content": "Latest prior question"},
+        {"role": "assistant", "content": "Latest prior answer"},
+        {"role": "user", "content": "Current follow-up"},
+    ], [], None) == "Follow-up grounded in context"

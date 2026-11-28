@@ -328,7 +328,12 @@ def history(pid: int, start: date | None = None, end: date | None = None, *, his
         report["range_fees"] = sum((r["fees"] or 0.0) for dt, r in rows if dt.date() >= start)
         report["stocks"] = [{"symbol": sym, "pnl": series, **_price_path(closes[sym], opening_day, points)}
                             for sym, series in stock_pnl.items()]
-        report["benchmark"] = {"symbol": benchmark, **_price_path(closes[benchmark], opening_day, points)} if benchmark else None
+        report["benchmark"] = None
+        if benchmark:
+            path = _price_path(closes[benchmark], opening_day, points)
+            report["benchmark"] = {"symbol": benchmark, **path, "starting_value": opening if opening > 0 else None,
+                                   "value": [opening * (1 + ret) if opening > 0 and ret is not None else None
+                                             for ret in path["price_return"]]}
     if include_performance and include_attribution:
         first_positions = {p["symbol"]: p for p in opening_point.get("positions", []) if p["sec_type"] == "STK"}
         last_positions = {p["symbol"]: p for p in points[-1]["positions"] if p["sec_type"] == "STK"}
