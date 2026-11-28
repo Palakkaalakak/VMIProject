@@ -225,3 +225,152 @@ export async function mountChart(box, symbol, { interval = "1d", levels: initial
   await load();
   return { setLevels(l) { levels = l || []; renderLevels(); }, destroy() { document.removeEventListener("keydown", onEsc); document.body.classList.remove("chart-full-open"); chart.remove(); sc.remove(); } };
 }
+
+const HISTORY_COLORS = ["#60a5fa", "#fb923c"];
+const dayKey = (time) => typeof time === "string" ? time : time &&
+  `${time.year}-${String(time.month).padStart(2, "0")}-${String(time.day).padStart(2, "0")}`;
+
+/** A single-unit historical chart with exact-date readout and browser-local annotations. */
+export async function mountHistoryChart(box, onSelect) {
+  await ensureLib();
+  if (!box.isConnected) return null;
+  box.innerHTML = `<div class="inline ph-tools" aria-label="Chart tools">
+      <button type="button" class="secondary small" data-draw="trend" aria-pressed="false">Trend line</button>
+      <button type="button" class="secondary small" data-draw="level" aria-pressed="false">Horizontal line</button>
+      <button type="button" class="secondary small" data-draw="undo">Undo drawing</button>
+      <button type="button" class="secondary small" data-draw="clear">Clear drawings</button>
+      <span class="spacer"></span><label class="small"><input type="checkbox" data-grid checked> Grid</label>
+      <button type="button" class="secondary small" data-fit>Reset zoom</button>
+    </div>
+    <p class="small muted ph-chart-help"></p><div class="ph-readout"></div>
+    <div class="ph-canvas" tabindex="0" aria-label="Daily chart. Use arrow keys to inspect dates; Enter opens a snapshot."></div>`;
+  const canvas = box.querySelector(".ph-canvas"), read = box.querySelector(".ph-readout"), help = box.querySelector(".ph-chart-help");
+  const chart = window.LightweightCharts.createChart(canvas, { autoSize: true,
+    layout: { background: { color: "transparent" }, textColor: getComputedStyle(document.body).color },
+    grid: { vertLines: { color: "rgba(128,128,128,.13)" }, horzLines: { color: "rgba(128,128,128,.16)" } },
+    crosshair: { mode: 0 }, rightPriceScale: { borderVisible: false, minimumWidth: 80 }, timeScale: { borderVisible: false },
+  });
+  const fit = () => chart.timeScale().fitContent();
+  let series = [], annotations = [], drawings = [], configs = [], days = [], selected, keyboardDay, pending, tool, key, formatter = String;
+  const buttons = [...box.querySelectorAll("[data-draw]")];
+  const readDate = (day) => {
+    if (!day) { read.textContent = "No data for this date range."; return; }
+    read.innerHTML = `<b>${esc(day)}${selected === day ? " · Selected" : ""}</b>` + configs.map(({ name, values, estimates }, i) => {
+      const value = values.get(day);
+      const count = estimates?.get(day);
+      return `<span><i style="background:${HISTORY_COLORS[i]}"></i>${esc(name)} <strong>${value == null ? "No data" : esc(formatter(value))}</strong>${count ? ` <small class="muted">${count} at cost</small>` : ""}</span>`;
+    }).join("");
+  };
+  const tools = () => {
+    const prompt = tool === "level" ? "Click a value on the chart to place a horizontal line."
+      : tool === "trend" ? (pending ? "Click a second date to finish the line." : "Click the first point of the trend line.")
+        : "Hover for exact daily values. Click for that day’s snapshot. Drag to pan and scroll or pinch to zoom.";
+    help.textContent = prompt;
+    for (const b of buttons) {
+      if (["trend", "level"].includes(b.dataset.draw)) b.setAttribute("aria-pressed", String(b.dataset.draw === tool));
+      else b.disabled = !drawings.length;
+    }
+  };
+  function draw() {
+    for (const a of annotations) a.series ? chart.removeSeries(a.series) : series[0].removePriceLine(a.level);
+    annotations = [];
+    if (!series.length || !days.length) return;
+    for (const d of drawings) {
+      if (d.kind === "level" && Number.isFinite(d.value)) {
+        annotations.push({ level: series[0].createPriceLine({ price: d.value, color: "#eab308", lineWidth: 1, lineStyle: 2, title: "Level" }) });
+      } else if (d.kind === "trend" && d.a && d.b && Number.isFinite(d.a.value) && Number.isFinite(d.b.value)) {
+        const [a, b] = [d.a, d.b].sort((x, y) => x.day.localeCompare(y.day));
+        const first = a.day < days[0] ? days[0] : a.day;
+        const last = b.day > days.at(-1) ? days.at(-1) : b.day;
+        if (first >= last) continue;
+        const range = Date.parse(b.day) - Date.parse(a.day);
+        const valueAt = (day) => a.value + (b.value - a.value) * (Date.parse(day) - Date.parse(a.day)) / range;
+        const line = chart.addLineSeries({ color: "#eab308", lineWidth: 2, priceLineVisible: false, lastValueVisible: false,
+          crosshairMarkerVisible: false, autoscaleInfoProvider: () => null });
+        line.setData([{ time: first, value: valueAt(first) }, { time: last, value: valueAt(last) }]);
+        annotations.push({ series: line });
+      }
+    }
+  }
+  const save = () => {
+    try { localStorage.setItem(key, JSON.stringify(drawings)); } catch { /* optional local persistence */ }
+    draw(); tools();
+  };
+  for (const button of buttons) button.onclick = () => {
+    const action = button.dataset.draw;
+    pending = undefined;
+    if (action === "clear" || action === "undo") {
+      tool = undefined;
+      if (action === "clear") drawings = []; else drawings.pop();
+      save();
+    } else {
+      tool = (tool === action ? undefined : action);
+      tools();
+    }
+  };
+  box.querySelector("[data-fit]").onclick = fit;
+  box.querySelector("[data-grid]").onchange = (e) => chart.applyOptions({ grid: {
+    vertLines: { visible: e.target.checked }, horzLines: { visible: e.target.checked },
+  } });
+  chart.subscribeCrosshairMove(({ time }) => readDate(dayKey(time) || selected || days.at(-1)));
+  chart.subscribeClick(({ time, point }) => {
+    const day = dayKey(time);
+    if (!tool && point && day) { selected = day; readDate(day); onSelect(day); }
+  });
+  // Draw on native clicks so a quick second point isn't swallowed by the chart's double-click handling.
+  let pointerStart;
+  canvas.addEventListener("pointerdown", (e) => { pointerStart = { x: e.clientX, y: e.clientY }; });
+  canvas.addEventListener("click", (e) => {
+    if (!tool || !pointerStart || Math.hypot(e.clientX - pointerStart.x, e.clientY - pointerStart.y) > 5) return;
+    const rect = canvas.getBoundingClientRect(), x = e.clientX - rect.left, y = e.clientY - rect.top;
+    if (x < 0 || x >= chart.timeScale().width() || y < 0 || y >= rect.height - chart.timeScale().height()) return;
+    const day = dayKey(chart.timeScale().coordinateToTime(x));
+    const value = series[0]?.coordinateToPrice(y);
+    if (value == null || !Number.isFinite(value) || (tool === "trend" && !day)) return;
+    if (tool === "level") drawings.push({ kind: "level", value });
+    else if (!pending) { pending = { day, value }; tools(); return; }
+    else if (pending.day === day) return;
+    else drawings.push({ kind: "trend", a: pending, b: { day, value } });
+    pending = tool = undefined;
+    save();
+  });
+  canvas.addEventListener("focus", () => { keyboardDay = selected || days.at(-1); });
+  canvas.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { pending = tool = undefined; tools(); return; }
+    if (e.key === "Enter" && keyboardDay && !tool) { selected = keyboardDay; readDate(selected); onSelect(selected); }
+    if (!days.length || !["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+    e.preventDefault();
+    const previous = keyboardDay || selected || days.at(-1);
+    const next = Math.max(0, Math.min(days.length - 1, days.indexOf(previous) + (e.key === "ArrowLeft" ? -1 : 1)));
+    const day = keyboardDay = days[next];
+    const index = configs.findIndex((c) => c.values.has(day));
+    if (index !== -1) chart.setCrosshairPosition(configs[index].values.get(day), day, series[index]);
+    readDate(day);
+  });
+  tools();
+  return {
+    setData({ entries, format, minMove, drawingKey }) {
+      for (const a of annotations) a.series ? chart.removeSeries(a.series) : series[0].removePriceLine(a.level);
+      annotations = [];
+      series.forEach((s) => chart.removeSeries(s));
+      formatter = format;
+      configs = entries.map((e) => ({ ...e, values: new Map(e.data.map((p) => [p.time, p.value])) }));
+      days = [...new Set(entries.flatMap((e) => e.data.map((p) => p.time)))].sort();
+      series = entries.map((e, i) => {
+        const s = chart.addLineSeries({ color: HISTORY_COLORS[i], lineWidth: 2, priceLineVisible: false,
+          lastValueVisible: false, priceFormat: { type: "custom", minMove, formatter: format }, pointMarkersVisible: e.data.length === 1, lineStyle: i ? 2 : 0 });
+        s.setData(e.data);
+        return s;
+      });
+      key = `vmi.portfolio.draw.${drawingKey}`;
+      try { const stored = JSON.parse(localStorage.getItem(key)); drawings = Array.isArray(stored) ? stored : []; } catch { drawings = []; }
+      tool = pending = undefined;
+      if (!days.includes(selected)) selected = undefined;
+      keyboardDay = selected || days.at(-1);
+      draw(); tools(); readDate(selected || days.at(-1));
+      if (days.length) fit();
+    },
+    selectDay(day) { selected = days.includes(day) ? day : undefined; readDate(selected || days.at(-1)); },
+    destroy() { chart.remove(); },
+  };
+}

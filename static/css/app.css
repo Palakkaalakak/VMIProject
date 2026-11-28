@@ -175,3 +175,18 @@ ul.pie-legend { min-width: 200px; } .pie-legend li { display: flex; align-items:
 .hm-tile text, .hm-sector { fill: #fff; pointer-events: none; font-family: inherit; }
 .hm-sector { font-size: 11px; font-weight: 700; text-transform: uppercase; opacity: .85; }
 .hm-scale { display: flex; align-items: center; gap: .3rem; font-size: .8rem; flex-wrap: wrap; } .hm-scale i { display: inline-block; width: 34px; height: 12px; }
+
+/* Portfolio history: one unit per chart, with clear inspection and comparison controls. */
+.ph-section { border-top: 1px solid var(--line); padding-top: .85rem; margin-top: .9rem; }
+.ph-section h4 { margin: 0 0 .45rem; }
+.ph-metrics, .ph-tools { gap: .4rem; }
+.ph-metrics [aria-pressed="true"], .ph-tools [aria-pressed="true"] { background: var(--accent); color: white; border-color: var(--accent); }
+.ph-canvas { height: clamp(270px, 42vh, 480px); position: relative; }
+.ph-readout { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem 1rem; min-height: 2rem; padding: .4rem .65rem; background: var(--panel-2); border-radius: 6px; font-size: .85rem; }
+.ph-readout i { display: inline-block; width: .7em; height: .7em; margin-right: .4em; border-radius: 2px; }
+.ph-chart-help { margin: .35rem 0; }
+.ph-answer { white-space: pre-wrap; overflow-wrap: anywhere; }
+.ph-subtitle { margin: .25rem 0 .7rem; }
+#ph-scale-label[hidden] { display: none; }
+#ph-ai .grow { flex: 1 1 24rem; }
+#ph-ai input { width: min(100%, 36rem); }

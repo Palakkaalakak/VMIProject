@@ -110,6 +110,7 @@ export const api = {
   audit: (id) => request("GET", `/api/portfolios/${id}/audit`),
   exportAll: (id, params) => request("GET", `/api/portfolios/${id}/export${qs(params)}`),
   portfolioHistory: (id, params) => request("GET", `/api/portfolios/${id}/history${qs(params)}`),
+  portfolioAsk: (id, body) => request("POST", `/api/portfolios/${id}/history/ask`, body),
   portfolioSnapshot: (id, at) => request("GET", `/api/portfolios/${id}/history/as-of${qs({ at })}`),
   portfolioHistoryCsv: (id, params) => request("GET", `/api/portfolios/${id}/history/csv${qs(params)}`),
   recordMarks: (id) => request("POST", `/api/portfolios/${id}/marks`),

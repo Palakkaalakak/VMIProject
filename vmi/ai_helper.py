@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import re
 import urllib.request
+from urllib.parse import urlsplit
 
 from vmi import ai_runtime
 from vmi.config import get_settings
@@ -33,10 +34,15 @@ def _ollama() -> dict:
         return {"available": False, "model": s.ai_model, "installed": False, "url": s.ai_url}
 
 
-def status() -> dict:
+def status(*, local_only: bool = False) -> dict:
     """Which backend can answer: an Ollama server that is already running, else the built-in one once downloaded.
     {"available", "backend": "ollama"|"builtin"|None, "model", "builtin": {...download state...}}"""
-    o, b = _ollama(), ai_runtime.status()
+    b = ai_runtime.status()
+    settings = get_settings()
+    if local_only and urlsplit(settings.ai_url).hostname not in {"localhost", "127.0.0.1", "::1"}:
+        o = {"available": False, "installed": False, "url": settings.ai_url}
+    else:
+        o = _ollama()
     backend = "ollama" if o["available"] and o["installed"] else "builtin" if b["ready"] else None
     return {"available": backend is not None, "backend": backend, "model": o["model"] if backend == "ollama" else b["model"],
             "installed": o["installed"], "url": o["url"], "builtin": b}
@@ -80,10 +86,10 @@ def _opinion(prompt: str) -> str:
     return text.split("</think>")[-1].strip()           # reasoning models may print their thinking first
 
 
-def overview_chat(backend: str, messages: list[dict], max_tokens: int) -> str:
+def overview_chat(backend: str, messages: list[dict], max_tokens: int, *, timeout: float | None = None) -> str:
     """Tool-free chat on the already selected backend; never silently switches models."""
     if backend == "builtin":
-        return ai_runtime.chat_with_tools(messages, [], lambda *_: "", max_rounds=0, max_tokens=max_tokens, timeout=600)
+        return ai_runtime.chat_with_tools(messages, [], lambda *_: "", max_rounds=0, max_tokens=max_tokens, timeout=600 if timeout is None else timeout)
     if backend != "ollama":
         raise RuntimeError("No AI model is available. See AI Settings.")
     settings = get_settings()
@@ -91,6 +97,6 @@ def overview_chat(backend: str, messages: list[dict], max_tokens: int) -> str:
             "options": {"num_predict": max_tokens, "temperature": 0.3, "num_ctx": ai_runtime.CTX}}
     req = urllib.request.Request(f"{settings.ai_url}/api/chat", data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=settings.ai_timeout) as response:
+    with urllib.request.urlopen(req, timeout=settings.ai_timeout if timeout is None else min(timeout, settings.ai_timeout)) as response:
         text = json.loads(response.read())["message"]["content"]
     return text.split("</think>")[-1].strip()

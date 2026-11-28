@@ -159,3 +159,38 @@ def test_chart_bars_endpoint_validates_the_interval(client, monkeypatch):
     r = client.get("/api/bars/AAA?interval=1d").json()
     assert r["bars"][0] == {"time": "2026-01-02", "open": 1.0, "high": 2.0, "low": 0.5, "close": 1.5, "volume": 10.0}
     assert client.get("/api/bars/AAA?interval=3d").status_code == 400
+
+
+
+def test_portfolio_quick_ai_uses_one_bounded_call_and_no_price_fetch(client, monkeypatch):
+    import json
+
+    from vmi import ai_helper
+    from vmi.data import market
+
+    def no_prices(*args, **kwargs):
+        pytest.fail("Quick AI must use only the displayed summary")
+
+    calls = []
+    def chat(backend, messages, max_tokens, *, timeout):
+        calls.append((backend, messages, max_tokens, timeout))
+        return "**Cash** fell while the value of positions increased."
+
+    monkeypatch.setattr(market, "history", no_prices)
+    monkeypatch.setattr(market, "last_price", no_prices)
+    monkeypatch.setattr(ai_helper, "status", lambda *, local_only: {"backend": "builtin" if local_only else None, "model": "mock-local"})
+    monkeypatch.setattr(ai_helper, "overview_chat", chat)
+    pid = _pf(client)
+    path = f"/api/portfolios/{pid}/history/ask"
+    body = {"question": "Why did cash go down?", "context": json.dumps({"primary": {"name": "A", "last": {"cash": 500}}})}
+    res = client.post(path, json=body)
+    assert res.json() == {"answer": "Cash fell while the value of positions increased.", "model": "mock-local"}
+    assert len(calls) == 1
+    backend, messages, tokens, timeout = calls[0]
+    assert backend == "builtin" and tokens == 420 and timeout == 90
+    assert "Why did cash go down?" in messages[1]["content"] and '"cash": 500' in messages[1]["content"]
+    assert client.post(path, json={**body, "context": "[1]"}).status_code == 400
+    assert client.post(path, json={**body, "question": "x" * 501}).status_code == 422
+    monkeypatch.setattr(ai_helper, "status", lambda **kw: {"backend": None})
+    assert client.post(path, json=body).status_code == 503
+    assert len(calls) == 1
