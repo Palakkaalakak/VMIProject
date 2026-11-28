@@ -34,6 +34,63 @@ TOOL = {"type": "function", "function": {
 }}
 
 
+WEB_SEARCH = {"type": "function", "function": {
+    "name": "web_search",
+    "description": "Search public web sources using your own short query. Returns titles, URLs and excerpts. "
+                   "Use public tickers, company names, dates, events or market terms only; omit private data.",
+    "parameters": {"type": "object", "properties": {"query": {"type": "string", "maxLength": 200}},
+                   "required": ["query"], "additionalProperties": False},
+}}
+
+
+def assistant_tools(pid: int, *, app_data: bool, web_research: bool):
+    """Grant only requested capabilities and record the lookups the model actually makes."""
+    tools = ([TOOL] if app_data else []) + ([WEB_SEARCH] if web_research else [])
+    app_run, app_lookups = runner(pid, enabled=app_data)
+    searches: list[dict] = []
+    seen: set[str] = set()
+    activity = {}
+    if app_data:
+        activity["app_lookups"] = app_lookups
+    if web_research:
+        activity["public_research"] = searches
+
+    def run(name: str, args) -> str:
+        if name != "web_search":
+            return app_run(name, args)
+        if not web_research:
+            return "Refused: web research is not enabled."
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except (ValueError, RecursionError):
+                return "Invalid search arguments."
+        if not isinstance(args, dict) or args.keys() != {"query"}:
+            return "Supply only a short public search query."
+        raw_query = args["query"]
+        if not isinstance(raw_query, str) or not 1 <= len(raw_query.strip()) <= 200:
+            return "Supply a public query between 1 and 200 characters."
+        query = " ".join(raw_query.split())
+        key = query.casefold()
+        if key in seen:
+            return "Search already run; use the previous result."
+        if len(seen) >= 3:
+            return "Search budget exhausted. Answer from available evidence."
+        seen.add(key)
+        from vmi.ai_tools import web_search
+
+        try:
+            excerpts = web_search(query, n=4)
+            if excerpts.startswith("no relevant results"):
+                excerpts = "No relevant results. Try a different public query or report the gap."
+        except Exception:
+            excerpts = "Public search could not be completed."
+        searches.append({"query": query, "excerpts": excerpts[:2500]})
+        return searches[-1]["excerpts"]
+
+    return tools, run, activity
+
+
 def _page(rows, offset: int, size: int = 8) -> dict:
     return {"total": len(rows), "offset": offset, "rows": rows[offset:offset + size]}
 

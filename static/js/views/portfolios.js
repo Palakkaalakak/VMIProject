@@ -185,7 +185,7 @@ function historyCard(box, portfolio) {
     </div>
     <details class="ph-section"><summary>Daily history data (primary portfolio)</summary><div id="ph-days"></div></details>
     <div class="ph-section"><h4>Ask local AI <small class="muted" id="ph-ai-mode">Quick</small></h4>
-      <p class="small muted ph-subtitle">Quick uses this range, the selected snapshot and any active comparison. Enable either option for more evidence.</p>
+      <p class="small muted ph-subtitle">Quick uses the displayed chart data. Turn on either capability and the model will decide what to look up.</p>
       <form id="ph-ai">
         <div class="inline"><label class="grow">Question <input name="question" maxlength="500" required placeholder="Why did cash fall while equity stayed flat?"></label>
           <button class="secondary">Ask</button><a href="#/ai-settings" class="small">AI Settings</a></div>
@@ -193,8 +193,7 @@ function historyCard(box, portfolio) {
           <label title="Read-only access to trades, holdings, plans, market data and other app sections"><input type="checkbox" name="app_data"> Read app data</label>
           <label><input type="checkbox" name="web_research"> Web research</label>
         </div>
-        <div id="ph-public" hidden><label>Public search query <input name="public_query" maxlength="200" disabled placeholder="e.g. SPY drawdown March 2020"></label>
-          <p class="small muted">Only this query goes to public search. The question, portfolio context and app lookups are not sent to the search provider.</p></div>
+        <p id="ph-public" class="small muted" hidden>Search providers receive the queries the model writes. The model is instructed to keep private details out of searches. Leave web research off to prevent public web searches.</p>
       </form>
       <p class="ph-answer small" id="ph-answer" aria-live="polite"></p>
       <details id="ph-sources" hidden><summary>Sources and app lookups</summary><p class="ph-answer small"></p></details>
@@ -330,10 +329,8 @@ function historyCard(box, portfolio) {
   });
   const aiForm = $("#ph-ai", box), sources = $("#ph-sources", box);
   aiForm.onchange = () => {
-    const { app_data, web_research, public_query } = aiForm.elements;
+    const { app_data, web_research } = aiForm.elements;
     $("#ph-public", aiForm).hidden = !web_research.checked;
-    public_query.disabled = !web_research.checked;
-    public_query.required = web_research.checked;
     $("#ph-ai-mode", box).textContent = app_data.checked || web_research.checked ? "Assistant" : "Quick";
   };
   aiForm.onsubmit = (e) => {
@@ -342,22 +339,25 @@ function historyCard(box, portfolio) {
     const fields = e.currentTarget.elements;
     const question = fields.question.value.trim();
     const use_app_data = fields.app_data.checked, use_web_research = fields.web_research.checked;
-    const public_query = use_web_research ? fields.public_query.value.trim() : "";
     sources.hidden = true;
     sources.open = false;
-    if (!question || !data) { answer.textContent = "Wait for history to load and enter a question."; return; }
+    if (!question) return;
+    if (!data && !use_app_data && !use_web_research) {
+      answer.textContent = "Wait for history to load, or enable a lookup capability.";
+      return;
+    }
     answer.textContent = "Asking the local model…";
     run(e.submitter, async () => {
       try {
         const askedDays = [...new Set(question.match(/\b\d{4}-\d{2}-\d{2}\b/g) || [])].slice(0, 2);
-        const res = await api.portfolioAsk(id, { question, use_app_data, use_web_research, public_query, context: JSON.stringify({ metric,
-          primary: quickFacts(name, data, snapshotData, askedDays), comparison: peerData && quickFacts(peer()?.name, peerData, peerSnapshot, askedDays) }) });
+        const res = await api.portfolioAsk(id, { question, use_app_data, use_web_research, context: JSON.stringify({ metric,
+          primary: data ? quickFacts(name, data, snapshotData, askedDays) : { name }, comparison: peerData && quickFacts(peer()?.name, peerData, peerSnapshot, askedDays) }) });
         answer.textContent = `${res.answer}\n\nLocal AI · ${res.model}`;
         if (res.public_research || res.app_lookups) {
-          const research = res.public_research;
+          const research = (res.public_research || []).map(({ query, excerpts }) => `Public search: ${query}\n${excerpts}`);
           const lookups = (res.app_lookups || []).map(({ section, status, ...args }) =>
             `${section} (${status})${Object.keys(args).length ? ` · ${JSON.stringify(args)}` : ""}`);
-          $("p", sources).textContent = [research && `Public search: ${research.query}\n${research.excerpts}`,
+          $("p", sources).textContent = [use_web_research && (research.join("\n\n") || "No public searches used."),
             use_app_data && `App lookups:\n${lookups.join("\n") || "None used."}`].filter(Boolean).join("\n\n");
           sources.hidden = false;
         }

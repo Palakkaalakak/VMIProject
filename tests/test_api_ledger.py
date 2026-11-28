@@ -293,44 +293,81 @@ def test_tab_valuations_use_open_marked_positions(client, monkeypatch):
     assert client.get(path).json()[0]["unrealized_return"] is None
 
 
-def test_portfolio_assistant_permissions_and_public_query(client, monkeypatch):
-    from vmi import ai_helper, ai_tools
+@pytest.mark.parametrize("app_data,web", [(False, False), (True, False), (False, True), (True, True)])
+def test_portfolio_assistant_model_chooses_tools(client, monkeypatch, app_data, web):
+    import json
+
+    from vmi import ai_helper, ai_runtime, ai_tools
 
     pid = _pf(client, name="Private portfolio")
     monkeypatch.setattr(ai_helper, "status", lambda *, local_only: {"backend": "builtin", "model": "test-local"})
-    monkeypatch.setattr(ai_helper, "overview_chat", lambda *a, **kw: "Quick answer")
     searches = []
+    queries = ["SPY March 2020", "Federal Reserve March 2020 policy"]
+    monkeypatch.setattr(ai_runtime, "ensure_running", lambda: "mock-local")
 
     def search(query, n):
         searches.append(query)
-        return "Public excerpt"
+        return f"Public excerpt for {query}"
 
-    def assist(backend, messages, tools, run):
-        assert "Private portfolio" in messages[1]["content"]
-        assert "Refused" in run("write_trade", {})
-        if not tools:
-            assert "Refused" in run("read_app_data", {"section": "portfolios"})
-        else:
-            assert "Private portfolio" in run("read_app_data", {"section": "portfolios"})
-            assert '"rows": []' in run("read_app_data", {"section": "trades", "start": "2026-01-01"})
-            assert "Already" in run("read_app_data", {"section": "portfolios"})
-            for section in ("alerts", "touches", "watchlists"):
-                assert '"rows": []' in run("read_app_data", {"section": section})
-            assert "exhausted" in run("read_app_data", {"section": "rules"})
-        return "Assistant answer"
+    def tool_call(name, args, call_id):
+        return {"id": call_id, "type": "function", "function": {"name": name, "arguments": json.dumps(args)}}
+
+    turns = []
+
+    def model(base, body, timeout):
+        assert base == "mock-local"
+        assert "Private portfolio" in body["messages"][1]["content"]
+        names = {tool["function"]["name"] for tool in body.get("tools", [])}
+        assert names == ({"read_app_data"} if app_data else set()) | ({"web_search"} if web else set())
+        turns.append(names)
+        if len(turns) == 1 and names:
+            calls = []
+            if app_data:
+                calls += [tool_call("read_app_data", {"section": "portfolios"}, "app")]
+            if web:
+                calls += [tool_call("web_search", {"query": queries[0]}, "first-search")]
+            return {"tool_calls": calls}
+        if len(turns) == 2 and web:
+            assert any(queries[0] in message["content"] for message in body["messages"] if message["role"] == "tool")
+            return {"tool_calls": [tool_call("web_search", {"query": queries[1]}, "follow-up")]}
+        return {"content": "Assistant answer"}
 
     monkeypatch.setattr(ai_tools, "web_search", search)
-    monkeypatch.setattr(ai_helper, "assistant_chat", assist)
-    path = f"/api/portfolios/{pid}/history/ask"
-    body = {"question": "What happened in Private portfolio?", "context": '{"name":"Private portfolio"}',
-            "public_query": "SPY March 2020"}
-    for app_data, web in ((False, False), (True, False), (False, True), (True, True)):
-        response = client.post(path, json={**body, "use_app_data": app_data, "use_web_research": web})
-        assert response.status_code == 200, response.text
-        result = response.json()
-        assert len(result.get("app_lookups", [])) == (5 if app_data else 0)
-        assert ("public_research" in result) is web
-        if web:
-            assert result["public_research"]["excerpts"] == "Public excerpt"
-    assert searches == ["SPY March 2020", "SPY March 2020"]
-    assert client.post(path, json={**body, "use_web_research": True, "public_query": " "}).status_code == 400
+    monkeypatch.setattr(ai_runtime, "_post_chat", model)
+    response = client.post(f"/api/portfolios/{pid}/history/ask", json={
+        "question": "What happened in Private portfolio during the sell-off?", "context": '{"name":"Private portfolio"}',
+        "use_app_data": app_data, "use_web_research": web,
+    })
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["answer"] == "Assistant answer"
+    assert ("app_lookups" in result) is app_data
+    assert ("public_research" in result) is web
+    if app_data:
+        assert result["app_lookups"] == [{"section": "portfolios", "status": "read"}]
+    assert searches == (queries if web else [])
+    if web:
+        assert [r["query"] for r in result["public_research"]] == queries
+
+
+def test_portfolio_assistant_tool_dispatch_is_bounded(temp_db, monkeypatch):
+    from vmi import ai_portfolio, ai_tools
+
+    monkeypatch.setattr(ai_tools, "web_search", lambda q, n: f"Result for {q}")
+    _, app_only, _ = ai_portfolio.assistant_tools(1, app_data=True, web_research=False)
+    assert "not enabled" in app_only("web_search", {"query": "SPY"})
+    _, web_only, activity = ai_portfolio.assistant_tools(1, app_data=False, web_research=True)
+    assert "not enabled" in web_only("read_app_data", {"section": "portfolios"})
+    assert "not enabled" in web_only("write_trade", {})
+    assert "Supply" in web_only("web_search", {"query": "SPY", "context": "private data"})
+    assert "Supply" in web_only("web_search", {"query": "x" * 201})
+    assert web_only("web_search", '{"query":" SPY "}') == "Result for SPY"
+    assert "already run" in web_only("web_search", {"query": "spy"})
+    for query in ("S&P 500", "NASDAQ"):
+        assert web_only("web_search", {"query": query}) == f"Result for {query}"
+    assert "exhausted" in web_only("web_search", {"query": "VTI"})
+    assert len(activity["public_research"]) == 3
+    for section in ("trades", "alerts", "touches", "watchlists", "portfolios"):
+        assert '"rows": []' in app_only("read_app_data", {"section": section})
+    assert "Already" in app_only("read_app_data", {"section": "portfolios"})
+    assert "exhausted" in app_only("read_app_data", {"section": "rules"})
