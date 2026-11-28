@@ -249,3 +249,88 @@ def test_stock_price_series_does_not_use_a_future_close():
     a, b = date(2026, 1, 5), date(2026, 1, 6)
     path = _price_path(([a, b], {a: 100, b: 120}), a, [{"as_of": "2026-01-06T12:00:00-05:00"}])
     assert path == {"base_day": str(a), "price_return": [0.0]}
+
+
+def test_tab_valuations_use_open_marked_positions(client, monkeypatch):
+    from collections import Counter
+
+    from vmi.paper import engine
+
+    first, second, empty = (_pf(client, name=name) for name in ("First", "Second", "Empty"))
+    for pid, symbol, side, qty, price in (
+        (first, "AAA", "BUY", 10, 100), (first, "AAA", "SELL", 5, 120),
+        (first, "BBB", "BUY", 1, 100), (second, "AAA", "BUY", 2, 90),
+    ):
+        order = client.post(f"/api/portfolios/{pid}/ledger", json={
+            "symbol": symbol, "side": side, "qty": qty, "price": price,
+            "ts": f"2026-01-0{2 if side == 'BUY' else 3}T15:00:00-05:00", "reason": "test",
+        })
+        assert order.status_code == 200, order.text
+    marks = Counter()
+
+    def mark(position, quotes=True):
+        if quotes:
+            marks[position.symbol] += 1
+            return 110 if position.symbol == "AAA" else None
+
+    monkeypatch.setattr(engine, "_mark", mark)
+    assert all(p["unrealized_return"] is None or not p["positions"] for p in client.get("/api/portfolios").json())
+    assert not marks
+    path = "/api/portfolios/tab-valuations"
+    response = client.get(path)
+    assert response.status_code == 200, response.text
+    tabs = {p["id"]: p for p in response.json()}
+    assert marks == {"AAA": 1, "BBB": 1}
+    assert tabs[first] == {"id": first, "unrealized_return": pytest.approx(0.005), "unpriced_positions": 1}
+    assert tabs[second]["unrealized_return"] == pytest.approx(0.004)
+    assert tabs[empty]["unrealized_return"] == 0
+    summary = client.get(f"/api/portfolios/{first}").json()
+    assert summary["realized_pnl"] == 100
+    assert summary["unrealized_return"] == tabs[first]["unrealized_return"]
+    assert summary["total_return"] == pytest.approx(0.015)
+    assert first not in {p["id"] for p in client.get(path, params={"exclude": first}).json()}
+    monkeypatch.setattr(engine, "_mark", lambda *a: None)
+    assert client.get(path).json()[0]["unrealized_return"] is None
+
+
+def test_portfolio_assistant_permissions_and_public_query(client, monkeypatch):
+    from vmi import ai_helper, ai_tools
+
+    pid = _pf(client, name="Private portfolio")
+    monkeypatch.setattr(ai_helper, "status", lambda *, local_only: {"backend": "builtin", "model": "test-local"})
+    monkeypatch.setattr(ai_helper, "overview_chat", lambda *a, **kw: "Quick answer")
+    searches = []
+
+    def search(query, n):
+        searches.append(query)
+        return "Public excerpt"
+
+    def assist(backend, messages, tools, run):
+        assert "Private portfolio" in messages[1]["content"]
+        assert "Refused" in run("write_trade", {})
+        if not tools:
+            assert "Refused" in run("read_app_data", {"section": "portfolios"})
+        else:
+            assert "Private portfolio" in run("read_app_data", {"section": "portfolios"})
+            assert '"rows": []' in run("read_app_data", {"section": "trades", "start": "2026-01-01"})
+            assert "Already" in run("read_app_data", {"section": "portfolios"})
+            for section in ("alerts", "touches", "watchlists"):
+                assert '"rows": []' in run("read_app_data", {"section": section})
+            assert "exhausted" in run("read_app_data", {"section": "rules"})
+        return "Assistant answer"
+
+    monkeypatch.setattr(ai_tools, "web_search", search)
+    monkeypatch.setattr(ai_helper, "assistant_chat", assist)
+    path = f"/api/portfolios/{pid}/history/ask"
+    body = {"question": "What happened in Private portfolio?", "context": '{"name":"Private portfolio"}',
+            "public_query": "SPY March 2020"}
+    for app_data, web in ((False, False), (True, False), (False, True), (True, True)):
+        response = client.post(path, json={**body, "use_app_data": app_data, "use_web_research": web})
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert len(result.get("app_lookups", [])) == (5 if app_data else 0)
+        assert ("public_research" in result) is web
+        if web:
+            assert result["public_research"]["excerpts"] == "Public excerpt"
+    assert searches == ["SPY March 2020", "SPY March 2020"]
+    assert client.post(path, json={**body, "use_web_research": True, "public_query": " "}).status_code == 400

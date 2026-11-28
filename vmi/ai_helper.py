@@ -100,3 +100,33 @@ def overview_chat(backend: str, messages: list[dict], max_tokens: int, *, timeou
     with urllib.request.urlopen(req, timeout=settings.ai_timeout if timeout is None else min(timeout, settings.ai_timeout)) as response:
         text = json.loads(response.read())["message"]["content"]
     return text.split("</think>")[-1].strip()
+
+
+
+def assistant_chat(backend: str, messages: list[dict], tools: list[dict], run_tool) -> str:
+    """Run at most three read-only tool rounds, followed by a tool-free answer."""
+    if not tools:
+        return overview_chat(backend, messages, 650, timeout=90)
+    if backend == "builtin":
+        return ai_runtime.chat_with_tools(messages, tools, run_tool, max_rounds=3, max_tokens=650, timeout=90)
+    if backend != "ollama":
+        raise RuntimeError("No local AI model is available.")
+    settings = get_settings()
+    messages = list(messages)
+    for _ in range(3):
+        body = {"model": settings.ai_model, "messages": messages, "tools": tools, "stream": False,
+                "options": {"num_predict": 650, "temperature": 0.3, "num_ctx": ai_runtime.CTX}}
+        req = urllib.request.Request(f"{settings.ai_url}/api/chat", data=json.dumps(body).encode(),
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=min(90, settings.ai_timeout)) as response:
+            msg = json.loads(response.read())["message"]
+        calls = (msg.get("tool_calls") or [])[:5]
+        if not calls:
+            return (msg.get("content") or "").split("</think>")[-1].strip()
+        messages.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": calls})
+        for call in calls:
+            fn = call.get("function", {})
+            name = fn.get("name", "")
+            messages.append({"role": "tool", "tool_name": name,
+                             "content": run_tool(name, fn.get("arguments", {}))})
+    return overview_chat(backend, messages, 650, timeout=90)

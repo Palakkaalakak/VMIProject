@@ -16,12 +16,35 @@ export async function render(root, params = {}) {
     <section class="card">
       <div class="tabs" id="pf-tabs">${state.portfolios.map((p) => `
         <a href="#/portfolios/${p.id}" class="tab ${p.id === sel ? "active" : ""}">${esc(p.name)}
-          <span class="${signClass(p.total_return)}">${fmt.pct(p.total_return)}</span></a>`).join("")}
+          <span data-pf-badge="${p.id}" title="Loading unrealised return">…</span></a>`).join("")}
         <button id="pf-new" class="secondary">+ New</button></div>
     </section>
     <div id="pf-detail"></div>`;
   $("#pf-new", root).addEventListener("click", (e) => run(e.target, () => createPortfolio()));
-  if (sel) detail($("#pf-detail", root), sel);
+  const tabs = $("#pf-tabs", root);
+  if (sel) detail($("#pf-detail", root), sel).catch((error) => {
+    paintBadge(tabs, { id: sel });
+    const box = $("#pf-detail", root);
+    if (tabs.isConnected && box) box.textContent = error.message;
+  });
+  if (state.portfolios.some((p) => p.id !== sel)) {
+    api.portfolioTabValuations(sel).then((rows) => {
+      if (!tabs.isConnected) return;
+      rows.forEach((row) => paintBadge(tabs, row));
+    }).catch(() => tabs.querySelectorAll("[data-pf-badge]").forEach((badge) => {
+      if (+badge.dataset.pfBadge !== sel) paintBadge(tabs, { id: +badge.dataset.pfBadge });
+    }));
+  }
+}
+
+function paintBadge(tabs, p) {
+  const badge = tabs?.querySelector(`[data-pf-badge="${p.id}"]`);
+  if (!badge) return;
+  const value = p.unrealized_return;
+  badge.className = value == null ? "muted" : signClass(value);
+  badge.textContent = value == null ? "—" : `${p.unpriced_positions ? "~" : ""}${fmt.pct(value, 2)}`;
+  badge.title = "Unrealised P&L ÷ starting cash (excludes realised gains and losses)" +
+    (p.unpriced_positions ? ` · ${p.unpriced_positions} open position(s) missing prices` : value == null ? " · unavailable" : "");
 }
 
 async function createPortfolio() {
@@ -42,6 +65,7 @@ async function detail(box, id) {
   box.innerHTML = loading("Marking positions to market…");
   const [p, trades, lists] = await Promise.all([api.portfolio(id), api.trades(id), api.watchlists().catch(() => [])]);
   if (!box.isConnected) return;
+  paintBadge(box.parentElement.querySelector("#pf-tabs"), p);
   const wl = lists.find((w) => w.id === p.settings?.watchlist_id);   // the watchlist this portfolio is sized from
   box.innerHTML = `
     <section class="card">
@@ -160,11 +184,20 @@ function historyCard(box, portfolio) {
       <div id="ph-snapshot" aria-live="polite"></div>
     </div>
     <details class="ph-section"><summary>Daily history data (primary portfolio)</summary><div id="ph-days"></div></details>
-    <div class="ph-section"><h4>Ask local AI <small class="muted">Quick</small></h4>
-      <p class="small muted ph-subtitle">Answers use this range, the selected snapshot and any active comparison. No web searches or new price requests.</p>
-      <form id="ph-ai" class="inline"><label class="grow">Question <input name="question" maxlength="500" required placeholder="Why did cash fall while equity stayed flat?"></label>
-        <button class="secondary">Ask</button><a href="#/ai-settings" class="small">AI Settings</a></form>
+    <div class="ph-section"><h4>Ask local AI <small class="muted" id="ph-ai-mode">Quick</small></h4>
+      <p class="small muted ph-subtitle">Quick uses this range, the selected snapshot and any active comparison. Enable either option for more evidence.</p>
+      <form id="ph-ai">
+        <div class="inline"><label class="grow">Question <input name="question" maxlength="500" required placeholder="Why did cash fall while equity stayed flat?"></label>
+          <button class="secondary">Ask</button><a href="#/ai-settings" class="small">AI Settings</a></div>
+        <div class="ph-ai-options">
+          <label title="Read-only access to trades, holdings, plans, market data and other app sections"><input type="checkbox" name="app_data"> Read app data</label>
+          <label><input type="checkbox" name="web_research"> Web research</label>
+        </div>
+        <div id="ph-public" hidden><label>Public search query <input name="public_query" maxlength="200" disabled placeholder="e.g. SPY drawdown March 2020"></label>
+          <p class="small muted">Only this query goes to public search. The question, portfolio context and app lookups are not sent to the search provider.</p></div>
+      </form>
       <p class="ph-answer small" id="ph-answer" aria-live="polite"></p>
+      <details id="ph-sources" hidden><summary>Sources and app lookups</summary><p class="ph-answer small"></p></details>
     </div>`;
   const range = $("#ph-range", box), atForm = $("#ph-at", box), chart = $("#ph-chart", box),
     stats = $("#ph-stats", box), days = $("#ph-days", box), snapshot = $("#ph-snapshot", box),
@@ -295,18 +328,39 @@ function historyCard(box, portfolio) {
     const all = await api.exportAll(id, { history: true, as_of: activeAt });
     download(JSON.stringify(all, null, 2), `portfolio-${id}-export.json`, "application/json");
   });
-  $("#ph-ai", box).onsubmit = (e) => {
+  const aiForm = $("#ph-ai", box), sources = $("#ph-sources", box);
+  aiForm.onchange = () => {
+    const { app_data, web_research, public_query } = aiForm.elements;
+    $("#ph-public", aiForm).hidden = !web_research.checked;
+    public_query.disabled = !web_research.checked;
+    public_query.required = web_research.checked;
+    $("#ph-ai-mode", box).textContent = app_data.checked || web_research.checked ? "Assistant" : "Quick";
+  };
+  aiForm.onsubmit = (e) => {
     e.preventDefault();
     const answer = $("#ph-answer", box);
-    const question = e.currentTarget.elements.question.value.trim();
+    const fields = e.currentTarget.elements;
+    const question = fields.question.value.trim();
+    const use_app_data = fields.app_data.checked, use_web_research = fields.web_research.checked;
+    const public_query = use_web_research ? fields.public_query.value.trim() : "";
+    sources.hidden = true;
+    sources.open = false;
     if (!question || !data) { answer.textContent = "Wait for history to load and enter a question."; return; }
     answer.textContent = "Asking the local model…";
     run(e.submitter, async () => {
       try {
         const askedDays = [...new Set(question.match(/\b\d{4}-\d{2}-\d{2}\b/g) || [])].slice(0, 2);
-        const res = await api.portfolioAsk(id, { question, context: JSON.stringify({ metric,
+        const res = await api.portfolioAsk(id, { question, use_app_data, use_web_research, public_query, context: JSON.stringify({ metric,
           primary: quickFacts(name, data, snapshotData, askedDays), comparison: peerData && quickFacts(peer()?.name, peerData, peerSnapshot, askedDays) }) });
         answer.textContent = `${res.answer}\n\nLocal AI · ${res.model}`;
+        if (res.public_research || res.app_lookups) {
+          const research = res.public_research;
+          const lookups = (res.app_lookups || []).map(({ section, status, ...args }) =>
+            `${section} (${status})${Object.keys(args).length ? ` · ${JSON.stringify(args)}` : ""}`);
+          $("p", sources).textContent = [research && `Public search: ${research.query}\n${research.excerpts}`,
+            use_app_data && `App lookups:\n${lookups.join("\n") || "None used."}`].filter(Boolean).join("\n\n");
+          sources.hidden = false;
+        }
       } catch (error) { answer.textContent = error.message; }
     });
   };

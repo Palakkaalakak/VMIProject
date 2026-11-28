@@ -71,6 +71,7 @@ export const api = {
   scanDropped: () => request("GET", "/api/scan/dropped"),
   // portfolios
   portfolios: () => request("GET", "/api/portfolios"),
+  portfolioTabValuations: (exclude) => request("GET", `/api/portfolios/tab-valuations${exclude ? `?exclude=${exclude}` : ""}`),
   portfolio: (id) => request("GET", `/api/portfolios/${id}`),
   createPortfolio: (body) => request("POST", "/api/portfolios", body),
   deletePortfolio: (id) => request("DELETE", `/api/portfolios/${id}`),

@@ -6,6 +6,7 @@ settled lazily by `settle_expired()` (called on every portfolio read) using the 
 """
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from math import isfinite
 from datetime import date, datetime, time, timedelta
 from typing import Any
@@ -321,8 +322,40 @@ def settle_expired(pid: int) -> list[dict]:
 
 
 # --------------------------------------------------------------------------------------- reporting
-def summary(pid: int, quotes: bool = True) -> dict[str, Any]:
-    if quotes:
+def _unrealized_return(starting_cash: float, pnl: float, missing: int, count: int) -> dict:
+    return {"unrealized_return": pnl / starting_cash if starting_cash and (not count or missing < count) else None,
+            "unpriced_positions": missing}
+
+
+def tab_valuations(exclude: int | None = None) -> list[dict]:
+    """Mark each distinct instrument once, without settling options or replaying trades."""
+    with store.session() as s:
+        portfolios = select(store.Portfolio.id, store.Portfolio.starting_cash).order_by(store.Portfolio.id)
+        positions = select(store.Position).where(store.Position.qty != 0)
+        if exclude is not None:
+            portfolios = portfolios.where(store.Portfolio.id != exclude)
+            positions = positions.where(store.Position.portfolio_id != exclude)
+        starting = dict(s.execute(portfolios).all())
+        rows = list(s.scalars(positions))
+    instruments = {pos.key: pos for pos in rows}
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        marks = dict(zip(instruments, pool.map(_mark, instruments.values())))
+    totals = {pid: [0.0, 0, 0] for pid in starting}
+    for pos in rows:
+        if pos.portfolio_id not in totals:
+            continue
+        tally = totals[pos.portfolio_id]
+        px = marks[pos.key]
+        tally[2] += 1
+        if px is None:
+            tally[1] += 1
+        else:
+            tally[0] += (px - pos.avg_cost) * pos.qty * pos.multiplier
+    return [{"id": pid, **_unrealized_return(cash, *totals[pid])} for pid, cash in starting.items()]
+
+
+def summary(pid: int, quotes: bool = True, *, settle: bool = True) -> dict[str, Any]:
+    if quotes and settle:
         settle_expired(pid)
     with store.session() as s:
         p = s.get(store.Portfolio, pid)
@@ -349,6 +382,7 @@ def summary(pid: int, quotes: bool = True) -> dict[str, Any]:
                 r["full_allocation"] = full_alloc
                 r["allocation_used"] = r["market_value"] / full_alloc if full_alloc else None
         return {**store.to_dict(p), "equity": equity, "market_value": mv, "unrealized_pnl": unreal,
+                **_unrealized_return(p.starting_cash, unreal, sum(r["price"] is None for r in rows), len(rows)),
                 "realized_pnl": realized, "total_return": equity / p.starting_cash - 1 if p.starting_cash else 0,
                 "reserved_cash": reserved_cash(p), "free_cash": p.cash - reserved_cash(p),
                 "full_allocation": full_alloc, "positions": sorted(rows, key=lambda r: -abs(r["market_value"])),

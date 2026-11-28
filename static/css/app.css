@@ -185,11 +185,13 @@ ul.pie-legend { min-width: 200px; } .pie-legend li { display: flex; align-items:
 .ph-readout { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem 1rem; min-height: 2rem; padding: .4rem .65rem; background: var(--panel-2); border-radius: 6px; font-size: .85rem; }
 .ph-readout i { display: inline-block; width: .7em; height: .7em; margin-right: .4em; border-radius: 2px; }
 .ph-chart-help { margin: .35rem 0; }
+.ph-ai-options { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin: .5rem 0; }
+.ph-ai-options label { display: inline-flex; align-items: center; gap: .35rem; }
 .ph-answer { white-space: pre-wrap; overflow-wrap: anywhere; }
 .ph-subtitle { margin: .25rem 0 .7rem; }
 #ph-scale-label[hidden] { display: none; }
 #ph-ai .grow { flex: 1 1 24rem; }
-#ph-ai input { width: min(100%, 36rem); }
+#ph-ai input:not([type="checkbox"]) { width: min(100%, 36rem); }
 #ph-holdings > summary { font-weight: 650; cursor: pointer; }
 #ph-stock-menu summary { cursor: pointer; }
 #ph-stock-list { display: flex; flex-wrap: wrap; gap: .2rem .75rem; max-height: 10rem; overflow: auto; }
