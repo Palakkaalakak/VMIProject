@@ -190,3 +190,8 @@ ul.pie-legend { min-width: 200px; } .pie-legend li { display: flex; align-items:
 #ph-scale-label[hidden] { display: none; }
 #ph-ai .grow { flex: 1 1 24rem; }
 #ph-ai input { width: min(100%, 36rem); }
+#ph-holdings > summary { font-weight: 650; cursor: pointer; }
+#ph-stock-menu summary { cursor: pointer; }
+#ph-stock-list { display: flex; flex-wrap: wrap; gap: .2rem .75rem; max-height: 10rem; overflow: auto; }
+#ph-stock-list label, .ph-readout span { white-space: nowrap; }
+#ph-performance-chart .ph-readout { max-height: 8rem; overflow: auto; }

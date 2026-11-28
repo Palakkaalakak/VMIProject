@@ -15,6 +15,7 @@ import re
 from contextlib import asynccontextmanager
 from datetime import date
 from io import StringIO
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -803,6 +804,25 @@ def pf_export(pid: int, history: bool = False, start: date | None = None, end: d
 def pf_history(pid: int, start: date | None = None, end: date | None = None):
     from vmi.paper import journal
     return journal.history(pid, start, end)
+
+
+@pr.get("/{pid}/history/performance")
+def pf_history_performance(pid: int, start: date | None = None, end: date | None = None, benchmark: str | None = None):
+    from vmi.paper import journal
+    return journal.history(pid, start, end, include_performance=True, benchmark=benchmark)
+
+
+@pr.get("/{pid}/history/report")
+def pf_history_report(pid: int, start: date | None = None, end: date | None = None,
+                      benchmark: str | None = None, download: bool = False):
+    from vmi.paper import report
+
+    query = urlencode({k: v for k, v in dict(start=start, end=end, benchmark=benchmark, download="true").items() if v is not None})
+    html = report.build(pid, start, end, benchmark, save_url="" if download else f"?{query}")
+    headers = {"Cache-Control": "no-store"}
+    if download:
+        headers["Content-Disposition"] = f'attachment; filename="portfolio-{pid}-report.html"'
+    return Response(html, media_type="text/html", headers=headers)
 
 
 class PortfolioQuestion(BaseModel):

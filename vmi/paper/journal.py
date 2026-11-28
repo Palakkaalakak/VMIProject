@@ -151,6 +151,7 @@ def marks(pid: int, key: str | None = None, since: str | None = None) -> list[di
         return [store.to_dict(m) for m in s.scalars(q.order_by(store.DailyMark.day, store.DailyMark.key))]
 
 
+BENCHMARKS = ("SPY", "QQQ", "VTI")
 HISTORY_SOURCE = "ledger replay by effective time · latest eligible daily closes · recorded option marks where available"
 
 
@@ -207,7 +208,7 @@ def _closes(symbols: set[str], history_fn: Callable | None) -> dict:
 
 
 def _valuation(state: ledger.Replay, starting_cash: float, cutoff: datetime, closes: dict, observed: dict,
-               *, include_positions: bool) -> dict:
+               *, include_positions: bool, stock_values: dict | None = None) -> dict:
     day = cutoff.date()
     label = day.isoformat()
     last_close = day if cutoff.time() >= clock(16) else max(date.min, day - timedelta(days=day > date.min))
@@ -231,6 +232,8 @@ def _valuation(state: ledger.Replay, starting_cash: float, cutoff: datetime, clo
             px, price_day, src = p.avg_cost, None, "cost estimate"
             estimates += 1
         value = px * p.qty * p.multiplier
+        if is_stock and stock_values is not None:
+            stock_values[p.symbol] = value
         pnl = (px - p.avg_cost) * p.qty * p.multiplier
         if not is_stock and p.right == "P" and p.qty < 0:
             reserved += -p.qty * (p.strike or 0) * p.multiplier
@@ -254,7 +257,8 @@ def _valuation(state: ledger.Replay, starting_cash: float, cutoff: datetime, clo
 
 
 def history(pid: int, start: date | None = None, end: date | None = None, *, history_fn: Callable | None = None,
-            include_positions: bool = False, now: datetime | None = None) -> dict:
+            include_positions: bool = False, now: datetime | None = None, include_performance: bool = False,
+            benchmark: str | None = None) -> dict:
     """Read-only daily timeline. Replaying orders once keeps past corrections immediately visible everywhere."""
     now = (now or datetime.now(ET)).astimezone(ET)
     end = end or now.date()
@@ -275,24 +279,67 @@ def history(pid: int, start: date | None = None, end: date | None = None, *, his
         i += 1
     symbols = {p.symbol for p in state.positions.values() if p.qty and p.sec_type == "STK"}
     symbols.update(row["symbol"] for _, row in rows[i:] if row["sec_type"] == "STK")
-    closes = _closes(symbols, history_fn)
-    opening = _valuation(state, port["starting_cash"], _end_of_day(start - timedelta(days=1)), closes, observed,
-                         include_positions=False)["equity"] if start > date.min else port["starting_cash"]
+    if benchmark and (not include_performance or benchmark not in BENCHMARKS):
+        raise ValueError("Choose SPY, QQQ or VTI as the benchmark.")
+    closes = _closes(symbols | ({benchmark} if benchmark else set()), history_fn)
+    opening_values = {}
+    opening_day = start - timedelta(days=1) if start > date.min else None
+    opening = (_valuation(state, port["starting_cash"], _end_of_day(opening_day), closes, observed,
+                          include_positions=False, stock_values=opening_values)["equity"]
+               if opening_day else port["starting_cash"])
+    flows: dict[str, float] = defaultdict(float)
+    stock_pnl = {sym: [] for sym in sorted(symbols)} if include_performance else {}
     peak, points = opening, []
     for n in range((end - start).days + 1):
         at = min(cutoff, _end_of_day(start + timedelta(days=n)))
         while i < len(rows) and rows[i][0].timestamp() <= at.timestamp():
-            state.apply(rows[i][1])
+            row = rows[i][1]
+            state.apply(row)
+            if include_performance and row["sec_type"] == "STK" and row["side"] in ("BUY", "SELL") and row["qty"] > 0:
+                flows[row["symbol"]] += ledger.cash_delta(row["side"], row["qty"], row["price"], row["multiplier"] or 1,
+                                                          row["fees"] or 0.0)
             i += 1
-        point = _valuation(state, port["starting_cash"], at, closes, observed, include_positions=include_positions)
+        values = {} if include_performance else None
+        point = _valuation(state, port["starting_cash"], at, closes, observed,
+                           include_positions=include_positions or (include_performance and n == (end - start).days),
+                           stock_values=values)
+        if values is not None:
+            for sym, series in stock_pnl.items():
+                series.append(values.get(sym, 0.0) - opening_values.get(sym, 0.0) + flows[sym])
         equity = point["equity"]
         peak = max(peak, equity)
         point["drawdown"] = 1 - equity / peak if peak > 0 else 0.0
         points.append(point)
     period_return = points[-1]["equity"] / opening - 1 if opening else None
-    return {"source": HISTORY_SOURCE, "timezone": "America/New_York", "first_day": str(first), "points": points,
-            "period_return": period_return, "max_drawdown": max(p["drawdown"] for p in points),
-            "estimated_days": sum(p["estimated_positions"] > 0 for p in points)}
+    report = {"source": HISTORY_SOURCE, "timezone": "America/New_York", "first_day": str(first), "points": points,
+              "period_return": period_return, "max_drawdown": max(p["drawdown"] for p in points),
+              "estimated_days": sum(p["estimated_positions"] > 0 for p in points)}
+    if include_performance:
+        report["portfolio_name"] = port["name"]
+        report["opening_equity"] = opening
+        report["range_trades"] = sum(dt.date() >= start for dt, _ in rows)
+        report["range_fees"] = sum((r["fees"] or 0.0) for dt, r in rows if dt.date() >= start)
+        report["stocks"] = [{"symbol": sym, "pnl": series, **_price_path(closes[sym], opening_day, points)}
+                            for sym, series in stock_pnl.items()]
+        report["benchmark"] = {"symbol": benchmark, **_price_path(closes[benchmark], opening_day, points)} if benchmark else None
+    return report
+
+
+def _price_path(closes: tuple[list, dict], opening_day: date | None, points: list[dict]) -> dict:
+    """Price-only return, carried over non-trading days. Never use a close after that point's cutoff."""
+    dates, values = closes
+    i = bisect_right(dates, opening_day) - 1 if opening_day else -1
+    base = dates[i] if i >= 0 else None
+    path = []
+    for p in points:
+        at = datetime.fromisoformat(p["as_of"])
+        eligible = at.date().toordinal() - (at.time() < clock(16))
+        while i + 1 < len(dates) and dates[i + 1].toordinal() <= eligible:
+            i += 1
+        if base is None and i >= 0:
+            base = dates[i]
+        path.append(values[dates[i]] / values[base] - 1 if base is not None else None)
+    return {"base_day": str(base) if base else None, "price_return": path}
 
 
 def snapshot(pid: int, as_of: str, *, history_fn: Callable | None = None, now: datetime | None = None) -> dict:

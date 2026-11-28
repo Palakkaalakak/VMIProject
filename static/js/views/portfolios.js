@@ -3,7 +3,7 @@ import { api } from "../api.js";
 import { $, esc, fmt, loading, run, table, toast, signClass } from "../ui.js";
 import { refreshPortfolios, state } from "../state.js";
 import { pieChart, bindChartTips } from "../charts.js";
-import { mountHistoryChart } from "../chart_view.js";
+import { mountHistoryChart, stockChartColor } from "../chart_view.js";
 
 let disposeHistory;
 export function destroy() { disposeHistory?.(); disposeHistory = undefined; }
@@ -129,6 +129,7 @@ function historyCard(box, portfolio) {
       <button class="secondary">Apply range</button><button type="button" class="secondary" id="ph-all">All history</button>
       <span class="spacer"></span><button type="button" class="secondary" id="ph-csv">Download CSV</button>
       <button type="button" class="secondary" id="ph-json">Export portfolio JSON</button>
+      <a class="button" id="ph-report" target="_blank" rel="noopener">Printable report</a>
     </form>
     <div id="ph-stats"></div>
     <div class="ph-section">
@@ -140,6 +141,16 @@ function historyCard(box, portfolio) {
         <span id="ph-compare-status" class="small muted" aria-live="polite"></span></div>
       <div id="ph-chart">${loading("Loading chart…")}</div><div id="ph-compare-stats"></div>
     </div>
+    <details class="ph-section" id="ph-holdings"><summary>Performance vs holdings &amp; benchmark</summary>
+      <p class="small muted ph-subtitle">Compare the portfolio and any number of stocks held during this range, including positions that were sold.</p>
+      <div class="inline"><label>Show <select id="ph-units"><option value="percent">% · price returns</option><option value="dollars">$ · portfolio gains and losses</option></select></label>
+        <label>Benchmark <select id="ph-benchmark"><option value="">None</option><option>SPY</option><option>QQQ</option><option>VTI</option></select></label>
+        <details id="ph-stock-menu"><summary>Choose stocks <span id="ph-count"></span></summary><div class="inline">
+          <button type="button" class="small secondary" id="ph-stock-all">All</button><button type="button" class="small secondary" id="ph-stock-none">None</button></div>
+          <div id="ph-stock-list"></div></details></div>
+      <p class="small muted" id="ph-units-help"></p><div id="ph-performance-status" class="small" aria-live="polite"></div>
+      <div id="ph-performance-chart"></div><div id="ph-performance-ranking"></div>
+    </details>
     <div class="ph-section"><h4>Find a point in time</h4>
       <form id="ph-at" class="inline">
         <label>Date (ET) <input type="date" name="day" required></label>
@@ -223,6 +234,7 @@ function historyCard(box, portfolio) {
       data = response; activeRange = params;
       const [first, last] = [data.points[0], data.points.at(-1)];
       start.value = first.day; end.value = last.day; atDay.value ||= last.day;
+      performance.setRange({ start: first.day, end: last.day });
       stats.innerHTML = `<div class="kpis">${historyKpi("Ending equity", fmt.money(last.equity))}
         ${historyKpi("Range return", pct2(data.period_return))}${historyKpi("Max drawdown (range)", pct2(data.max_drawdown))}
         ${historyKpi("Days with cost estimates", data.estimated_days)}</div>`;
@@ -298,13 +310,87 @@ function historyCard(box, portfolio) {
       } catch (error) { answer.textContent = error.message; }
     });
   };
+  const performance = holdingsPerformance(box, id, name, selectDay);
   mountHistoryChart(chart, selectDay).then((mounted) => {
     if (destroyed) { mounted?.destroy(); return; }
     widget = mounted;
     paintChart();
   }).catch((e) => { if (!destroyed) chart.textContent = e.message; });
   paintChart(); load();
-  return () => { destroyed = true; widget?.destroy(); };
+  return () => { destroyed = true; widget?.destroy(); performance.destroy(); };
+}
+
+function holdingsPerformance(box, id, name, selectDay) {
+  const section = $("#ph-holdings", box), chart = $("#ph-performance-chart", box), list = $("#ph-stock-list", box);
+  const units = $("#ph-units", box), benchmark = $("#ph-benchmark", box), status = $("#ph-performance-status", box);
+  const reportLink = $("#ph-report", box);
+  let params, report, widget, mounted, request = 0, stopped = false, selected = new Set(), all = false;
+  const updateLink = () => {
+    reportLink.href = api.portfolioReportUrl(id, { ...params, benchmark: benchmark.value });
+  };
+  const paint = () => {
+    if (!report) return;
+    const dollar = units.value === "dollars";
+    $("#ph-units-help", box).textContent = dollar
+      ? "Stock lines show each holding’s contribution to your account in dollars, including its trades and fees. The benchmark is available in % mode only."
+      : "The portfolio line is its account return. Stock and benchmark lines show price changes, not your trade returns or dividends. A later starting price is shown in the table.";
+    benchmark.disabled = dollar;
+    $("#ph-count", box).textContent = `(${report.stocks.filter((s) => selected.has(s.symbol)).length} of ${report.stocks.length})`;
+    const visible = report.stocks.filter((s) => selected.has(s.symbol));
+    const points = report.points;
+    const chartData = (values) => values.flatMap((value, i) => Number.isFinite(value) ? [{ time: points[i].day, value }] : []);
+    const div = report.opening_equity;
+    const entries = [{ name, lineWidth: 3, data: chartData(points.map((p) => dollar ? p.equity - div : div > 0 ? p.equity / div - 1 : null)) }];
+    for (const stock of visible) {
+      const index = report.stocks.indexOf(stock);
+      entries.push({ name: stock.symbol, color: stockChartColor(index), lineStyle: 0,
+        data: chartData(dollar ? stock.pnl : stock.price_return) });
+    }
+    if (!dollar && report.benchmark) entries.push({ name: `${report.benchmark.symbol} benchmark`, color: "#a7b0be", lineStyle: 2,
+      data: chartData(report.benchmark.price_return) });
+    widget?.setData({ entries, format: dollar ? fmt.money : pct2, minMove: dollar ? .01 : .0001,
+      drawingKey: `${id}.holding-performance.${dollar ? "dollars" : "percent"}.${points[0].day}` });
+    $("#ph-performance-ranking", box).replaceChildren(table([
+      { key: "symbol", label: "Stock" }, numCol("pnl", "Range contribution ($)"), numCol("return", "Price return", pct2),
+      { key: "base_day", label: "Price baseline" },
+    ], report.stocks.map((s) => ({ symbol: s.symbol, pnl: s.pnl.at(-1), return: s.price_return.at(-1), base_day: s.base_day })),
+    { initialSort: { key: "pnl" }, empty: "No stocks were held or traded in this range." }));
+  };
+  const sync = () => {
+    list.querySelectorAll("input").forEach((input) => { input.checked = selected.has(input.value); });
+    paint();
+  };
+  const load = async () => {
+    if (!section.open || !params) return;
+    const mine = ++request;
+    status.textContent = "Loading holdings performance…";
+    try {
+      const data = await api.portfolioPerformance(id, { ...params, benchmark: benchmark.value });
+      if (stopped || mine !== request) return;
+      report = data;
+      if (all) selected = new Set(report.stocks.map((s) => s.symbol));
+      list.innerHTML = report.stocks.map(({ symbol }) => `<label><input type="checkbox" value="${esc(symbol)}"> ${esc(symbol)}</label>`).join("");
+      sync(); status.textContent = "";
+      mounted ||= mountHistoryChart(chart, selectDay).then((result) => {
+        if (stopped) { result?.destroy(); return; }
+        widget = result; paint();
+      }).catch((e) => { if (!stopped) status.textContent = e.message; });
+    } catch (e) { if (!stopped && mine === request) status.textContent = e.message; }
+  };
+  section.ontoggle = () => { if (!report && section.open) load(); };
+  benchmark.onchange = () => { updateLink(); load(); };
+  units.onchange = paint;
+  list.onchange = (e) => {
+    if (!e.target.matches("input")) return;
+    all = false;
+    if (e.target.checked) selected.add(e.target.value); else selected.delete(e.target.value);
+    paint();
+  };
+  $("#ph-stock-all", box).onclick = () => { all = true; selected = new Set(report?.stocks.map((s) => s.symbol)); sync(); };
+  $("#ph-stock-none", box).onclick = () => { all = false; selected.clear(); sync(); };
+  updateLink();
+  return { setRange(range) { ++request; report = null; params = range; updateLink(); if (section.open) load(); },
+    destroy() { stopped = true; widget?.destroy(); } };
 }
 
 function quickFacts(name, report, snapshot, askedDays) {

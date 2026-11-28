@@ -227,6 +227,14 @@ export async function mountChart(box, symbol, { interval = "1d", levels: initial
 }
 
 const HISTORY_COLORS = ["#60a5fa", "#fb923c"];
+// The chart library parses hex colors for crosshair markers; use the golden angle for many distinct series.
+export function stockChartColor(i) {
+  const hue = ((34 + i * 137.508) % 360) / 60;
+  const chroma = .546, x = chroma * (1 - Math.abs(hue % 2 - 1));
+  const rgb = [[chroma, x, 0], [x, chroma, 0], [0, chroma, x], [0, x, chroma], [x, 0, chroma], [chroma, 0, x]][Math.floor(hue)];
+  return `#${rgb.map((v) => Math.round((v + .377) * 255).toString(16).padStart(2, "0")).join("")}`;
+}
+const historyColor = (entry, i) => entry.color || HISTORY_COLORS[i] || stockChartColor(i);
 const dayKey = (time) => typeof time === "string" ? time : time &&
   `${time.year}-${String(time.month).padStart(2, "0")}-${String(time.day).padStart(2, "0")}`;
 
@@ -255,10 +263,10 @@ export async function mountHistoryChart(box, onSelect) {
   const buttons = [...box.querySelectorAll("[data-draw]")];
   const readDate = (day) => {
     if (!day) { read.textContent = "No data for this date range."; return; }
-    read.innerHTML = `<b>${esc(day)}${selected === day ? " · Selected" : ""}</b>` + configs.map(({ name, values, estimates }, i) => {
+    read.innerHTML = `<b>${esc(day)}${selected === day ? " · Selected" : ""}</b>` + configs.map(({ name, values, estimates, color }, i) => {
       const value = values.get(day);
       const count = estimates?.get(day);
-      return `<span><i style="background:${HISTORY_COLORS[i]}"></i>${esc(name)} <strong>${value == null ? "No data" : esc(formatter(value))}</strong>${count ? ` <small class="muted">${count} at cost</small>` : ""}</span>`;
+      return `<span><i style="background:${historyColor({ color }, i)}"></i>${esc(name)} <strong>${value == null ? "No data" : esc(formatter(value))}</strong>${count ? ` <small class="muted">${count} at cost</small>` : ""}</span>`;
     }).join("");
   };
   const tools = () => {
@@ -357,8 +365,8 @@ export async function mountHistoryChart(box, onSelect) {
       configs = entries.map((e) => ({ ...e, values: new Map(e.data.map((p) => [p.time, p.value])) }));
       days = [...new Set(entries.flatMap((e) => e.data.map((p) => p.time)))].sort();
       series = entries.map((e, i) => {
-        const s = chart.addLineSeries({ color: HISTORY_COLORS[i], lineWidth: 2, priceLineVisible: false,
-          lastValueVisible: false, priceFormat: { type: "custom", minMove, formatter: format }, pointMarkersVisible: e.data.length === 1, lineStyle: i ? 2 : 0 });
+        const s = chart.addLineSeries({ color: historyColor(e, i), lineWidth: e.lineWidth || 2, priceLineVisible: false,
+          lastValueVisible: false, priceFormat: { type: "custom", minMove, formatter: format }, pointMarkersVisible: e.data.length === 1, lineStyle: e.lineStyle ?? (i ? 2 : 0) });
         s.setData(e.data);
         return s;
       });

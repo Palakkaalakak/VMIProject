@@ -194,3 +194,58 @@ def test_portfolio_quick_ai_uses_one_bounded_call_and_no_price_fetch(client, mon
     monkeypatch.setattr(ai_helper, "status", lambda **kw: {"backend": None})
     assert client.post(path, json=body).status_code == 503
     assert len(calls) == 1
+
+
+def test_holdings_performance_and_printable_report(client, monkeypatch):
+    import pandas as pd
+
+    from vmi.data import market
+
+    pid = _pf(client)
+    from vmi import store
+    with store.session() as s:
+        s.get(store.Portfolio, pid).name = '<Growth & Income>'
+        s.commit()
+    base = f"/api/portfolios/{pid}"
+    dates = pd.to_datetime(["2026-01-05", "2026-01-06", "2026-01-07", "2026-01-08"])
+    prices = {"AAA": [100., 120., 130., 150.], "BBB": [30., 30., 40., 20.], "SPY": [50., 51., 52., 55.]}
+    monkeypatch.setattr(market, "history", lambda symbol, *_: pd.DataFrame({"close": prices[symbol]}, index=dates))
+    for symbol, side, qty, price, day, fees in [
+        ("AAA", "BUY", 10, 100, "05", 0), ("AAA", "SELL", 10, 130, "07", 5),
+        ("BBB", "BUY", 5, 40, "07", 0),
+    ]:
+        r = client.post(base + "/ledger", json={"symbol": symbol, "side": side, "qty": qty, "price": price,
+                        "ts": f"2026-01-{day}T12:00:00-05:00", "fees": fees, "reason": "effective-dated fixture"})
+        assert r.status_code == 200
+    params = {"start": "2026-01-06", "end": "2026-01-08", "benchmark": "SPY"}
+    res = client.get(base + "/history/performance", params=params)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["opening_equity"] == 10_000
+    assert data["range_trades"] == 2 and data["range_fees"] == 5
+    stock = {s["symbol"]: s for s in data["stocks"]}
+    assert stock["AAA"]["pnl"] == [200, 295, 295]  # sale freezes contribution, but not its price series
+    assert stock["AAA"]["price_return"] == pytest.approx([.2, .3, .5])
+    assert stock["BBB"]["pnl"] == [0, 0, -100]
+    assert data["benchmark"]["price_return"][-1] == pytest.approx(.1)
+    assert data["points"][-1]["equity"] == 10_195
+    assert client.get(base + "/history/performance", params={**params, "benchmark": "INVALID"}).status_code == 400
+    report = client.get(base + "/history/report", params=params)
+    assert report.status_code == 200 and report.headers["cache-control"] == "no-store"
+    assert "Executive summary" in report.text and "Print / Save as PDF" in report.text
+    assert "&lt;Growth &amp; Income&gt;" in report.text and "<Growth & Income>" not in report.text
+    assert report.text.count("<svg") == 5 and "SPY price return" in report.text
+    assert "$10,195.00" in report.text and "AAA added the most" in report.text
+    export = client.get(base + "/history/report", params={**params, "download": True})
+    assert 'attachment;' in export.headers["content-disposition"] and "report.html" in export.headers["content-disposition"]
+    assert "<svg" in export.text and 'window.print' not in export.text
+
+
+def test_stock_price_series_does_not_use_a_future_close():
+    from datetime import date
+
+    from vmi.paper.journal import _price_path
+
+    a, b = date(2026, 1, 5), date(2026, 1, 6)
+    path = _price_path(([a, b], {a: 100, b: 120}), a, [{"as_of": "2026-01-06T12:00:00-05:00"}])
+    assert path == {"base_day": str(a), "price_return": [0.0]}
