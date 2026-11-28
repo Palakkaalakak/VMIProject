@@ -246,7 +246,7 @@ def _dry_run(s, p: store.Portfolio, rows: list[dict], allow_negative_cash: bool)
     return rep
 
 
-def add_trade(pid: int, data: dict, reason: str, allow_negative_cash: bool = False) -> dict:
+def add_trade(pid: int, data: dict, reason: str, allow_negative_cash: bool = False, match_plan: bool = True) -> dict:
     """Back-dated / missing order. data: symbol, side, qty, price, ts (ISO), optional sec_type/expiry/strike/right,
     fees, mid, note, tags, thesis, kind, context."""
     if not reason.strip():
@@ -267,7 +267,7 @@ def add_trade(pid: int, data: dict, reason: str, allow_negative_cash: bool = Fal
         s.commit()
         tid = t.id
     out = {"trade_id": tid, "state": rebuild(pid, f"after add #{tid}: {reason}")}
-    if d["kind"] == "fill":
+    if d["kind"] == "fill" and match_plan:
         try:                                   # a real order at a plan level fills that level (no double buy)
             from vmi.paper import autotrade
             out["plan_level"] = autotrade.match_manual_fill(pid, tid)

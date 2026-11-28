@@ -65,22 +65,35 @@ async function draw(root, id) {
     });
   });
   $("#pl-new", root).addEventListener("click", () => editModal(root, id, null));
-  $("#pl-wl", root).addEventListener("change", (e) => e.target.value && run(e.target, async () => {
-    const r = await api.plansFromWatchlist(id, +e.target.value);
+  $("#pl-wl", root).addEventListener("change", (e) => {
+    const wid = +e.target.value;
+    if (wid) run(null, async () => {
+    const r = await api.plansFromWatchlist(id, wid);
     toast(`${r.created.length} plans created${Object.keys(r.skipped).length ? `, ${Object.keys(r.skipped).length} skipped` : ""}`, "ok"); draw(root, id);
-  }));
+    });
+  });
   $("#pl-bd", root).addEventListener("click", (e) => {
     const days = Math.round(+$("#pl-bd-days", root).value);
     if (!(days >= 1 && days <= 365)) return toast("Enter 1 to 365 days", "error");
     if (!confirm(`Check the last ${days} days for missed levels in this portfolio and place the missed paper orders, back-dated? This also executes plans set to alert only.`)) return;
     run(e.target, async () => {
-      const ev = await api.runPlans(id, days);
-      const n = (k) => ev.filter((x) => x.event === k).length;
-      toast(`Backdater: ${n("backfill_buy")} missed buy(s), ${n("backfill_sell")} sell(s) placed${n("error") ? `, ${n("error")} error(s)` : ""}`, n("error") ? "error" : "ok");
+      showBackdate(await api.runPlans(id, days));
       draw(root, id);
     });
   });
   $("#pl-run", root).addEventListener("click", (e) => run(e.target, async () => { const ev = await api.runPlans(id); toast(ev.length ? `${ev.length} event(s): ${ev.map((x) => x.event).join(", ")}` : "Nothing to do", "ok"); draw(root, id); }));
+}
+
+function showBackdate(r) {
+  const errors = r.events.filter((x) => x.event === "error").length;
+  const text = `Backdater: ${r.plans_checked} plan(s) checked, ${r.plans_created.length} created or filled, ${r.buys} missed buy(s), ${r.sells} sell(s) placed${errors ? `, ${errors} error(s)` : ""}`;
+  toast(r.plans_checked ? text : "Backdater did nothing: no plans to check", !r.plans_checked || errors || r.warnings.length ? "error" : "ok", 8000);
+  const why = Object.keys(r.reasons).sort().map((s) => `<li><b>${esc(s)}</b>: ${r.reasons[s].map(esc).join("; ")}</li>`).join("");
+  modal("Backdater result", `<p>${esc(text)} (last ${r.days} days).</p>
+    ${r.plans_checked ? "" : `<p class="neg"><b>Warning: no plans, so nothing could be filled.</b></p>`}
+    ${r.warnings.map((w) => `<p class="neg">${esc(w)}</p>`).join("")}
+    ${r.filled_at_window_open ? `<p>${r.filled_at_window_open} of the buys: the price was already below the level on the first day checked (filled at that open).</p>` : ""}
+    ${why ? `<h4>Not filled, by stock</h4><ul class="small">${why}</ul>` : ""}`);
 }
 
 const COLOR = { filled: "pos", skipped: "muted", alerted: "", pending: "", scheduled: "" };

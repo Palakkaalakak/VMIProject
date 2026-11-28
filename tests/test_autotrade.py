@@ -295,3 +295,65 @@ def test_premarket_price_and_previous_after_hours():
     bars = [NS(date=at(20, 19), close=1), NS(date=at(23, 15, 55), close=2), NS(date=at(23, 19, 55), close=3), NS(date=at(24, 7), close=4)]
     assert last_after_hours(bars, now) == (3.0, "2026-11-23")
     assert last_after_hours(bars[:2], now) is None                    # no after-hours trade: never the regular close
+
+
+def _day_bars(rows):
+    """rows: [(open, low)] for consecutive business days ending a few days ago."""
+    days = pd.bdate_range(end=date.today() - timedelta(days=3), periods=len(rows))
+    return pd.DataFrame([{"open": o, "high": o + 1, "low": lo, "close": o} for o, lo in rows], index=days)
+
+
+def _watchlist(items):
+    with store.session() as s:
+        w = store.Watchlist(name="W")
+        s.add(w)
+        s.flush()
+        for sym, sup in items.items():
+            s.add(store.WatchItem(watchlist_id=w.id, symbol=sym, supports=sup))
+        s.commit()
+        return w.id
+
+
+def test_backdater_one_timeline_in_order_of_hits_with_limited_cash(pid):
+    autotrade.update_settings(pid, {"sizing_mode": "manual", "manual_allocation": 40_000})    # cash: 2.5 positions
+    for sym in ("AAA", "BBB", "CCC", "DDD"):
+        autotrade.upsert_plan(pid, sym, buy_levels=[100], require_below_iv=False)
+    hist = {"AAA": _day_bars([(110, 105), (110, 105), (110, 99)]),     # last day, 9% drop to the level
+            "BBB": _day_bars([(110, 105), (110, 99), (110, 105)]),     # first to be hit
+            "CCC": _day_bars([(110, 105), (110, 105), (99, 98)]),      # last day, gap at the open
+            "DDD": _day_bars([(110, 105), (110, 105), (101, 99)])}     # last day, 1% drop
+    r = autotrade.backdate(pid, 30, history_fn=hist.get)
+    assert [e["symbol"] for e in r["events"]] == ["BBB", "CCC"]
+    assert "no cash" in r["reasons"]["DDD"][0] and "no cash" in r["reasons"]["AAA"][0]
+    assert all(p["buy_levels"][0]["status"] == "pending" for p in autotrade.get_plans(pid) if p["symbol"] in ("AAA", "DDD"))
+    with store.session() as s:                                          # a later run with more cash still fills them
+        s.get(store.Portfolio, pid).starting_cash = 500_000
+        s.commit()
+    r = autotrade.backdate(pid, 30, history_fn=hist.get)
+    assert [e["symbol"] for e in r["events"]] == ["DDD", "AAA"]
+
+
+def test_backdater_creates_plans_and_fills_each_support_when_first_hit(pid):
+    autotrade.update_settings(pid, {"watchlist_id": _watchlist({"AAA": [95, 90, 85], "BBB": []}), "gap_stagger_days": 3})
+    bars = _day_bars([(100, 99), (88, 87), (86, 84)])
+    r = autotrade.backdate(pid, 30, history_fn=lambda s: bars)
+    assert sorted(r["plans_created"]) == ["AAA", "BBB"] and r["plans_checked"] == 2 and r["buys"] == 3
+    assert [(e["level"], e["px"], e["day"]) for e in r["events"]] == [
+        (95, 88, str(bars.index[1].date())), (90, 88, str(bars.index[1].date())), (85, 85, str(bars.index[2].date()))]
+    assert "no levels" in r["reasons"]["BBB"][0] and r["filled_at_window_open"] == 0
+    assert autotrade.backdate(pid, 30, history_fn=lambda s: bars)["buys"] == 0 and len(_trades(pid)) == 3
+    autotrade.delete_plan(pid, "AAA")                                   # recreated plan: ledger buys count, no double buy
+    assert autotrade.backdate(pid, 30, history_fn=lambda s: bars)["buys"] == 0 and len(_trades(pid)) == 3
+
+
+def test_backdater_keeps_user_levels_and_warns_without_plans(pid):
+    r = autotrade.backdate(pid, 30, history_fn=no_history)
+    assert r["plans_checked"] == 0 and any("no active plans" in w for w in r["warnings"])
+    wid = _watchlist({"AAA": [95]})
+    autotrade.upsert_plan(pid, "AAA", buy_levels=[70])
+    autotrade.update_settings(pid, {"watchlist_id": wid})
+    r = autotrade.backdate(pid, 30, history_fn=no_history)
+    assert autotrade.get_plans(pid)[0]["buy_levels"][0]["price"] == 70 and "no price history" in r["reasons"]["AAA"][0]
+    for bad in (0, 999):
+        with pytest.raises(autotrade.PlanError):
+            autotrade.plans_from_watchlist(pid, bad)

@@ -904,7 +904,9 @@ def pf_plans_from_watchlist(pid: int, wid: int, overwrite: bool = False):
 @pr.post("/{pid}/plans/run")
 def pf_plans_run(pid: int, backdate_days: int | None = None):
     from vmi.paper import autotrade
-    return autotrade.run(pid, backdate_days=backdate_days)
+    if backdate_days:
+        return autotrade.backdate(pid, backdate_days)
+    return autotrade.run(pid)
 
 
 # ======================================================================================== option payoff book

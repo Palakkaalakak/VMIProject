@@ -37,6 +37,7 @@ export function toast(msg, kind = "info", ms = 4000) {
 
 // Wrap an async action: shows errors as toasts, disables the trigger button while running.
 export async function run(btn, fn) {
+  if (btn && /^(SELECT|INPUT|TEXTAREA)$/.test(btn.tagName)) btn = null; // never overwrite a form field's text / options
   if (btn) { btn.disabled = true; btn.dataset.label ??= btn.textContent; btn.textContent = "…"; }
   try { return await fn(); }
   catch (e) { toast(e.message || String(e), "error", 7000); }

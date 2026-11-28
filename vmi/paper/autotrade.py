@@ -18,9 +18,14 @@ tranches 1-3), only the highest is filled now; the others are "scheduled" `gap_s
 in case the price keeps falling (a lower level reached meanwhile fills on its own). When a scheduled tranche falls due it
 is released to the normal check: it fills if the price is still at/below its level and below IV, otherwise it waits.
 Alert-only plans follow the same schedule (only the alert, not the fill, is staggered).
+
+backdate()  the "Run backdater now" button: first creates / fills missing plans from the linked watchlist's supports, then
+walks ONE timeline over all plans, oldest day first: sells, then buys in the order the supports were hit. No gap
+staggering there. A rejected buy (cash, IV, ledger, minimum order) leaves the level open and is reported.
 """
 from __future__ import annotations
 
+import threading
 from datetime import date, datetime, time as dtime, timedelta, timezone
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
@@ -41,6 +46,8 @@ DEFAULTS: dict[str, Any] = {"sizing_mode": None, "watchlist_id": None, "manual_a
                             "gap_stagger_days": 3}   # price through several unfilled levels: 1 now, the rest this many trading days apart (0 = all at once)
 SIZING_MODES = ("watchlist", "target", "manual")
 MIN_ORDER = 25.0          # $: smaller remaining amounts are skipped, not bought
+OPEN = ("pending", "alerted", "scheduled")
+_LOCK = threading.RLock()  # the background minute loop and the manual run / backdater never overlap
 
 
 class PlanError(ValueError):
@@ -65,6 +72,8 @@ def update_settings(pid: int, changes: dict) -> dict:
         raise PlanError(f"unknown settings: {sorted(bad)}")
     if changes.get("sizing_mode") not in (None, *SIZING_MODES):
         raise PlanError(f"sizing_mode must be one of {SIZING_MODES}")
+    if changes.get("watchlist_id") == 0:
+        changes = {**changes, "watchlist_id": None}
     with store.session() as s:
         p = s.get(store.Portfolio, pid)
         if not p:
@@ -185,7 +194,11 @@ def plans_from_watchlist(pid: int, wid: int, overwrite: bool = False) -> dict:
     and sell levels yourself; a plan without levels does nothing. The IV is copied only when you typed it in the watchlist
     (iv_source "manual"). Links the watchlist to the portfolio (watchlist sizing) if none is linked yet."""
     with store.session() as s:
+        if not wid or not s.get(store.Watchlist, wid):
+            raise PlanError("watchlist not found: choose a watchlist")
         items = list(s.scalars(select(store.WatchItem).where(store.WatchItem.watchlist_id == wid, store.WatchItem.stage != "review")))
+        if not items:
+            raise PlanError("that watchlist has no stocks")
         existing = {p.symbol for p in s.scalars(select(store.TranchePlan).where(store.TranchePlan.portfolio_id == pid))}
     if not settings(pid).get("watchlist_id"):
         update_settings(pid, {"watchlist_id": wid})         # sizing follows the watchlist unless a mode was chosen
@@ -316,7 +329,7 @@ def _fill_backfill(pid: int, plan, idx: int, side: str, bar_day: date, open_px: 
                     {"bar_day": str(bar_day), "gap": gap, "fill": f.to_dict()})
     res = ledger.add_trade(pid, {"symbol": plan.symbol, "side": side, "qty": qty, "price": f.price, "mid": ref,
                                  "ts": when.isoformat(), "note": note, "context": ctx, "kind": "fill"},
-                           reason=f"auto-backfill {plan.symbol} level {idx + 1}")
+                           reason=f"auto-backfill {plan.symbol} level {idx + 1}", match_plan=False)
     with store.session() as s:
         t = s.get(store.Trade, res["trade_id"])
         t.source = "auto-backfill"
@@ -328,24 +341,223 @@ def _fill_backfill(pid: int, plan, idx: int, side: str, bar_day: date, open_px: 
 def run(pid: int | None = None, *, quote_fn: Callable | None = None, history_fn: Callable | None = None,
         in_session: Callable[[], bool] | None = None, now: datetime | None = None, backdate_days: int | None = None) -> list[dict]:
     """One automation pass. Returns the events (also stored in plan history + alerts).
-    backdate_days (the "Run backdater now" button): re-scan that many past days (max 365) and EXECUTE missed buys / sells, whatever
-    the last-check date or the alert-only / backfill settings say; live prices are not touched. Filled or skipped levels never fill again."""
+    backdate_days: run backdate() instead (live prices are not touched) and return its events."""
     from vmi.paper import engine
 
+    if backdate_days:
+        return backdate(pid, backdate_days, history_fn=history_fn, now=now)["events"]
     quote_fn, history_fn, in_session = quote_fn or _default_quote, history_fn or _default_history, in_session or _in_session
     now = now or datetime.now(timezone.utc)
     events: list[dict] = []
+    with _LOCK:
+        for plan_id in _active_plans(pid):
+            try:
+                events += _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now)
+            except Exception as exc:
+                events.append({"plan_id": plan_id, "event": "error", "error": f"{type(exc).__name__}: {exc}"[:300]})
+    return events
+
+
+def _active_plans(pid: int | None) -> list[int]:
     with store.session() as s:
         q = select(store.TranchePlan).where(store.TranchePlan.status == "active")
         if pid is not None:
             q = q.where(store.TranchePlan.portfolio_id == pid)
-        plan_ids = [p.id for p in s.scalars(q)]
-    for plan_id in plan_ids:
+        return [p.id for p in s.scalars(q.order_by(store.TranchePlan.portfolio_id, store.TranchePlan.symbol))]
+
+
+# --------------------------------------------------------------------------------------------- backdater
+def backdate(pid: int | None, days: int, *, history_fn: Callable | None = None, now: datetime | None = None) -> dict:
+    """Re-scan the past `days` days (max 365) and EXECUTE missed buys / sells, whatever the last-check date or the
+    alert-only / backfill settings say. Filled or skipped levels never fill again."""
+    history_fn = history_fn or _default_history
+    now = now or datetime.now(timezone.utc)
+    days = max(1, min(365, int(days)))
+    out: dict = {"events": [], "days": days, "plans_checked": 0, "plans_created": [], "buys": 0, "sells": 0,
+                 "filled_at_window_open": 0, "reasons": {}, "warnings": []}
+    with _LOCK:
+        if pid is None:
+            with store.session() as s:
+                pids = [p.id for p in s.scalars(select(store.Portfolio))]
+        else:
+            pids = [pid]
+        for one in pids:
+            _backdate_portfolio(one, days, history_fn, now, out)
+    out["buys"] = sum(e["event"] == "backfill_buy" for e in out["events"])
+    out["sells"] = sum(e["event"] == "backfill_sell" for e in out["events"])
+    _track_timing(out["events"])
+    return out
+
+
+def _reason(out: dict, sym: str, text: str) -> None:
+    got = out["reasons"].setdefault(sym, [])
+    kind = text.split(": ", 1)[-1] if text[:4].isdigit() else text       # same rejection on later days: listed once
+    if not any(g.endswith(kind) for g in got):
+        got.append(text)
+
+
+def _match_trades(plan_id: int) -> None:
+    """Buys already in the ledger (since the position was last flat) count as their level's fill: never bought again."""
+    with store.session() as s:
+        plan = s.get(store.TranchePlan, plan_id)
+        levels = [dict(l) for l in plan.buy_levels or []]
+        trades = sorted((t for t in s.scalars(select(store.Trade).where(
+            store.Trade.portfolio_id == plan.portfolio_id, store.Trade.symbol == plan.symbol)) if t.sec_type == "STK"),
+            key=lambda t: (ledger._ts(t.ts), t.id))
+        held, buys = 0.0, []
+        for t in trades:
+            held += t.qty if t.side == "BUY" else -t.qty
+            if t.side == "BUY" and (t.kind or "fill") == "fill":
+                buys.append(t)
+            if held <= 1e-6:
+                buys = []
+        linked = {l.get("trade_id") for l in levels}
+        changed = False
+        for t in buys:
+            if t.id in linked:
+                continue
+            ref = None
+            try:                      # an automatic fill remembers the level it was for (its price includes slippage)
+                ctx = t.context["plan"]
+                ref = ctx["levels"][ctx["level"]]["price"] if ctx["side"] == "buy" else None
+            except (KeyError, IndexError, TypeError):
+                pass
+            cands = [(l["price"], i) for i, l in enumerate(levels) if l["status"] in OPEN and (
+                abs(l["price"] - ref) <= ref * 0.005 if ref else l["price"] >= t.price * 0.99)]
+            if cands:
+                price, i = min(cands)
+                levels[i].update(status="filled", trade_id=t.id, filled_at=str(t.ts), fill_price=t.price,
+                                 note=f"matched to {t.source} order #{t.id}")
+                _log(plan, "matched_order", trade_id=t.id, level=price)
+                changed = True
+        if changed:
+            plan.buy_levels = levels
+            s.commit()
+
+
+def _save_levels(st: dict, event: dict) -> None:
+    """Persisted right after each fill, so a crash cannot lead to buying the level twice."""
+    with store.session() as s:
+        plan = s.get(store.TranchePlan, st["id"])
+        plan.buy_levels = [dict(l) for l in st["buys"]]
+        plan.sell_levels = [dict(l) for l in st["sells"]]
+        _log(plan, "backdate", events=[event])
+        s.commit()
+
+
+def _backdate_portfolio(pid: int, days: int, history_fn: Callable, now: datetime, out: dict) -> None:
+    cfg = settings(pid)
+    wid = cfg.get("watchlist_id")
+    if wid:
         try:
-            events += _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now, backdate_days)
+            out["plans_created"] += plans_from_watchlist(pid, wid)["created"]
+        except PlanError as exc:
+            out["warnings"].append(f"linked watchlist: {exc}")
+    else:
+        out["warnings"].append("no linked watchlist: choose one under Sizing & automation to create plans automatically")
+    ids = _active_plans(pid)
+    if not ids:
+        out["warnings"].append("no active plans: nothing was checked")
+        return
+    today = now.astimezone(ET).date()
+    start = today - timedelta(days=days)
+    equity = _equity(pid)
+    states: list[dict] = []
+    for plan_id in ids:
+        out["plans_checked"] += 1
+        _match_trades(plan_id)
+        with store.session() as s:
+            plan = s.get(store.TranchePlan, plan_id)
+        st = {"id": plan_id, "plan": plan, "sym": plan.symbol, "buys": [dict(l) for l in plan.buy_levels or []],
+              "sells": [dict(l) for l in plan.sell_levels or []], "bars": {}, "fills": 0}
+        if not st["buys"] and not st["sells"]:
+            _reason(out, st["sym"], "plan has no levels (no supports in the watchlist, or none set)")
+            continue
+        try:
+            bars = history_fn(st["sym"])
+            if bars is not None and not bars.empty:
+                bars = bars.copy()
+                bars.index = pd.to_datetime(bars.index).tz_localize(None).normalize()
+                bars = bars[(bars.index.date >= start) & (bars.index.date < today)]
+                st["bars"] = {d.date(): bar for d, bar in bars.iterrows()}
         except Exception as exc:
-            events.append({"plan_id": plan_id, "event": "error", "error": f"{type(exc).__name__}: {exc}"[:300]})
-    return events
+            _reason(out, st["sym"], f"price history failed: {exc}"[:200])
+        if not st["bars"]:
+            _reason(out, st["sym"], "no price history for the period")
+            continue
+        states.append(st)
+
+    def fill(st, i, side, day, bar, trigger, amount, alloc, level) -> None:
+        sym, ref = st["sym"], (min if side == "BUY" else max)(float(bar["open"]), trigger)
+        tid = _fill_backfill(pid, st["plan"], i, side, day, float(bar["open"]), trigger, amount, alloc, side == "SELL")
+        level.update(status="filled", trade_id=tid, filled_at=str(day), fill_price=ref)
+        ev = {"symbol": sym, "event": f"backfill_{side.lower()}", "day": str(day), "trade_id": tid, "level": trigger, "px": ref}
+        _save_levels(st, ev)
+        st["fills"] += 1
+        out["events"].append(ev)
+        _alert(sym, "tranche_filled", f"{sym} {side.lower()} level {trigger:.2f} back-filled at {ref:.2f} on {day}.", ref)
+
+    def error(st, exc) -> None:
+        msg = f"{type(exc).__name__}: {exc}"[:300]
+        _reason(out, st["sym"], msg)
+        out["events"].append({"symbol": st["sym"], "plan_id": st["id"], "event": "error", "error": msg})
+
+    for day in sorted({d for st in states for d in st["bars"]}):
+        today_states = [(st, st["bars"][day]) for st in states if day in st["bars"]]
+        end_of_day = datetime.combine(day, dtime(23, 59), ET)
+        for st, bar in today_states:                                       # sells first: they free cash
+            for i, lvl in enumerate(st["sells"]):
+                trig = _sell_trigger(lvl, st["plan"].intrinsic_value)
+                if lvl["status"] not in OPEN or trig is None or bar["high"] < trig:
+                    continue
+                try:
+                    qty = round(_held(pid, st["sym"], end_of_day) * lvl["fraction"], 4)
+                    if qty > 0:
+                        fill(st, i, "SELL", day, bar, trig, qty, {}, lvl)
+                except ledger.LedgerError as exc:
+                    _reason(out, st["sym"], f"{day}: sell {trig:.2f} rejected: {exc}"[:250])
+                except Exception as exc:
+                    error(st, exc)
+        hits = []   # daily bars cannot order intraday: gaps at the open first, then the smallest drop open -> level, then symbol
+        for st, bar in today_states:
+            for i, lvl in enumerate(st["buys"]):
+                if lvl["status"] in OPEN and bar["low"] <= lvl["price"]:
+                    op = float(bar["open"])
+                    gap = op <= lvl["price"]
+                    hits.append(((not gap, 0.0 if gap else (op - lvl["price"]) / op, st["sym"], -lvl["price"]), st, bar, i, gap))
+        for _, st, bar, i, gap in sorted(hits, key=lambda h: h[0]):
+            lvl, plan, sym = st["buys"][i], st["plan"], st["sym"]
+            ref = min(float(bar["open"]), lvl["price"])
+            iv = plan.intrinsic_value
+            if plan.require_below_iv and iv and ref >= iv:
+                _reason(out, sym, f"level {lvl['price']:.2f}: not below IV {iv:.2f}")
+                continue
+            try:
+                amount, alloc, why = _buy_amount(pid, plan, lvl, ref, equity, cfg, _held(pid, sym, end_of_day))
+                if why:
+                    _reason(out, sym, f"level {lvl['price']:.2f}: {why}")
+                    continue
+                fill(st, i, "BUY", day, bar, lvl["price"], amount, alloc, lvl)
+                if gap and day == min(st["bars"]):
+                    out["filled_at_window_open"] += 1
+            except ledger.LedgerError as exc:
+                what = "no cash" if "cash goes negative" in str(exc) else f"ledger rejected: {exc}"[:200]
+                _reason(out, sym, f"level {lvl['price']:.2f}: {what}")
+            except Exception as exc:
+                error(st, exc)
+
+    for st in states:
+        if not st["fills"] and st["sym"] not in out["reasons"]:
+            open_buys = [l["price"] for l in st["buys"] if l["status"] in OPEN]
+            low = min(float(b["low"]) for b in st["bars"].values())
+            _reason(out, st["sym"], f"no open level touched (lowest price {low:.2f}, highest open level {max(open_buys):.2f})"
+                    if open_buys else "no open buy levels left (already filled or skipped)")
+        with store.session() as s:
+            plan = s.get(store.TranchePlan, st["id"])
+            plan.last_checked = now
+            if st["buys"] and all(l["status"] in ("filled", "skipped") for l in st["buys"] + st["sells"]):
+                plan.status = "done"
+            s.commit()
 
 
 def _stagger_days(day, n: int):
@@ -378,7 +590,7 @@ def _release_and_stagger(buys: list[dict], day, reached: Callable[[dict], bool],
     events.append({"symbol": sym, "event": "gap_stagger", "day": str(day), "scheduled": sched})
 
 
-def _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now, backdate_days: int | None = None) -> list[dict]:
+def _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now) -> list[dict]:
     events: list[dict] = []
     with store.session() as s:
         plan = s.get(store.TranchePlan, plan_id)
@@ -397,10 +609,7 @@ def _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now, backdate_d
         last = last if last.tzinfo else last.replace(tzinfo=timezone.utc)
         start = max(last.astimezone(ET).date(), (now - timedelta(days=cfg["max_backfill_days"])).astimezone(ET).date())
         today = now.astimezone(ET).date()
-        live_auto = auto
-        if backdate_days:
-            start, auto = today - timedelta(days=max(1, min(365, int(backdate_days)))), True
-        if (cfg["backfill"] or backdate_days) and start < today:
+        if cfg["backfill"] and start < today:
             try:
                 bars = history_fn(sym)
             except Exception:
@@ -461,10 +670,9 @@ def _run_plan(plan_id, engine, quote_fn, history_fn, in_session, now, backdate_d
                         events.append({"symbol": sym, "event": "backfill_sell", "day": str(day), "trade_id": tid})
 
         # ---- 2. live price
-        auto = live_auto
         session_ok = (not cfg["market_hours_only"]) or in_session()
         try:
-            qt = None if backdate_days else quote_fn(sym)
+            qt = quote_fn(sym)
             px = qt.last or qt.close
         except Exception:
             qt, px = None, None
