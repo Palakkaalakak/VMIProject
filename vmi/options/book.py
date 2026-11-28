@@ -14,6 +14,7 @@ from sqlalchemy import select
 
 from vmi import store
 from vmi.options import payoff
+from vmi.paper import ledger
 
 
 def _iv_for(symbol: str, pos, spot: float) -> tuple[float, str]:
@@ -56,9 +57,11 @@ def legs_from_portfolio(pid: int, symbol: str, spot: float) -> list[dict]:
 
 
 def _save(symbol: str, legs: list[dict], spot: float, pid: int | None, reason: str, label: str, notes: str,
-          as_of: str | None = None) -> int:
+          as_of: str | None = None, *, portfolio_capture: bool = False) -> int:
     inputs = {"symbol": symbol.upper(), "legs": legs, "spot": spot, "as_of": as_of or date.today().isoformat(),
               "rate": payoff.RISK_FREE}
+    if portfolio_capture:
+        inputs["portfolio_capture"] = True
     result = payoff.profile(legs, spot, inputs["as_of"], inputs["rate"])
     with store.session() as s:
         row = store.OptionSnapshot(portfolio_id=pid, symbol=symbol.upper(), label=label, reason=reason, inputs=inputs,
@@ -78,7 +81,7 @@ def snapshot_portfolio(pid: int, symbol: str, reason: str = "manual", label: str
     legs = legs_from_portfolio(pid, symbol, spot)
     if not any(l["type"] == "OPT" for l in legs):
         return None
-    return _save(symbol, legs, spot, pid, reason, label or f"{symbol.upper()} position", notes)
+    return _save(symbol, legs, spot, pid, reason, label or f"{symbol.upper()} position", notes, portfolio_capture=True)
 
 
 def snapshot_legs(symbol: str, legs: list[dict], spot: float, label: str = "", notes: str = "",
@@ -96,12 +99,59 @@ def snapshot_legs(symbol: str, legs: list[dict], spot: float, label: str = "", n
     return _save(symbol, clean, spot, pid, "manual", label or f"{symbol.upper()} what-if", notes, as_of)
 
 
+def _refresh_captures(s, snapshots: list[dict]) -> None:
+    """Use corrected historical holdings for portfolio captures; leave manual hypothetical legs alone."""
+    from collections import defaultdict
+
+    by_pid = defaultdict(list)
+    for snap in snapshots:
+        if snap["portfolio_id"] and (snap["inputs"].get("portfolio_capture") or snap["reason"] in ("trade", "daily")):
+            by_pid[snap["portfolio_id"]].append(snap)
+    for pid, group in by_pid.items():
+        port = s.get(store.Portfolio, pid)
+        if port is None:
+            continue
+        rows = [(ledger._ts(r["ts"]), r) for r in ledger._order(ledger._replay_rows(s, pid))]
+        state, i = ledger.Replay(port.starting_cash), 0
+        for snap in sorted(group, key=lambda r: ledger._ts(r["ts"])):
+            cutoff = ledger._ts(snap["ts"])
+            while i < len(rows) and rows[i][0] <= cutoff:
+                state.apply(rows[i][1])
+                i += 1
+            inp = snap["inputs"]
+            saved = {leg.get("key"): leg for leg in inp["legs"]}
+            legs = []
+            for p in state.positions.values():
+                if p.symbol != snap["symbol"] or not p.qty:
+                    continue
+                leg = {"type": p.sec_type, "qty": p.qty, "entry": p.avg_cost, "multiplier": p.multiplier, "key": p.key}
+                if p.sec_type == "OPT":
+                    iv = saved.get(p.key, {}).get("iv")
+                    source = saved.get(p.key, {}).get("iv_source", "recorded IV")
+                    if not iv:
+                        iv = payoff.implied_vol(p.avg_cost, inp["spot"], p.strike, payoff.years(p.expiry, inp["as_of"]), p.right)
+                        source = "implied from entry premium" if iv else "default 30% (no recorded IV)"
+                    leg.update(expiry=p.expiry, strike=p.strike, right=p.right, iv=iv or 0.30, iv_source=source)
+                legs.append(leg)
+            snap["inputs"] = {**inp, "legs": legs}
+            if "result" in snap:
+                snap["result"] = payoff.profile(legs, inp["spot"], inp["as_of"], inp["rate"])
+
+
 def get(sid: int) -> dict:
+    return _get(sid, include_result=True)
+
+
+def _get(sid: int, *, include_result: bool) -> dict:
     with store.session() as s:
         row = s.get(store.OptionSnapshot, sid)
         if not row:
             raise ValueError("snapshot not found")
-        return store.to_dict(row)
+        snap = store.to_dict(row)
+        if not include_result:
+            snap.pop("result")
+        _refresh_captures(s, [snap])
+        return snap
 
 
 def list_snapshots(pid: int | None = None, symbol: str | None = None, limit: int = 200) -> list[dict]:
@@ -112,7 +162,9 @@ def list_snapshots(pid: int | None = None, symbol: str | None = None, limit: int
         if symbol:
             q = q.where(store.OptionSnapshot.symbol == symbol.upper())
         rows = s.scalars(q.order_by(store.OptionSnapshot.id.desc()).limit(limit))
-        return [{k: v for k, v in store.to_dict(r).items() if k != "result"} for r in rows]
+        snapshots = [{k: v for k, v in store.to_dict(r).items() if k != "result"} for r in rows]
+        _refresh_captures(s, snapshots)
+        return snapshots
 
 
 def delete(sid: int) -> None:
@@ -127,7 +179,7 @@ def recompute(sid: int, spot: float | None = None, iv_shift: float = 0.0, as_of:
               iv_overrides: dict | None = None, **kw) -> dict:
     """What-if on a saved snapshot, from its stored inputs only. iv_shift is added to every leg's IV;
     iv_overrides = {leg index: iv} replaces single legs."""
-    snap = get(sid)
+    snap = _get(sid, include_result=False)
     inp = snap["inputs"]
     legs = [dict(l) for l in inp["legs"]]
     for i, l in enumerate(legs):

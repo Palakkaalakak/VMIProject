@@ -6,14 +6,14 @@ settled lazily by `settle_expired()` (called on every portfolio read) using the 
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import date, datetime
+from math import isfinite
+from datetime import date, datetime, time, timedelta
 from typing import Any
 
 from sqlalchemy import select
 
 from vmi import store
-from vmi.data import market
+from vmi.data import market, market_hours
 from vmi.paper import fills, ledger, sizing
 from vmi.rules import RULES
 
@@ -86,17 +86,43 @@ def _stock_quote(symbol: str):
     return q
 
 
+def _closed_mark_session(now: datetime) -> str | None:
+    """An overnight/weekend price is reusable until the next extended session opens."""
+    now = now.astimezone(market_hours.ET)
+    if market_hours.session_now(now) != market_hours.CLOSED:
+        return None
+    day = now.date() - timedelta(days=now.time() < time(4))
+    while day.weekday() >= 5:
+        day -= timedelta(days=1)
+    return day.isoformat()
+
+
 def _mark(pos: store.Position, quotes: bool = True) -> float | None:
     if not quotes:
         return None
+    from vmi.data.cache import get_cache
+
+    closed = _closed_mark_session(datetime.now(market_hours.ET))
+    key = f"portfolio-mark:v1:{pos.key}"
+    cache = get_cache() if closed else None
+    if cache is not None:
+        saved = cache.get(key)
+        if saved and saved["session"] == closed:
+            return saved["price"]
     try:
         if pos.sec_type == "STK":
-            return market.last_price(pos.symbol)
-        from vmi.options.chain import option_quote
-        oq = option_quote(pos.symbol, pos.expiry, pos.strike, pos.right)
-        return oq.mid if oq else None
+            px = market.last_price(pos.symbol)
+        else:
+            from vmi.options.chain import option_quote
+            oq = option_quote(pos.symbol, pos.expiry, pos.strike, pos.right)
+            px = oq.mid if oq else None
     except Exception:
         return None
+    if px is None or not isfinite(px) or px < 0 or (pos.sec_type == "STK" and px == 0):
+        return None
+    if cache is not None:
+        cache.set(key, {"session": closed, "price": float(px)})
+    return px
 
 
 # --------------------------------------------------------------------------------------- trading
@@ -401,14 +427,23 @@ def premarket_view(pid: int) -> dict:
 
 def trades(pid: int, limit: int = 200) -> list[dict]:
     with store.session() as s:
-        q = select(store.Trade).where(store.Trade.portfolio_id == pid).order_by(store.Trade.id.desc()).limit(limit)
+        q = select(store.Trade).where(store.Trade.portfolio_id == pid).order_by(store.Trade.ts.desc(), store.Trade.id.desc()).limit(limit)
         return [store.to_dict(t) for t in s.scalars(q)]
 
 
-def size_for(pid: int, symbol: str, multiplier: float = 1.0, price: float | None = None) -> dict:
-    """Auto order sizing per VMI rules for this portfolio."""
-    summ = summary(pid)
-    price = price or market.last_price(symbol) or 0       # an explicit price (the admin order form) beats the live quote
+def size_for(pid: int, symbol: str, multiplier: float = 1.0, price: float | None = None,
+             as_of: str | None = None) -> dict:
+    """Auto order sizing per VMI rules, using historical balances for a backdated order."""
+    if as_of:
+        from vmi.paper import journal
+
+        summ = journal.snapshot(pid, as_of)
+        with store.session() as s:
+            summ["target_positions"] = ledger._portfolio(s, pid).target_positions
+        price = price or next((p["price"] for p in summ["positions"] if p["key"] == symbol.upper()), 0)
+    else:
+        summ = summary(pid)
+        price = price or market.last_price(symbol) or 0       # an explicit price (the admin order form) beats the live quote
     cur = sum(r["market_value"] for r in summ["positions"] if r["symbol"] == symbol.upper() and r["sec_type"] == "STK")
     return sizing.plan(summ["equity"], price, cur, summ["target_positions"], multiplier,
                        tranches=stated_tranches(pid, symbol), cash=summ["free_cash"]).to_dict()

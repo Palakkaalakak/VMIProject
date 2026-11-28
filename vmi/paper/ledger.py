@@ -88,37 +88,59 @@ def _order(rows: Iterable[dict]) -> list[dict]:
     return sorted(rows, key=lambda r: (_ts(r.get("ts")), r.get("id") or 10**12))
 
 
-def replay(starting_cash: float, rows: Iterable[dict], allow_negative_cash: bool = True) -> dict:
-    """rows: trade dicts (store.to_dict(Trade) shape; option rows may carry expiry/strike/right). Pure function.
-    Errors: selling stock you do not hold at that time, or (if not allowed) cash going negative."""
-    cash, pos, errors, low = float(starting_cash), {}, [], (float(starting_cash), None)
-    for r in _order(rows):
+class Replay:
+    """Incremental ledger state. Feed rows in effective timestamp and trade ID order."""
+
+    def __init__(self, starting_cash: float, allow_negative_cash: bool = True):
+        self.cash = float(starting_cash)
+        self.low = (self.cash, None)
+        self.positions: dict[str, PosState] = {}
+        self.errors: list[str] = []
+        self.allow_negative_cash = allow_negative_cash
+        self.fees = 0.0
+        self.trade_count = 0
+
+    def apply(self, r: dict) -> None:
+        ts = _ts(r.get("ts"))
         key, side, qty, price = r["key"], r["side"].upper(), float(r["qty"]), float(r["price"])
         mult = int(r.get("multiplier") or (100 if r.get("sec_type") == "OPT" else 1))
-        p = pos.get(key)
+        p = self.positions.get(key)
         if p is None:
-            p = pos[key] = PosState(key, r["symbol"], r.get("sec_type") or "STK", mult, r.get("expiry"),
-                                    r.get("strike"), r.get("right"), first_ts=_ts(r.get("ts")))
+            p = self.positions[key] = PosState(key, r["symbol"], r.get("sec_type") or "STK", mult, r.get("expiry"),
+                                    r.get("strike"), r.get("right"), first_ts=ts)
             if p.sec_type == "OPT" and not p.expiry:                         # recover from the key
                 parts = key.split()
                 if len(parts) == 4:
                     p.expiry, p.strike, p.right = parts[1], float(parts[2]), parts[3]
         if side not in ("BUY", "SELL") or qty <= 0:
-            errors.append(f"trade {r.get('id')}: side must be BUY/SELL and qty > 0")
-            continue
+            self.errors.append(f"trade {r.get('id')}: side must be BUY/SELL and qty > 0")
+            return
         if p.sec_type == "STK" and side == "SELL" and qty > p.qty + 1e-6:
-            errors.append(f"trade {r.get('id')} {_ts(r.get('ts'))[:16]}: sells {qty:g} {key} but only {p.qty:g} held then")
+            self.errors.append(f"trade {r.get('id')} {ts[:16]}: sells {qty:g} {key} but only {p.qty:g} held then")
         p.qty, p.avg_cost, p.realized_pnl = step(p.qty, p.avg_cost, p.realized_pnl, side, qty, price, mult)
         if p.sec_type == "STK" and side == "BUY" and (r.get("kind") or "fill") == "fill":
             p.tranches_filled += 1
-        p.last_ts = _ts(r.get("ts"))
-        cash += cash_delta(side, qty, price, mult, float(r.get("fees") or 0.0))
-        if cash < low[0]:
-            low = (cash, _ts(r.get("ts")))
-        if cash < -1e-6 and not allow_negative_cash:
-            errors.append(f"trade {r.get('id')} {_ts(r.get('ts'))[:16]}: cash goes negative ({cash:,.2f})")
-    return {"cash": cash, "positions": {k: asdict(v) for k, v in pos.items()}, "errors": errors,
-            "lowest_cash": {"cash": low[0], "at": low[1]}}
+        p.last_ts = ts
+        fees = float(r.get("fees") or 0.0)
+        self.fees += fees
+        self.trade_count += 1
+        self.cash += cash_delta(side, qty, price, mult, fees)
+        if self.cash < self.low[0]:
+            self.low = (self.cash, ts)
+        if self.cash < -1e-6 and not self.allow_negative_cash:
+            self.errors.append(f"trade {r.get('id')} {ts[:16]}: cash goes negative ({self.cash:,.2f})")
+
+    def result(self) -> dict:
+        return {"cash": self.cash, "positions": {k: asdict(v) for k, v in self.positions.items()}, "errors": self.errors,
+                "lowest_cash": {"cash": self.low[0], "at": self.low[1]}}
+
+
+def replay(starting_cash: float, rows: Iterable[dict], allow_negative_cash: bool = True) -> dict:
+    """Rebuild the portfolio from trade rows. Never writes to the database."""
+    state = Replay(starting_cash, allow_negative_cash)
+    for row in _order(rows):
+        state.apply(row)
+    return state.result()
 
 
 # ----------------------------------------------------------------------------------------------- DB side
@@ -283,6 +305,13 @@ def add_trade(pid: int, data: dict, reason: str, allow_negative_cash: bool = Fal
     return out
 
 
+def _reconcile_links(s, pid: int, tid: int, trade: store.Trade | None) -> None:
+    from vmi.paper import autotrade, entry_timing
+
+    autotrade.reconcile_linked_fill(s, pid, tid, trade)
+    entry_timing.reconcile_linked_entry(s, tid, trade)
+
+
 def update_trade(trade_id: int, changes: dict, reason: str, allow_negative_cash: bool = False) -> dict:
     if not reason.strip():
         raise LedgerError("a reason is required for every admin change")
@@ -297,6 +326,7 @@ def update_trade(trade_id: int, changes: dict, reason: str, allow_negative_cash:
         _dry_run(s, p, others + [{**d, "id": trade_id}], allow_negative_cash)
         _apply_row(t, d)
         t.edited = True
+        _reconcile_links(s, p.id, t.id, t)
         s.add(store.TradeAudit(portfolio_id=p.id, trade_id=trade_id, action="update", reason=reason, before=before,
                                after=_row(t)))
         s.commit()
@@ -315,6 +345,7 @@ def delete_trade(trade_id: int, reason: str, allow_negative_cash: bool = False) 
         _dry_run(s, p, [r for r in _rows(s, p.id) if r["id"] != trade_id], allow_negative_cash)
         s.add(store.TradeAudit(portfolio_id=p.id, trade_id=trade_id, action="delete", reason=reason, before=_row(t),
                                after=None))
+        _reconcile_links(s, p.id, t.id, None)
         s.delete(t)
         s.commit()
         pid = p.id
@@ -327,13 +358,13 @@ def ledger(pid: int) -> list[dict]:
         p = _portfolio(s, pid)
         rows = _order(_rows(s, pid))
         start = p.starting_cash
-    out, done = [], []
+    out = []
+    state = Replay(start)
     for r in rows:
-        done.append(r)
-        rep = replay(start, done)
-        st = rep["positions"].get(r["key"], {})
-        out.append({**r, "position_after": st.get("qty"), "avg_cost_after": st.get("avg_cost"),
-                    "realized_after": st.get("realized_pnl"), "cash_after": rep["cash"]})
+        state.apply(r)
+        st = state.positions[r["key"]]
+        out.append({**r, "position_after": st.qty, "avg_cost_after": st.avg_cost,
+                    "realized_after": st.realized_pnl, "cash_after": state.cash})
     return out
 
 

@@ -397,3 +397,27 @@ def test_backdater_retries_after_sell_and_uses_updated_holdings(pid):
     assert sorted(t["qty"] for t in _trades(pid) if t["side"] == "SELL") == [175, 350]
     assert "no cash" in r["reasons"]["BBB"][0]
     assert ledger.verify(pid)["ok"]
+
+
+
+def test_backdated_trade_updates_history_and_does_not_consume_todays_touch(pid):
+    from vmi.paper import entry_timing, journal
+
+    entry_timing.record_touch("AAA", 100, 99)
+    autotrade.upsert_plan(pid, "AAA", buy_levels=[100], allocation=1000)
+    bars = _day_bars([(99, 98)])
+    event = autotrade.backdate(pid, 30, history_fn=lambda _: bars)["events"][0]
+    day = event["day"]
+    assert journal.snapshot(pid, f"{day}T09:29:59", history_fn=lambda _: bars)["positions"] == []
+    assert journal.snapshot(pid, f"{day}T09:30:00", history_fn=lambda _: bars)["trade_count"] == 1
+    assert len(entry_timing.open_touches()) == 1
+    tid = event["trade_id"]
+    with store.session() as s:
+        from sqlalchemy import select
+        touch = s.scalar(select(store.SupportTouch).where(store.SupportTouch.trade_id == tid))
+        assert touch.entered_at == touch.touched_at == s.get(store.Trade, tid).ts
+    ledger.update_trade(tid, {"ts": f"{day}T10:00:00-05:00"}, "time correction")
+    assert autotrade.get_plans(pid)[0]["buy_levels"][0]["filled_at"].endswith("15:00:00+00:00")
+    ledger.delete_trade(tid, "cancelled")
+    plan = autotrade.get_plans(pid)[0]
+    assert plan["status"] == "active" and plan["buy_levels"][0]["status"] == "pending"

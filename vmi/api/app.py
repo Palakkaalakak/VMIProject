@@ -8,9 +8,12 @@ stays responsive. A background task checks watchlists every 60s while the app is
 from __future__ import annotations
 
 import asyncio
+import csv
 import logging
 import re
 from contextlib import asynccontextmanager
+from datetime import date
+from io import StringIO
 
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -453,9 +456,9 @@ def overview_earnings(symbol: str):
 
 
 @ar.get("/{symbol}/size")
-def size(symbol: str, portfolio_id: int, multiplier: float = 1.0, price: float | None = None):
+def size(symbol: str, portfolio_id: int, multiplier: float = 1.0, price: float | None = None, as_of: str | None = None):
     from vmi.paper.engine import size_for
-    return size_for(portfolio_id, symbol, multiplier, price)
+    return size_for(portfolio_id, symbol, multiplier, price, as_of)
 
 
 # ======================================================================================== scanner
@@ -790,15 +793,53 @@ def pf_audit(pid: int):
 
 
 @pr.get("/{pid}/export")
-def pf_export(pid: int):
+def pf_export(pid: int, history: bool = False, start: date | None = None, end: date | None = None, as_of: str | None = None):
     from vmi.paper import journal
-    return journal.export(pid)
+    return journal.export(pid, include_history=history, start=start, end=end, as_of=as_of)
+
+
+@pr.get("/{pid}/history")
+def pf_history(pid: int, start: date | None = None, end: date | None = None):
+    from vmi.paper import journal
+    return journal.history(pid, start, end)
+
+
+@pr.get("/{pid}/history/as-of")
+def pf_history_as_of(pid: int, at: str):
+    from vmi.paper import journal
+    return journal.snapshot(pid, at)
+
+
+@pr.get("/{pid}/history/csv")
+def pf_history_csv(pid: int, start: date | None = None, end: date | None = None):
+    from vmi.paper import journal
+    points = journal.history(pid, start, end)["points"]
+    buffer = StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=list(points[0]))
+    writer.writeheader()
+    writer.writerows(points)
+    return Response(buffer.getvalue(), media_type="text/csv", headers={
+        "Content-Disposition": f'attachment; filename="portfolio-{pid}-history.csv"',
+    })
 
 
 @pr.get("/{pid}/marks")
-def pf_marks(pid: int, key: str | None = None, since: str | None = None):
+def pf_marks(pid: int, key: str | None = None, since: date | None = None, recorded: bool = False):
     from vmi.paper import journal
-    return journal.marks(pid, key, since)
+    if recorded:
+        return journal.marks(pid, key, since.isoformat() if since else None)
+    data = journal.history(pid, since, include_positions=key != journal.PORTFOLIO_KEY)
+    out = []
+    for point in data["points"]:
+        day = point["day"]
+        if not key or key == journal.PORTFOLIO_KEY:
+            out.append({"day": day, "portfolio_id": pid, "key": journal.PORTFOLIO_KEY, "symbol": "", "qty": 0,
+                        "price": None, "value": point["equity"], "data": {k: v for k, v in point.items() if k != "positions"}})
+        if key != journal.PORTFOLIO_KEY:
+            out.extend({"day": day, "portfolio_id": pid, "key": p["key"], "symbol": p["symbol"], "qty": p["qty"],
+                        "price": p["price"], "value": p["market_value"], "data": p}
+                       for p in point["positions"] if not key or p["key"] == key)
+    return out
 
 
 @pr.post("/{pid}/marks")

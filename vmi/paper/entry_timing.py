@@ -16,6 +16,7 @@ import pandas as pd
 from sqlalchemy import select
 
 from vmi import store
+from vmi.data.market_hours import ET
 from vmi.rules import RULES
 
 ASK_EVERY_DAYS = 2
@@ -85,6 +86,34 @@ def link_entry(symbol: str, trade_id: int, price: float, entry_type: str | None,
         return store.to_dict(t)
 
 
+def link_backdated_entry(trade_id: int, level: float, touch_price: float) -> None:
+    """A historical fill must not consume an unrelated touch that happens to be open today."""
+    with store.session() as s:
+        trade = s.get(store.Trade, trade_id)
+        if trade is None:
+            return
+        s.add(store.SupportTouch(symbol=trade.symbol, level=level, touch_price=touch_price, source="backfill",
+                                 touched_at=trade.ts, entered_at=trade.ts, closed_at=trade.ts, status="entered",
+                                 entry_type="on_touch", trade_id=trade_id, entry_price=trade.price))
+        s.commit()
+
+
+def reconcile_linked_entry(s, trade_id: int, trade: store.Trade | None) -> None:
+    for touch in s.scalars(select(store.SupportTouch).where(store.SupportTouch.trade_id == trade_id)):
+        if (trade is None or trade.sec_type != "STK" or trade.side != "BUY" or trade.kind != "fill"
+                or touch.symbol != trade.symbol):
+            if touch.source in ("manual", "backfill"):
+                s.delete(touch)
+            else:
+                touch.status, touch.trade_id, touch.entry_type = "lapsed", None, None
+                touch.entry_price, touch.entered_at = None, None
+        else:
+            touch.entered_at = touch.closed_at = trade.ts
+            touch.entry_price = trade.price
+            if touch.source in ("manual", "backfill") or _aware(trade.ts) < _aware(touch.touched_at):
+                touch.touched_at = trade.ts
+
+
 # ------------------------------------------------------------------------------------------------ asking
 def _prompt_due(t, now: datetime) -> bool:
     if t.status != "open" or t.waiting is False:
@@ -130,7 +159,7 @@ def answer(touch_id: int, waiting: bool) -> dict:
 def _outcome(t: dict, bars: pd.DataFrame) -> dict:
     """What the price did after one touch: forward returns from the price actually paid (or the touch price when nothing was bought),
     whether it broke down below the level, whether a rally was missed."""
-    day = _day(t["touched_at"])
+    day = pd.Timestamp(_aware(datetime.fromisoformat(t["touched_at"])).astimezone(ET).date())
     after = bars[bars.index >= day]
     base = t["entry_price"] or t["touch_price"]
     out = {"cost_vs_touch": ((t["entry_price"] / t["touch_price"]) - 1) if t["entry_price"] else None, "ret20": None, "ret60": None,

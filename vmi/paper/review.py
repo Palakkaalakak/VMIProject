@@ -7,7 +7,7 @@ summary(pid)               statistics + behaviour flags + breakdowns (tags, cate
 what_if(pid, name, **p)    alternative histories on the same lots, each returns actual vs alternative per lot + totals:
     hold_instead | exit_over_iv(pct) | exit_tranches(levels=[[pct, fraction], …]) | stop_target(stop, target)
     | hold_days(days) | entry_all_at_once | covered_calls(otm, dte, iv) | benchmark(symbol)
-equity_curve(pid)          daily equity (daily marks, else replay of the ledger on daily closes) and drawdown
+equity_curve(pid)          daily equity and drawdown from the effective-date ledger and daily closes
 
 Prices come from `history_fn(symbol) -> DataFrame[open, high, low, close]` (default market.history 10y) so tests and
 offline studies can inject their own. What-ifs use daily closes and are approximations: they say so in their output.
@@ -17,7 +17,7 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from typing import Any, Callable
 
 import pandas as pd
@@ -34,9 +34,11 @@ def _default_history(symbol: str) -> pd.DataFrame:
 
 
 def _day(ts: str | datetime) -> date:
-    if isinstance(ts, datetime):
-        return ts.date()
-    return datetime.fromisoformat(str(ts).replace("Z", "+00:00")).date()
+    from vmi.data.market_hours import ET
+
+    if isinstance(ts, str) and len(ts) == 10:
+        return date.fromisoformat(ts)
+    return datetime.fromisoformat(ledger._ts(ts)).astimezone(ET).date()
 
 
 @dataclass
@@ -74,10 +76,15 @@ def _ctx_summary(row: dict) -> dict:
     """The parts of a trade's context reviews group and filter by."""
     c = row.get("context") or {}
     a = c.get("analysis") or {}
+    # A later valuation cannot be treated as information available on a corrected, earlier execution day.
+    observed = (c.get("market") or {}).get("utc")
+    if observed and _day(observed) > _day(row["ts"]):
+        a = {}
+    source = "manual" if row.get("source") == "admin" else row.get("source")
     steps = a.get("steps") or []
     plan = c.get("plan") or {}
     return {"trade_id": row.get("id"), "ts": str(row.get("ts")), "price": row.get("price"),
-            "source": row.get("source"), "kind": row.get("kind"), "tags": [t for t in (row.get("tags") or "").split(",") if t],
+            "source": source, "kind": row.get("kind"), "tags": [t for t in (row.get("tags") or "").split(",") if t],
             "thesis": row.get("thesis") or "", "note": row.get("note") or "",
             "intrinsic_value": a.get("intrinsic_value"), "conservative_value": (a.get("valuation") or {}).get("conservative_value"),
             "method": (a.get("valuation") or {}).get("selected"),
@@ -248,7 +255,7 @@ def summary(pid: int, history_fn: HistoryFn | None = None) -> dict:
                        ("moat", lambda l: [l.entry.get("moat") or "unknown"]),
                        ("mos_at_entry", lambda l: [_mos_bucket(l.entry.get("margin_of_safety"))]),
                        ("method", lambda l: [l.entry.get("method") or "unknown"]),
-                       ("origin", lambda l: ["entered later" if l.entry.get("source") == "admin" else (l.entry.get("source") or "paper")]),
+                       ("origin", lambda l: [l.entry.get("source") or "paper"]),
                        ("trend_at_entry", lambda l: [l.entry.get("trend") or "unknown"])):
         g: dict[str, list[Lot]] = defaultdict(list)
         for l in stock:
@@ -463,39 +470,6 @@ WHAT_IFS = {"hold_instead": wi_hold_instead, "exit_over_iv": wi_exit_over_iv, "e
 
 # ------------------------------------------------------------------------------------------ equity curve
 def equity_curve(pid: int, history_fn: HistoryFn | None = None) -> dict:
-    from vmi import store
     from vmi.paper import journal
 
-    marks = [m for m in journal.marks(pid, key=journal.PORTFOLIO_KEY)]
-    if len(marks) >= 2:
-        pts = [(m["day"], m["value"]) for m in marks]
-        source = "daily marks"
-    else:
-        prices = Prices(history_fn)
-        with store.session() as s:
-            p = s.get(store.Portfolio, pid)
-            start_cash = p.starting_cash
-            rows = ledger._order(ledger._rows(s, pid))
-        if not rows:
-            return {"source": "none", "points": []}
-        d0, pts = _day(rows[0]["ts"]), []
-        days = pd.bdate_range(d0, date.today())
-        for d in days:
-            rep = ledger.replay(start_cash, [r for r in rows if _day(r["ts"]) <= d.date()])
-            val = rep["cash"]
-            for k, st in rep["positions"].items():
-                if not st["qty"]:
-                    continue
-                if st["sec_type"] == "STK":
-                    hit = prices.window(st["symbol"], d0, d.date())
-                    px = float(hit["close"].iloc[-1]) if hit is not None else st["avg_cost"]
-                else:
-                    px = st["avg_cost"]          # options at cost in this fallback
-                val += px * st["qty"] * st["multiplier"]
-            pts.append((str(d.date()), val))
-        source = "ledger replay on daily closes (options at cost)"
-    peak, out = -math.inf, []
-    for d, v in pts:
-        peak = max(peak, v or 0)
-        out.append({"day": d, "equity": v, "drawdown": (1 - v / peak) if peak else 0.0})
-    return {"source": source, "points": out, "max_drawdown": max((p["drawdown"] for p in out), default=0.0)}
+    return journal.history(pid, history_fn=history_fn)

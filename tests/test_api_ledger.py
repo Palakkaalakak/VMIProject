@@ -44,6 +44,54 @@ def test_admin_add_edit_delete_over_http(client):
     assert {a["action"] for a in client.get(f"/api/portfolios/{pid}/audit").json()} >= {"add", "update", "delete"}
 
 
+def test_history_replays_admin_changes_in_charts_snapshots_and_exports(client, monkeypatch):
+    import csv
+    from io import StringIO
+
+    import pandas as pd
+
+    from vmi import store
+    from vmi.data import market
+    from vmi.paper import journal
+
+    pid = _pf(client)
+    base = f"/api/portfolios/{pid}"
+    dates = ["2026-01-05", "2026-01-06", "2026-01-07"]
+    bars = pd.DataFrame({"close": [50, 75, 80]}, index=pd.to_datetime(dates))
+    monkeypatch.setattr(market, "history", lambda *a: bars)
+    with store.session() as s:
+        for day in dates:  # Old account totals cannot become authoritative after a correction.
+            s.add(store.DailyMark(portfolio_id=pid, key=journal.PORTFOLIO_KEY, day=day, value=10_000))
+        s.commit()
+    added = client.post(base + "/ledger", json={"symbol": "AAA", "side": "BUY", "qty": 10, "price": 40,
+                                                 "ts": "2026-01-06T19:30:00-05:00", "fees": 2, "reason": "missed fill"})
+    assert added.status_code == 200
+    tid = added.json()["trade_id"]
+    opts = {"start": dates[0], "end": dates[-1]}
+    before = client.get(base + "/history/as-of", params={"at": "2026-01-06T19:29:59"}).json()
+    after = client.get(base + "/history/as-of", params={"at": "2026-01-07T00:30:00Z"}).json()
+    assert before["positions"] == [] and before["cash"] == 10_000
+    assert after["day"] == dates[1] and after["cash"] == 9_598 and after["positions"][0]["price"] == 75
+    curve = client.get(base + "/history", params=opts).json()["points"]
+    assert [p["equity"] for p in curve] == [10_000, 10_348, 10_398]
+    review_curve = client.get(base + "/equity-curve").json()["points"]
+    assert next(p for p in review_curve if p["day"] == dates[1])["equity"] == 10_348
+    r = client.get(base + "/history/csv", params=opts)
+    assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
+    assert [float(row["equity"]) for row in csv.DictReader(StringIO(r.text))] == [10_000, 10_348, 10_398]
+    ex = client.get(base + "/export", params={**opts, "history": "true", "as_of": dates[1]}).json()
+    assert ex["history"]["points"][1]["positions"][0]["qty"] == 10 and ex["as_of"]["cash"] == 9_598
+    assert ex["daily_marks"][0]["value"] == 10_000  # archive stays as captured
+    assert next(a for a in ex["audit"] if a["action"] == "add")["ts"][:10] != dates[1]
+    assert client.put(f"/api/ledger/{tid}", json={"changes": {"ts": "2026-01-07T11:30:00-05:00"}, "reason": "date"}).status_code == 200
+    assert client.get(base + "/history/as-of", params={"at": dates[1]}).json()["positions"] == []
+    intraday = client.get(base + "/history/as-of", params={"at": "2026-01-07T12:00"}).json()
+    assert intraday["positions"][0]["price"] == 75  # don't use today's future closing price
+    assert client.post(f"/api/ledger/{tid}/delete", json={"reason": "cancelled"}).status_code == 200
+    assert all(p["equity"] == 10_000 for p in client.get(base + "/history", params=opts).json()["points"])
+    assert client.get(base + "/history/as-of", params={"at": "2099-01-01"}).status_code == 400
+
+
 def test_oversell_and_missing_reason_are_400(client):
     pid = _pf(client)
     bad = client.post(f"/api/portfolios/{pid}/ledger", json={"symbol": "AAA", "side": "SELL", "qty": 5, "price": 50,

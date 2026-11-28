@@ -31,7 +31,7 @@ export async function render(root, params = {}) {
 async function list(root, id) {
   const rows = await api.snapshots({ portfolio_id: id });
   const box = $("#ob-list", root);
-  box.innerHTML = `<h3>Saved snapshots (${rows.length})</h3>`;
+  box.innerHTML = `<h3>Saved snapshots (${rows.length})</h3><p class="small muted">Portfolio captures use corrected holdings at capture time and keep the recorded spot and IV. Manual what-if legs stay as entered.</p>`;
   box.appendChild(table([
     { key: "ts", label: "Saved", render: (r) => esc(String(r.ts).replace("T", " ").slice(0, 16)) },
     { key: "symbol", label: "Underlying", render: (r) => `<b>${esc(r.symbol)}</b>` },

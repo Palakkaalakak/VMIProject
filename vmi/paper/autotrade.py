@@ -248,12 +248,34 @@ def match_manual_fill(pid: int, trade_id: int) -> str | None:
         if not cands:
             return None
         price, i = min(cands)
-        levels[i].update(status="filled", trade_id=trade_id, filled_at=str(t.ts), fill_price=t.price,
+        levels[i].update(status="filled", trade_id=trade_id, filled_at=ledger._ts(t.ts), fill_price=t.price,
                          note=f"matched to {t.source} order #{trade_id}")
         plan.buy_levels = levels
         _log(plan, "matched_order", trade_id=trade_id, level=price)
         s.commit()
         return f"{t.symbol} level {price:g}"
+
+
+def reconcile_linked_fill(s, pid: int, tid: int, trade: store.Trade | None) -> None:
+    """An admin correction moves or removes the fill in its plan as well as in the portfolio."""
+    plans = s.scalars(select(store.TranchePlan).where(store.TranchePlan.portfolio_id == pid))
+    for plan in plans:
+        for field, side in (("buy_levels", "BUY"), ("sell_levels", "SELL")):
+            levels = [dict(level) for level in getattr(plan, field) or []]
+            changed = False
+            for level in levels:
+                if level.get("trade_id") != tid:
+                    continue
+                if (trade is not None and trade.sec_type == "STK" and trade.kind == "fill"
+                        and trade.symbol == plan.symbol and trade.side == side):
+                    level.update(filled_at=ledger._ts(trade.ts), fill_price=trade.price)
+                else:
+                    level.update(status="pending", trade_id=None, filled_at=None, fill_price=None, note="")
+                    if plan.status == "done":
+                        plan.status = "active"
+                changed = True
+            if changed:
+                setattr(plan, field, levels)
 
 
 # ------------------------------------------------------------------------------------------------- run
@@ -432,7 +454,7 @@ def _match_trades(plan: store.TranchePlan, trades: list[store.Trade]) -> None:
             abs(l["price"] - ref) <= ref * 0.005 if ref else l["price"] >= t.price * 0.99)]
         if cands:
             price, i = min(cands)
-            levels[i].update(status="filled", trade_id=t.id, filled_at=str(t.ts), fill_price=t.price,
+            levels[i].update(status="filled", trade_id=t.id, filled_at=ledger._ts(t.ts), fill_price=t.price,
                              note=f"matched to {t.source} order #{t.id}")
             _log(plan, "matched_order", trade_id=t.id, level=price)
             changed = True
@@ -837,7 +859,6 @@ def _track_timing(events: list[dict]) -> None:
             if e["event"] in ("level_alert", "backfill_alert"):
                 entry_timing.record_touch(e["symbol"], e["level"], e["px"], "plan")
             elif e["event"] == "backfill_buy":
-                entry_timing.record_touch(e["symbol"], e["level"], e["px"], "plan")
-                entry_timing.link_entry(e["symbol"], e["trade_id"], e["px"], "on_touch")
+                entry_timing.link_backdated_entry(e["trade_id"], e["level"], e["px"])
         except Exception:              # tracking must never break trading
             pass

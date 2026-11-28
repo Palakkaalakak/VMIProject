@@ -2,7 +2,7 @@
 import { api } from "../api.js";
 import { $, esc, fmt, loading, run, table, toast, signClass } from "../ui.js";
 import { refreshPortfolios, state } from "../state.js";
-import { pieChart, bindChartTips } from "../charts.js";
+import { lineChart, pieChart, bindChartTips } from "../charts.js";
 
 export async function render(root, params = {}) {
   root.innerHTML = loading("Loading portfolios…");
@@ -53,12 +53,14 @@ async function detail(box, id) {
         ${wl ? `<a class="button" href="#/watchlists/${wl.id}" title="The watchlist this portfolio is sized from">Watchlist: ${esc(wl.name)} (${wl.count})</a>` : ""}
         <a class="button" href="#/plans/${id}">Plans &amp; sizing</a> <a class="button" href="#/ledger/${id}">Ledger (edit orders)</a>
         <a class="button" href="#/review/${id}">Review &amp; what-ifs</a> <a class="button" href="#/optionbook/${id}">Option book</a>
+        <button type="button" id="pf-history-jump" class="secondary">History &amp; charts</button>
         <button type="button" id="pf-pre" class="secondary" title="Value the portfolio as if the market opened at the current pre-market prices. Needs IBKR connected.">View with pre-market levels</button>
         <button id="pf-reset" class="secondary">Reset</button>
         <button id="pf-delete" class="danger">Delete</button>
       </div>
     </section>
     <section class="card" id="pf-pre-box" hidden></section>
+    <section class="card" id="pf-history"></section>
     <section class="card"><h3>Positions</h3><div id="pf-pos"></div></section>
     <section class="card" id="pf-break"><h3>Breakdown <span class="muted small">by market value · cash is its own slice · option positions are one "Options" slice (absolute market value of the legs)</span></h3>
       <div class="inline"><span class="seg" id="pf-by">${BY.map(([k, l]) => `<button type="button" class="secondary small ${k === "sector" ? "on" : ""}" data-v="${k}">${esc(l)}</button>`).join("")}</span></div>
@@ -67,6 +69,9 @@ async function detail(box, id) {
   $("#pf-pos", box).appendChild(table(POS_COLS, p.positions || [], { actions: posActions(id, () => detail(box, id)), empty: "No positions — analyse a stock and buy a tranche.", initialSort: { key: "market_value" } }));
   $("#pf-trades", box).appendChild(table(TRADE_COLS, trades || [], { empty: "No trades yet", initialSort: { key: "ts" } }));
   breakdownCard(box, id, p.equity);
+  const history = $("#pf-history", box);
+  historyCard(history, id);
+  $("#pf-history-jump", box).onclick = () => history.scrollIntoView({ block: "start", behavior: "smooth" });
   $("#pf-pre", box).addEventListener("click", async (e) => {
     const out = $("#pf-pre-box", box), btn = e.currentTarget;
     out.hidden = false; btn.disabled = true; out.innerHTML = loading("Asking IBKR for extended-hours prices…");
@@ -86,6 +91,127 @@ async function detail(box, id) {
     run(e.target, async () => { await api.resetPortfolio(id); detail(box, id); }));
   $("#pf-delete", box).addEventListener("click", (e) => confirm(`Delete ${p.name}?`) &&
     run(e.target, async () => { await api.deletePortfolio(id); location.hash = "#/portfolios"; }));
+}
+
+const HISTORY_METRICS = {
+  value: [["equity", "Equity"], ["cash", "Cash"], ["market_value", "Net market value"]],
+  pnl: [["realized_pnl", "Realised P&L"], ["unrealized_pnl", "Unrealised P&L"]],
+  risk: [["total_return", "Total return"], ["drawdown", "Drawdown from range peak"]],
+};
+const historyKpi = (label, value) => `<div class="kpi"><span>${label}</span><b>${value}</b></div>`;
+const numCol = (key, label, render = fmt.money) => ({ key, label, cls: "num", render: (r) => render(r[key]) });
+
+function download(data, name, type) {
+  const url = URL.createObjectURL(new Blob([data], { type }));
+  Object.assign(document.createElement("a"), { href: url, download: name }).click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function historyCard(box, id) {
+  box.innerHTML = `<h3>Portfolio history</h3>
+    <p class="small muted">Orders count at execution time, including admin corrections and Backdater fills. Times are New York time.
+      Holdings and cash use the exact selected time; valuations use the latest eligible daily close or a recorded quote. Missing prices are estimated at cost.</p>
+    <form id="ph-range" class="inline">
+      <label>From <input type="date" name="start"></label><label>Through <input type="date" name="end"></label>
+      <button class="secondary">Apply range</button><button type="button" class="secondary" id="ph-all">All history</button>
+      <label>Chart <select id="ph-metric"><option value="value">Equity &amp; cash</option><option value="pnl">Profit &amp; loss</option><option value="risk">Return &amp; drawdown</option></select></label>
+      <button type="button" class="secondary" id="ph-csv">Download chart CSV</button>
+      <button type="button" class="secondary" id="ph-json">Export portfolio JSON</button>
+    </form>
+    <div id="ph-stats"></div><div id="ph-chart"></div>
+    <form id="ph-at" class="inline">
+      <label>View on <input type="date" name="day" required></label>
+      <label>Time ET (optional) <input type="time" name="time" step="1"></label>
+      <button class="secondary">View snapshot</button>
+    </form>
+    <div id="ph-snapshot" aria-live="polite"><p class="muted small">Pick a date or select a row below. Leave time blank for end of day.</p></div>
+    <details><summary>Daily history data</summary><div id="ph-days"></div></details>`;
+  const range = $("#ph-range", box), atForm = $("#ph-at", box), chart = $("#ph-chart", box),
+    stats = $("#ph-stats", box), days = $("#ph-days", box), snapshot = $("#ph-snapshot", box), metric = $("#ph-metric", box);
+  const start = range.elements.start, end = range.elements.end, atDay = atForm.elements.day, atTime = atForm.elements.time;
+  let data, activeRange = {}, activeAt, rangeRequest = 0, snapshotRequest = 0;
+  const paintChart = () => {
+    if (!data) return;
+    const points = data.points;
+    const xs = points.map((_, i) => i);
+    const pct = metric.value === "risk";
+    chart.innerHTML = lineChart({ width: 1080, series: HISTORY_METRICS[metric.value].map(([key, name]) => ({
+      name, xs, ys: points.map((p) => key === "drawdown" ? -p[key] : p[key]),
+    })), zero: pct, fmtX: (n) => points[Math.round(n)]?.day || "", fmtY: (n) => pct ? fmt.pct(n, 1) : fmt.money(n, 0) });
+    const svg = $("svg", chart);
+    if (svg) {
+      svg.style.cursor = "crosshair";
+      svg.setAttribute("aria-label", "Portfolio history. Click the chart or use the date form to select a day.");
+      svg.addEventListener("click", (e) => {
+        const loc = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM().inverse());
+        const i = Math.max(0, Math.min(points.length - 1, Math.round((loc.x - 64) / (1080 - 64 - 14) * (points.length - 1))));
+        selectDay(points[i].day);
+      });
+    }
+  };
+  const load = async (params = {}) => {
+    const request = ++rangeRequest;
+    chart.innerHTML = loading("Replaying orders and loading daily prices…");
+    try {
+      const response = await api.portfolioHistory(id, params);
+      if (request !== rangeRequest) return;
+      data = response;
+      activeRange = params;
+      const [first, last] = [data.points[0], data.points.at(-1)];
+      start.value = first.day; end.value = last.day;
+      atDay.value ||= last.day;
+      stats.innerHTML = `<div class="kpis">${historyKpi("Ending equity", fmt.money(last.equity))}
+        ${historyKpi("Range return", fmt.pct(data.period_return))}${historyKpi("Max drawdown (range)", fmt.pct(data.max_drawdown))}
+        ${historyKpi("As-of fees", fmt.money(last.fees))}${historyKpi("Days with cost estimates", data.estimated_days)}</div>`;
+      paintChart();
+      days.replaceChildren(table([
+        { key: "day", label: "Date (ET)", render: (p) => `<button type="button" class="small secondary" data-action="snapshot">${esc(p.day)}</button>` },
+        numCol("equity", "Equity"), numCol("cash", "Cash"), numCol("market_value", "Market value"),
+        numCol("realized_pnl", "Realised"), numCol("unrealized_pnl", "Unrealised"), numCol("total_return", "Return", fmt.pct),
+        numCol("drawdown", "Drawdown", fmt.pct), { key: "estimated_positions", label: "Estimated marks", cls: "num" },
+      ], data.points, { initialSort: { key: "day", desc: true }, actions: { snapshot: (p) => selectDay(p.day) } }));
+    } catch (e) {
+      if (request === rangeRequest) {
+        if (data) paintChart(); else chart.textContent = "History unavailable.";
+        toast(e.message, "error");
+      }
+    }
+  };
+  const showSnapshot = async () => {
+    const request = ++snapshotRequest;
+    const at = atDay.value + (atTime.value ? `T${atTime.value}` : "");
+    snapshot.innerHTML = loading("Replaying the selected snapshot…");
+    try {
+      const p = await api.portfolioSnapshot(id, at);
+      if (request !== snapshotRequest) return;
+      activeAt = at;
+      snapshot.innerHTML = `<h4>Snapshot · ${esc(p.as_of.slice(0, 19).replace("T", " "))} ET</h4>
+        <div class="kpis">${historyKpi("Equity", fmt.money(p.equity))}${historyKpi("Cash", fmt.money(p.cash))}
+          ${historyKpi("Free cash", fmt.money(p.free_cash))}${historyKpi("CSP collateral", fmt.money(p.reserved_cash))}
+          ${historyKpi("Realised P&L", fmt.money(p.realized_pnl))}${historyKpi("Unrealised P&L", fmt.money(p.unrealized_pnl))}
+          ${historyKpi("Total return", fmt.pct(p.total_return))}${historyKpi("Trades through snapshot", p.trade_count)}</div>`;
+      snapshot.appendChild(table([
+        { key: "key", label: "Position" }, numCol("qty", "Quantity", (n) => fmt.num(n, 4)), numCol("avg_cost", "Avg cost"),
+        numCol("price", "Marked price"), { key: "price_day", label: "Price date" }, { key: "price_source", label: "Price source" },
+        numCol("market_value", "Value"), numCol("unrealized_pnl", "Unrealised"), numCol("weight", "Weight", fmt.pct),
+      ], p.positions, { initialSort: { key: "market_value" }, empty: "Cash only at that time." }));
+    } catch (e) {
+      if (request === snapshotRequest) { activeAt = undefined; snapshot.textContent = e.message; }
+    }
+  };
+  const selectDay = (day) => { atDay.value = day; atTime.value = ""; showSnapshot(); };
+  range.onsubmit = (e) => { e.preventDefault(); load({ start: start.value, end: end.value }); };
+  $("#ph-all", box).onclick = () => load();
+  metric.onchange = paintChart;
+  atForm.onsubmit = (e) => { e.preventDefault(); showSnapshot(); };
+  $("#ph-csv", box).onclick = (e) => run(e.target, async () => {
+    download(await api.portfolioHistoryCsv(id, activeRange), `portfolio-${id}-history.csv`, "text/csv");
+  });
+  $("#ph-json", box).onclick = (e) => run(e.target, async () => {
+    const all = await api.exportAll(id, { history: true, as_of: activeAt });
+    download(JSON.stringify(all, null, 2), `portfolio-${id}-export.json`, "application/json");
+  });
+  load();
 }
 
 const BY = [["sector", "Sector"], ["country", "Country"], ["category", "Category"], ["strategy", "Strategy"]];
@@ -145,7 +271,7 @@ const posActions = (pid, refresh) => ({
 });
 
 const TRADE_COLS = [
-  { key: "ts", label: "Time", render: (r) => esc(String(r.ts).replace("T", " ").slice(0, 19)) },
+  { key: "ts", label: "Effective time (UTC)", render: (r) => esc(String(r.ts).replace("T", " ").slice(0, 19)) },
   { key: "side", label: "Side" },
   { key: "symbol", label: "Instrument", render: (r) => esc(label(r)) },
   { key: "qty", label: "Qty", cls: "num", render: (r) => fmt.num(r.qty, 4) },

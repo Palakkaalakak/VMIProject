@@ -133,3 +133,46 @@ def test_journal_records_daily_marks_and_exports(pid, monkeypatch):
     assert port["value"] == pytest.approx(10_000 - 1000.5 + 1100)
     ex = journal.export(pid)
     assert ex["verify"]["ok"] and len(ex["ledger"]) == 1 and ex["daily_marks"]
+
+
+
+def test_portfolio_mark_cache_survives_weekend_and_refreshes_when_session_opens(pid, monkeypatch):
+    from vmi.data import market, market_hours
+
+    class Clock(datetime):
+        instant = datetime(2026, 11, 27, 20, 10, tzinfo=market_hours.ET)
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls.instant.astimezone(tz)
+
+    calls = []
+    monkeypatch.setattr(engine, "datetime", Clock)
+    monkeypatch.setattr(market, "last_price", lambda sym: calls.append(sym) or (100 + len(calls)))
+    engine.trade_stock(pid, "AAA", "BUY", 2, quote=q(100))
+    first = engine.summary(pid)["positions"][0]
+    Clock.instant += timedelta(days=2)
+    assert engine.summary(pid)["positions"][0]["price"] == first["price"] == 101
+    engine.trade_stock(pid, "AAA", "BUY", 1, quote=q(100))
+    assert engine.summary(pid)["positions"][0]["market_value"] == 3 * 101
+    assert len(calls) == 1
+    Clock.instant = datetime(2026, 11, 30, 9, 30, tzinfo=market_hours.ET)
+    assert engine.summary(pid)["positions"][0]["price"] == 102
+    assert len(calls) == 2
+
+
+def test_option_capture_replays_corrected_legs_without_changing_manual_what_if(pid, fake_options):
+    from vmi.options import book
+
+    result = engine.trade_option(pid, "AAA", "20991219", 80, "P", "SELL", 1)
+    tid, sid = result["trade"]["id"], result["snapshot_id"]
+    old = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
+    added = ledger.add_trade(pid, {"symbol": "AAA", "side": "BUY", "qty": 2, "price": 90, "ts": old}, "missed fill")
+    cap = book.get(sid)["inputs"]
+    assert {p["type"]: p["qty"] for p in cap["legs"]} == {"OPT": -1, "STK": 2}
+    manual = book.snapshot_legs("AAA", cap["legs"], 95, pid=pid)
+    ledger.delete_trade(added["trade_id"], "wrong portfolio")
+    ledger.delete_trade(tid, "cancelled")
+    assert book.get(sid)["inputs"]["legs"] == []
+    assert book.recompute(sid)["result"]["net_entry_cost"] == 0
+    assert len(book.get(manual)["inputs"]["legs"]) == 2

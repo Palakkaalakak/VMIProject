@@ -4,7 +4,10 @@ import { api } from "../api.js";
 import { $, esc, fmt, loading, modal, run, table, toast, signClass } from "../ui.js";
 import { refreshPortfolios, state } from "../state.js";
 
-const isoLocal = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
+const isoLocal = (instant) => {
+  const d = instant ? new Date(/Z$|[+-]\d\d:\d\d$/.test(instant) ? instant : `${instant}Z`) : new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 19);
+};
 const toIso = (local) => (local ? new Date(local).toISOString() : undefined);   // browser local time -> UTC instant
 const label = (r) => (r.sec_type === "OPT" ? r.key : r.symbol);
 
@@ -31,7 +34,7 @@ async function draw(root, id) {
   $("#lg-body", root).innerHTML = `<section class="card"><h3>Trades (${rows.length})</h3><div id="lg-table"></div></section>
     <section class="card"><h3>Audit trail</h3><div id="lg-audit"></div></section>`;
   const cols = [
-    { key: "ts", label: "Time", render: (r) => esc(String(r.ts).replace("T", " ").slice(0, 16)) + (r.edited ? " ✎" : "") },
+    { key: "ts", label: "Effective time (UTC)", render: (r) => esc(String(r.ts).replace("T", " ").slice(0, 16)) + (r.edited ? " ✎" : "") },
     { key: "side", label: "Side", render: (r) => `<b class="${r.side === "BUY" ? "pos" : "neg"}">${r.side}</b>` },
     { key: "symbol", label: "Instrument", render: (r) => `<a href="#/analysis/${esc(r.symbol)}">${esc(label(r))}</a>` },
     { key: "qty", label: "Qty", cls: "num", render: (r) => fmt.num(r.qty, 4) },
@@ -49,7 +52,7 @@ async function draw(root, id) {
     actions: { edit: (r) => editModal(root, id, r), del: (r) => deleteModal(root, id, r) },
   }));
   $("#lg-audit", root).appendChild(table([
-    { key: "ts", label: "When", render: (r) => esc(String(r.ts).replace("T", " ").slice(0, 19)) },
+    { key: "ts", label: "Recorded time (UTC)", render: (r) => esc(String(r.ts).replace("T", " ").slice(0, 19)) },
     { key: "action", label: "Action" }, { key: "trade_id", label: "Trade" }, { key: "reason", label: "Reason" },
     { key: "after", label: "Change", render: (r) => `<span class="small">${esc(r.action === "rebuild" ? rebuildDiff(r) : diff(r.before, r.after))}</span>` },
   ], audit, { initialSort: { key: "ts", desc: true }, empty: "No admin changes yet." }));
@@ -95,7 +98,7 @@ function orderForm(r = {}) {
     <label>Side <select name="side"><option ${r.side === "BUY" ? "selected" : ""}>BUY</option><option ${r.side === "SELL" ? "selected" : ""}>SELL</option></select></label>
     ${field("qty", opt ? "Contracts" : "Shares", "number", `step="any" required value="${r.qty ?? ""}"`)}
     ${field("price", "Fill price (per share)", "number", `step="any" required value="${r.price ?? ""}"`)}
-    ${field("ts", "Date & time (your local time)", "datetime-local", `required value="${r.ts ? new Date(r.ts).toISOString().slice(0, 16) : isoLocal()}"`)}
+    ${field("ts", "Date & time (your local time)", "datetime-local", `required step="1" value="${isoLocal(r.ts)}"`)}
     ${field("fees", "Fees $", "number", `step="any" value="${r.fees ?? 0}"`)}
     <label>Type <select name="sec_type"><option value="STK" ${opt ? "" : "selected"}>Stock</option><option value="OPT" ${opt ? "selected" : ""}>Option</option></select></label>
     ${field("expiry", "Option expiry YYYYMMDD", "text", `value="${esc(opt ? r.key.split(" ")[1] : "")}"`)}
@@ -129,13 +132,15 @@ function addModal(root, id) {
     const note = $("#auto-note", m.el);
     const sym = frm.symbol.value.trim().toUpperCase();
     if (!sym || frm.side.value !== "BUY" || frm.sec_type.value !== "STK") { note.textContent = "Needs a stock BUY with a symbol and a fill price."; return; }
-    if (!sizes.has(sym)) {
-      note.textContent = `Working out the tranche for ${sym} …`;
-      sizes.set(sym, api.size(sym, id, 1, 1));
+    const asOf = toIso(frm.ts.value);
+    const key = `${sym}:${asOf || "now"}`;
+    if (!sizes.has(key)) {
+      note.textContent = `Working out the tranche for ${sym} at the order time …`;
+      sizes.set(key, api.size(sym, id, 1, 1, asOf));
     }
     let s;
-    try { s = await sizes.get(sym); } catch (err) { sizes.delete(sym); note.textContent = err.message; return; }
-    if (sym !== frm.symbol.value.trim().toUpperCase() || !frm.auto.checked) return;     // the form moved on while we waited
+    try { s = await sizes.get(key); } catch (err) { sizes.delete(key); note.textContent = err.message; return; }
+    if (sym !== frm.symbol.value.trim().toUpperCase() || asOf !== toIso(frm.ts.value) || !frm.auto.checked) return;     // the form moved on while we waited
     const px = +frm.price.value;                                                       // read now, never the value at request time
     if (!(px > 0)) { note.textContent = `Tranche ready (1 of ${s.tranches}): type the fill price.`; return; }
     const dollars = s.fractional_shares_next;
@@ -144,7 +149,7 @@ function addModal(root, id) {
     frm.qty.value = qty;
     note.textContent = `Tranche ${fmt.money(s.tranche_value, 0)} (1 of ${s.tranches}) at ${fmt.money(px, 2)} = ${qty} shares${s.warning ? " · ⚠ " + s.warning : ""}`;
   };
-  ["symbol", "price", "side", "sec_type", "auto"].forEach((n) => frm.elements[n] && frm.elements[n].addEventListener("change", autosize));
+  ["symbol", "price", "side", "sec_type", "auto", "ts"].forEach((n) => frm.elements[n] && frm.elements[n].addEventListener("change", autosize));
   frm.price.addEventListener("input", autosize);
   frm.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -158,6 +163,7 @@ function editModal(root, id, r) {
   $("form", m.el).addEventListener("submit", (e) => {
     e.preventDefault();
     const { d, reason, allow_negative_cash } = payload(e.target);
+    if (d.ts === toIso(isoLocal(r.ts))) delete d.ts;  // keep original sub-second timestamp if unchanged
     run(e.submitter, async () => { await api.ledgerUpdate(r.id, { changes: d, reason, allow_negative_cash }); m.close(); toast("Trade updated; portfolio rebuilt", "ok"); draw(root, id); });
   });
 }
