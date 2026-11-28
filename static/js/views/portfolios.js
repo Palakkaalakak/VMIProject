@@ -1,6 +1,6 @@
 // Paper portfolios: summaries, positions (marked to market), trade log, create / reset / delete.
 import { api } from "../api.js";
-import { $, esc, fmt, loading, run, table, toast, signClass } from "../ui.js";
+import { $, esc, fmt, loading, run, table, toast, signClass, answerMarkdown } from "../ui.js";
 import { refreshPortfolios, state } from "../state.js";
 import { pieChart, bindChartTips } from "../charts.js";
 import { mountHistoryChart, stockChartColor } from "../chart_view.js";
@@ -143,14 +143,39 @@ function download(data, name, type) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+const HISTORY_PRESETS = ["1W", "1M", "3M", "6M", "YTD", "1Y", "3Y", "5Y", "ALL"];
+
+export function historyPreset(preset, today = new Date()) {
+  if (preset === "ALL") return {};
+  const et = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" });
+  const parts = Object.fromEntries(et.formatToParts(today).map(({ type, value }) => [type, value]));
+  const end = `${parts.year}-${parts.month}-${parts.day}`;
+  const start = new Date(`${end}T00:00:00Z`);
+  if (preset === "YTD") start.setUTCMonth(0, 1);
+  else if (preset === "1W") start.setUTCDate(start.getUTCDate() - 6);
+  else {
+    const months = parseInt(preset, 10) * (preset.endsWith("Y") ? 12 : 1);
+    const day = start.getUTCDate();
+    start.setUTCDate(1);
+    start.setUTCMonth(start.getUTCMonth() - months);
+    const max = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0)).getUTCDate();
+    start.setUTCDate(Math.min(day, max));
+    start.setUTCDate(start.getUTCDate() + 1); // opening value is the preceding close
+  }
+  return { start: start.toISOString().slice(0, 10), end };
+}
+
 function historyCard(box, portfolio) {
   const { id, name } = portfolio;
   const peers = state.portfolios.filter((p) => p.id !== id);
   box.innerHTML = `<h3>Portfolio history</h3>
     <p class="small muted ph-subtitle">Admin edits and Backdater fills count on the original trade dates. Daily valuations are historical marks, not live quotes.</p>
+    <div id="ph-presets" class="inline ph-metrics" role="group" aria-label="History range presets">
+      ${HISTORY_PRESETS.map((key) => `<button type="button" class="secondary small" data-preset="${key}" aria-pressed="${key === "ALL"}">${key === "ALL" ? "All" : key}</button>`).join("")}
+    </div>
     <form id="ph-range" class="inline">
       <label>From <input type="date" name="start"></label><label>Through <input type="date" name="end"></label>
-      <button class="secondary">Apply range</button><button type="button" class="secondary" id="ph-all">All history</button>
+      <button class="secondary">Apply custom range</button>
       <span class="spacer"></span><button type="button" class="secondary" id="ph-csv">Download CSV</button>
       <button type="button" class="secondary" id="ph-json">Export portfolio JSON</button>
       <a class="button" id="ph-report" target="_blank" rel="noopener">Printable report</a>
@@ -185,17 +210,18 @@ function historyCard(box, portfolio) {
     </div>
     <details class="ph-section"><summary>Daily history data (primary portfolio)</summary><div id="ph-days"></div></details>
     <div class="ph-section"><h4>Ask local AI <small class="muted" id="ph-ai-mode">Quick</small></h4>
-      <p class="small muted ph-subtitle">Quick uses the displayed chart data. Turn on either capability and the model will decide what to look up.</p>
+      <p class="small muted ph-subtitle">Quick uses the displayed chart data. Let the model look up more with Read app data or Web research. Deep analysis expands the enabled lookups.</p>
       <form id="ph-ai">
-        <div class="inline"><label class="grow">Question <input name="question" maxlength="500" required placeholder="Why did cash fall while equity stayed flat?"></label>
+        <div class="inline"><label class="grow">Question <textarea name="question" rows="3" required placeholder="Why did I underperform SPY from April through October 2025? Compare my actual holdings with the benchmark."></textarea></label>
           <button class="secondary">Ask</button><a href="#/ai-settings" class="small">AI Settings</a></div>
         <div class="ph-ai-options">
           <label title="Read-only access to trades, holdings, plans, market data and other app sections"><input type="checkbox" name="app_data"> Read app data</label>
           <label><input type="checkbox" name="web_research"> Web research</label>
+          <label title="Use more evidence lookups and a longer synthesis pass"><input type="checkbox" name="deep_research"> Deep analysis</label>
         </div>
         <p id="ph-public" class="small muted" hidden>Search providers receive the queries the model writes. The model is instructed to keep private details out of searches. Leave web research off to prevent public web searches.</p>
       </form>
-      <p class="ph-answer small" id="ph-answer" aria-live="polite"></p>
+      <div class="ph-answer" id="ph-answer" aria-live="polite"></div>
       <details id="ph-sources" hidden><summary>Sources and app lookups</summary><p class="ph-answer small"></p></details>
     </div>`;
   const range = $("#ph-range", box), atForm = $("#ph-at", box), chart = $("#ph-chart", box),
@@ -257,13 +283,14 @@ function historyCard(box, portfolio) {
       if (activeAt) showSnapshot(activeAt);
     } catch (e) { if (!destroyed && request === compareRequest) compareStatus.textContent = e.message; }
   };
-  const load = async (params = {}) => {
+  const load = async (params = {}, preset = "ALL") => {
     const request = ++rangeRequest;
     stats.innerHTML = loading("Replaying orders and loading daily prices…");
     try {
       const response = await api.portfolioHistory(id, params);
       if (destroyed || request !== rangeRequest) return;
       data = response; activeRange = params;
+      box.querySelectorAll("[data-preset]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.preset === preset)));
       const [first, last] = [data.points[0], data.points.at(-1)];
       start.value = first.day; end.value = last.day; atDay.value ||= last.day;
       performance.setRange({ start: first.day, end: last.day });
@@ -309,8 +336,11 @@ function historyCard(box, portfolio) {
       ], p.positions, { initialSort: { key: "market_value" }, empty: "Cash only at that time." }));
     } catch (e) { if (!destroyed && request === snapshotRequest) { activeAt = undefined; snapshot.textContent = e.message; } }
   };
-  range.onsubmit = (e) => { e.preventDefault(); load({ start: start.value, end: end.value }); };
-  $("#ph-all", box).onclick = () => load();
+  range.onsubmit = (e) => { e.preventDefault(); load({ start: start.value, end: end.value }, null); };
+  $("#ph-presets", box).onclick = (e) => {
+    const preset = e.target.dataset.preset;
+    if (preset) load(historyPreset(preset), preset);
+  };
   $("#ph-metrics", box).onclick = (e) => {
     if (!e.target.dataset.metric) return;
     metric = e.target.dataset.metric;
@@ -329,32 +359,29 @@ function historyCard(box, portfolio) {
   });
   const aiForm = $("#ph-ai", box), sources = $("#ph-sources", box);
   aiForm.onchange = () => {
-    const { app_data, web_research } = aiForm.elements;
+    const { app_data, web_research, deep_research } = aiForm.elements;
     $("#ph-public", aiForm).hidden = !web_research.checked;
-    $("#ph-ai-mode", box).textContent = app_data.checked || web_research.checked ? "Assistant" : "Quick";
+    $("#ph-ai-mode", box).textContent = deep_research.checked ? "Deep" : app_data.checked || web_research.checked ? "Assistant" : "Quick";
   };
   aiForm.onsubmit = (e) => {
     e.preventDefault();
     const answer = $("#ph-answer", box);
     const fields = e.currentTarget.elements;
     const question = fields.question.value.trim();
-    const use_app_data = fields.app_data.checked, use_web_research = fields.web_research.checked;
+    const use_app_data = fields.app_data.checked, use_web_research = fields.web_research.checked, deep_research = fields.deep_research.checked;
     sources.hidden = true;
     sources.open = false;
     if (!question) return;
-    if (!data && !use_app_data && !use_web_research) {
-      answer.textContent = "Wait for history to load, or enable a lookup capability.";
-      return;
-    }
-    answer.textContent = "Asking the local model…";
+    answer.textContent = deep_research ? "Researching and comparing evidence on the local model…" : "Asking the local model…";
     run(e.submitter, async () => {
       try {
         const askedDays = [...new Set(question.match(/\b\d{4}-\d{2}-\d{2}\b/g) || [])].slice(0, 2);
-        const res = await api.portfolioAsk(id, { question, use_app_data, use_web_research, context: JSON.stringify({ metric,
+        const res = await api.portfolioAsk(id, { question, use_app_data, use_web_research, deep_research, context: JSON.stringify({ metric, range: activeRange,
+          benchmark: $("#ph-benchmark", box).value || null,
           primary: data ? quickFacts(name, data, snapshotData, askedDays) : { name }, comparison: peerData && quickFacts(peer()?.name, peerData, peerSnapshot, askedDays) }) });
-        answer.textContent = `${res.answer}\n\nLocal AI · ${res.model}`;
+        answer.innerHTML = answerMarkdown(res.answer) + `<p class="small muted">Local AI · ${esc(res.model)}</p>`;
         if (res.public_research || res.app_lookups) {
-          const research = (res.public_research || []).map(({ query, excerpts }) => `Public search: ${query}\n${excerpts}`);
+          const research = (res.public_research || []).map(({ query, url, excerpts }) => `${url ? `Source read: ${url}` : `Public search: ${query}`}\n${excerpts}`);
           const lookups = (res.app_lookups || []).map(({ section, status, ...args }) =>
             `${section} (${status})${Object.keys(args).length ? ` · ${JSON.stringify(args)}` : ""}`);
           $("p", sources).textContent = [use_web_research && (research.join("\n\n") || "No public searches used."),

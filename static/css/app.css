@@ -187,6 +187,17 @@ ul.pie-legend { min-width: 200px; } .pie-legend li { display: flex; align-items:
 .ph-chart-help { margin: .35rem 0; }
 .ph-ai-options { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin: .5rem 0; }
 .ph-ai-options label { display: inline-flex; align-items: center; gap: .35rem; }
+#ph-presets { margin-bottom: .55rem; }
+#ph-ai textarea { width: 100%; resize: vertical; }
+#ph-answer { white-space: normal; line-height: 1.55; overflow-wrap: anywhere; }
+#ph-answer :is(h4, h5, h6) { margin: 1.1em 0 .3em; }
+#ph-answer :is(p, ul, ol, blockquote) { margin: .65em 0; }
+#ph-answer pre { overflow: auto; white-space: pre; }
+#ph-answer blockquote { border-left: 3px solid var(--line); padding-left: .65em; }
+.ph-answer-table { overflow-x: auto; margin: .75em 0; }
+.ph-answer-table table { width: max-content; min-width: 100%; border-collapse: collapse; }
+.ph-answer-table :is(th, td) { border: 1px solid var(--line); padding: .45em .7em; white-space: normal; text-align: left; max-width: 26rem; }
+.ph-answer-table th { background: var(--panel-2); }
 .ph-answer { white-space: pre-wrap; overflow-wrap: anywhere; }
 .ph-subtitle { margin: .25rem 0 .7rem; }
 #ph-scale-label[hidden] { display: none; }

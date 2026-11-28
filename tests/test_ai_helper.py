@@ -20,3 +20,61 @@ def test_opinion_strips_reasoning_preamble(monkeypatch):
     monkeypatch.setattr(ai_helper, "status", lambda: {"backend": "ollama", "model": "x"})     # hermetic: never start the real built-in server
     monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: io.BytesIO(json.dumps({"response": "<think>hmm</think>Narrow moat."}).encode()))
     assert ai_helper.opinion("x") == "Narrow moat."
+
+
+
+def test_assistant_resumes_length_limited_markdown(monkeypatch):
+    from vmi import ai_helper as h
+
+    monkeypatch.setattr(h.ai_runtime, "ensure_running", lambda: "local")
+    replies = iter([
+        {"content": "| Stock | P&L |\n| --- | --- |\n| AAA | $13 |", "finish_reason": "length"},
+        {"content": "| BBB | $20 |\n\nBBB contributed more.", "finish_reason": "stop"},
+    ])
+    seen = []
+    def reply(base, body, timeout):
+        seen.append(body)
+        return next(replies)
+    monkeypatch.setattr(h.ai_runtime, "_post_chat", reply)
+    text = h.assistant_chat("builtin", [{"role": "user", "content": "Compare holdings"}], [], None)
+    assert "| AAA | $13 |\n| BBB | $20 |" in text and text.endswith("BBB contributed more.")
+    assert "Continue exactly" in seen[1]["messages"][-1]["content"]
+
+
+def test_assistant_errors_distinguish_current_safety_from_timeout(monkeypatch):
+    import pytest
+    from vmi import ai_helper as h
+
+    rt = h.ai_runtime
+    monkeypatch.setitem(rt._server, "tripped_at", 1)
+    monkeypatch.setitem(rt._server, "run_trip_from", 1)
+    monkeypatch.setattr(rt, "ensure_running", lambda: "local")
+    messages = [{"role": "user", "content": "My question"}]
+
+    def failed(base, body, timeout):
+        raise TimeoutError()
+
+    monkeypatch.setattr(rt, "_post_chat", failed)
+    with pytest.raises(h.AssistantUnavailable, match="did not respond within 10 minutes"):
+        h.assistant_chat("builtin", messages, [], None)
+    monkeypatch.setitem(rt._server, "tripped_at", 2)
+    monkeypatch.setitem(rt._server, "tripped", "free system RAM is down to 648 MB")
+    with pytest.raises(h.AssistantUnavailable, match="stopped for safety.*648 MB"):
+        h.assistant_chat("builtin", messages, [], None)
+
+
+def test_assistant_processes_all_chunks_of_long_input(monkeypatch):
+    from vmi import ai_helper as h
+
+    monkeypatch.setattr(h.ai_runtime, "ensure_running", lambda: "local")
+    prompts = []
+
+    def reply(base, body, timeout):
+        prompts.append(body["messages"][-1]["content"])
+        return {"content": f"Pass {len(prompts)}", "finish_reason": "stop"}
+
+    monkeypatch.setattr(h.ai_runtime, "_post_chat", reply)
+    text = "FIRST" + "x" * 24999 + "LAST"
+    assert h.assistant_chat("builtin", [{"role": "user", "content": text}], [], None) == "Pass 4"
+    assert "FIRST" in prompts[0] and "LAST" in prompts[2]
+    assert "Pass 2" in prompts[2] and "Pass 3" in prompts[3]

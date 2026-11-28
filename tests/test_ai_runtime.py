@@ -44,3 +44,34 @@ def test_status_reports_not_ready_before_any_download(tmp_path, monkeypatch):
     monkeypatch.setattr(get_settings(), "data_dir", tmp_path)
     s = R.status()
     assert s["ready"] is False and s["server_present"] is False and s["model_present"] is False
+
+
+def test_retry_after_one_second_uses_current_readings(tmp_path, monkeypatch):
+    from vmi.ai_settings import AISettings
+    import pytest
+
+    class Proc:
+        pid = 314
+        def poll(self): return None
+
+    monkeypatch.setattr(R, "_server", {"proc": None, "tripped": "hot", "tripped_at": 10.0})
+    monkeypatch.setattr(R.time, "time", lambda: 11.0)
+    monkeypatch.setattr(R, "ready", lambda: True)
+    monkeypatch.setattr(R.ai_settings, "load", AISettings)
+    monkeypatch.setattr(R, "free_ram_mb", lambda: 8192)
+    temp = [85]
+    monkeypatch.setattr(R, "gpu_state", lambda: {"temp": temp[0], "free_mb": 10000})
+    monkeypatch.setattr(R, "kill_stale", lambda: None)
+    monkeypatch.setattr(R, "gpu_layers", lambda: 99)
+    monkeypatch.setattr(R, "_free_port", lambda: 8765)
+    monkeypatch.setattr(R, "server_exe", lambda: "llama-server")
+    monkeypatch.setattr(R, "model_path", lambda: "model")
+    monkeypatch.setattr(R, "_pidfile", lambda: tmp_path / "pid")
+    monkeypatch.setattr(R.subprocess, "Popen", lambda *a, **k: Proc())
+    monkeypatch.setattr(R.urllib.request, "urlopen", lambda *a, **k: _Resp(b"{}"))
+    monkeypatch.setattr(R.threading, "Thread", lambda **k: type("NoThread", (), {"start": lambda self: None})())
+    with pytest.raises(R.SafetyBlocked, match="85 °C"):
+        R.ensure_running()
+    temp[0] = 84
+    assert R.ensure_running() == "http://127.0.0.1:8765"
+    assert R._server["tripped"] == "hot"   # last event is history, not a lockout

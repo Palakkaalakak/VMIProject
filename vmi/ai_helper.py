@@ -103,30 +103,119 @@ def overview_chat(backend: str, messages: list[dict], max_tokens: int, *, timeou
 
 
 
-def assistant_chat(backend: str, messages: list[dict], tools: list[dict], run_tool) -> str:
-    """Run at most three read-only tool rounds, followed by a tool-free answer."""
-    if not tools:
-        return overview_chat(backend, messages, 650, timeout=90)
-    if backend == "builtin":
-        return ai_runtime.chat_with_tools(messages, tools, run_tool, max_rounds=3, max_tokens=650, timeout=90)
-    if backend != "ollama":
-        raise RuntimeError("No local AI model is available.")
+class AssistantUnavailable(RuntimeError):
+    """A user-facing local-model failure, not a question validation error."""
+
+
+def assistant_chat(backend: str, messages: list[dict], tools: list[dict], run_tool, *, deep: bool = False) -> str:
+    """Read-only research followed by a substantive answer, continuing token-limited responses."""
+    if backend not in {"builtin", "ollama"}:
+        raise AssistantUnavailable("No local AI model is ready. Check AI Settings.")
+    from contextlib import nullcontext
+    import http.client
+    import urllib.error
+
     settings = get_settings()
-    messages = list(messages)
-    for _ in range(3):
-        body = {"model": settings.ai_model, "messages": messages, "tools": tools, "stream": False,
-                "options": {"num_predict": 650, "temperature": 0.3, "num_ctx": ai_runtime.CTX}}
-        req = urllib.request.Request(f"{settings.ai_url}/api/chat", data=json.dumps(body).encode(),
-                                     headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=min(90, settings.ai_timeout)) as response:
-            msg = json.loads(response.read())["message"]
-        calls = (msg.get("tool_calls") or [])[:5]
-        if not calls:
+    with (ai_runtime.active_request() if backend == "builtin" else nullcontext()):
+        base = None
+        started = None
+
+        def post(history, exposed=(), tokens=2000):
+            nonlocal base, started
+            try:
+                if backend == "builtin":
+                    if base is None:
+                        base = ai_runtime.ensure_running()
+                        started = ai_runtime._server.get("run_trip_from", 0)
+                    body = {"messages": history, "temperature": 0.25, "max_tokens": tokens,
+                            "chat_template_kwargs": ai_runtime.CHAT_KWARGS}
+                    if exposed:
+                        body["tools"] = exposed
+                    return ai_runtime._post_chat(base, body, 600)
+                body = {"model": settings.ai_model, "messages": history, "stream": False,
+                        "options": {"num_predict": tokens, "temperature": 0.25, "num_ctx": ai_runtime.CTX}}
+                if exposed:
+                    body["tools"] = exposed
+                req = urllib.request.Request(f"{settings.ai_url}/api/chat", data=json.dumps(body).encode(),
+                                             headers={"Content-Type": "application/json"})
+                with urllib.request.urlopen(req, timeout=600) as response:
+                    reply = json.loads(response.read())
+                return {**reply["message"], "finish_reason": reply.get("done_reason")}
+            except ai_runtime.SafetyBlocked as exc:
+                raise AssistantUnavailable(str(exc)) from exc
+            except (OSError, http.client.HTTPException, RuntimeError, ValueError, KeyError) as exc:
+                if backend == "builtin" and started is not None and ai_runtime._server["tripped_at"] > started:
+                    why = ai_runtime._server["tripped"]
+                    raise AssistantUnavailable(f"Built-in model stopped for safety: {why}. You can retry as soon as readings recover.") from exc
+                if isinstance(exc, TimeoutError) or isinstance(getattr(exc, "reason", None), TimeoutError):
+                    raise AssistantUnavailable("The local model did not respond within 10 minutes on a generation step. The question was accepted.") from exc
+                if isinstance(exc, urllib.error.HTTPError):
+                    code = exc.code
+                    hint = " Select a tool-capable Ollama model for app/web lookups." if backend == "ollama" and exposed and code == 400 else ""
+                    raise AssistantUnavailable(f"The {backend} model rejected the request (HTTP {code}).{hint}") from exc
+                if backend == "builtin" and base is None and isinstance(exc, RuntimeError):
+                    raise AssistantUnavailable(str(exc)) from exc
+                raise AssistantUnavailable(f"Lost the connection to the {backend} model. Check whether its process is still running.") from exc
+
+        def content(msg):
             return (msg.get("content") or "").split("</think>")[-1].strip()
-        messages.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": calls})
-        for call in calls:
-            fn = call.get("function", {})
-            name = fn.get("name", "")
-            messages.append({"role": "tool", "tool_name": name,
-                             "content": run_tool(name, fn.get("arguments", {}))})
-    return overview_chat(backend, messages, 650, timeout=90)
+
+        original = [dict(m) for m in messages]
+        # A user's input is not character-capped. Process oversized input in stages rather than silently dropping it.
+        # The conservative chunk size also leaves room for dense pasted code, figures, or non-English text.
+        if len(original[-1]["content"]) > 24000:
+            text = original[-1]["content"]
+            notes = ""
+            for i in range(0, len(text), 12000):
+                notes = content(post([
+                    {"role": "system", "content": "Build running notes for answering a long user request. Preserve every distinct question, ticker, date, constraint and key figure. Merge this chunk with the previous notes. Do not answer yet."},
+                    {"role": "user", "content": f"Previous notes:\n{notes}\nNext part of the request:\n{text[i:i+12000]}"},
+                ], tokens=4000))
+            original[-1]["content"] = "Long request, distilled from all sections:\n" + notes
+
+        history = list(original)
+        rounds = (8 if deep else 4) if tools else 0
+        report_tokens = 4800 if deep else 3200
+        for turn in range(rounds + 1):
+            exposed = tools if turn < rounds else []
+            msg = post(history, exposed, report_tokens)
+            calls = (msg.get("tool_calls") or [])[:8] if exposed else []
+            if not calls:
+                break
+            history.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": calls})
+            for call in calls:
+                fn = call.get("function", {})
+                name = fn.get("name", "")
+                result = {"role": "tool", "content": run_tool(name, fn.get("arguments", {}))[:4000]}
+                if backend == "builtin":
+                    result["tool_call_id"] = call.get("id", "")
+                else:
+                    result["tool_name"] = name
+                history.append(result)
+            # Preserve the tool-call protocol but share the context across evidence records.
+            evidence = [m for m in history if m["role"] == "tool"]
+            allowance = max(320, min(4000, (36500 - sum(len(m["content"]) for m in original)) // len(evidence)))
+            for record in evidence:
+                if len(record["content"]) > allowance:
+                    record["content"] = record["content"][:allowance] + " [excerpt shortened]"
+
+        answer = content(msg)
+        while msg.get("finish_reason") in {"length", "max_tokens"}:
+            used = sum(len(m.get("content") or "") for m in history) + len(answer)
+            tokens = min(report_tokens, ai_runtime.CTX - used // 2 - 1200)
+            if not answer or tokens < 512:
+                return answer + "\n\n> The local model reached its context capacity before finishing this answer."
+            try:
+                msg = post(history + [{"role": "assistant", "content": answer},
+                                      {"role": "user", "content": "Continue exactly where the answer stopped. Do not restart, recap or repeat. Finish the incomplete sentence or table, then finish the answer."}], tokens=tokens)
+            except AssistantUnavailable as exc:
+                return answer + f"\n\n> Could not continue: {exc}"
+            continuation = content(msg)
+            if not continuation or continuation in answer:
+                return answer + "\n\n> The model could not produce a continuation."
+            if answer.splitlines()[-1].strip().startswith("|") and continuation.startswith("|"):
+                separator = "\n"
+            else:
+                separator = " " if not answer.endswith((".", "!", "?", ":")) else "\n\n"
+            answer += separator + continuation
+        return answer

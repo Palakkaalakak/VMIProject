@@ -24,6 +24,7 @@ import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
+from contextlib import contextmanager
 
 from vmi import ai_settings
 from vmi.config import get_settings
@@ -45,10 +46,10 @@ MAX_RUN_SECONDS = int(os.environ.get("VMI_AI_MAX_RUN_SECONDS", 40 * 60))     # h
 MAX_GPU_TEMP_C = int(os.environ.get("VMI_AI_MAX_TEMP", 85))                  # stop at this GPU temperature; no start when already near it
 MIN_START_RAM_MB = 2560                                                      # no start unless this much RAM is free (6 GB when layers are offloaded to RAM)
 MIN_FREE_VRAM_MB = 400                                                       # stop when the GPU has less than this left (the display needs some)
-COOLDOWN_SECONDS = 300                                                       # after a safety stop, no restart for this long
+GUARD_INTERVAL_SECONDS = 1                                                  # fresh readings, no timed restart lockout
 
 DOWNLOAD: dict = {"running": False, "what": "", "done": 0, "total": 0, "error": ""}
-_server: dict = {"proc": None, "port": None, "last_used": 0.0, "started": 0.0, "tripped": "", "tripped_at": 0.0}
+_server: dict = {"proc": None, "port": None, "last_used": 0.0, "started": 0.0, "tripped": "", "tripped_at": 0.0, "active": 0}
 _lock = threading.RLock()
 
 
@@ -213,23 +214,40 @@ def gpu_state() -> dict | None:
     """{temp, free_mb} of the hottest / fullest GPU from nvidia-smi, or None when there is none."""
     try:
         out = subprocess.run(["nvidia-smi", "--query-gpu=temperature.gpu,memory.free", "--format=csv,noheader,nounits"], capture_output=True,
-                             text=True, timeout=10, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0).stdout
+                             text=True, timeout=2, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0).stdout
         rows = [[float(x) for x in ln.split(",")] for ln in out.strip().splitlines() if ln.strip()]
         return {"temp": max(r[0] for r in rows), "free_mb": min(r[1] for r in rows)} if rows else None
     except Exception:
         return None
 
 
-def _danger(limits: ai_settings.AISettings) -> str:
+class SafetyBlocked(RuntimeError):
+    """Resource checks refused or stopped the built-in model."""
+
+
+def _danger(limits: ai_settings.AISettings, *, reading: tuple | None = None) -> str:
     """Why the machine is too stressed for the AI right now ('' = fine)."""
-    ram, gpu = free_ram_mb(), gpu_state()
-    if ram is not None and ram < limits.min_free_ram_mb:
-        return f"free memory is down to {ram:.0f} MB"
+    ram, gpu = (free_ram_mb(), gpu_state()) if reading is None else reading
     if gpu and gpu["temp"] >= min(MAX_GPU_TEMP_C, limits.max_gpu_temp_c):
         return f"the GPU reached {gpu['temp']:.0f} °C"
     if gpu and gpu["free_mb"] < MIN_FREE_VRAM_MB:
         return f"only {gpu['free_mb']:.0f} MB of GPU memory is left"
+    if not limits.override_ram_guard and ram is not None and ram < limits.min_free_ram_mb:
+        return f"free system RAM is down to {ram:.0f} MB (minimum {limits.min_free_ram_mb} MB)"
     return ""
+
+
+@contextmanager
+def active_request():
+    """Idle timeout must not stop the server during an in-flight answer or tool lookup."""
+    with _lock:
+        _server["active"] += 1
+    try:
+        yield
+    finally:
+        with _lock:
+            _server["active"] -= 1
+            _server["last_used"] = time.time()
 
 
 def _pidfile() -> Path:
@@ -255,14 +273,18 @@ def kill_stale() -> None:
 def _guard(proc: subprocess.Popen) -> None:
     """Stop the same server we inspected, never a replacement process."""
     while True:
-        time.sleep(5)
+        time.sleep(GUARD_INTERVAL_SECONDS)
         with _lock:
             if _server["proc"] is not proc or proc.poll() is not None:
                 return
-            limits = ai_settings.load()
+        limits = ai_settings.load()
+        danger = _danger(limits)
+        with _lock:
+            if _server["proc"] is not proc or proc.poll() is not None:
+                return
             max_seconds = min(MAX_RUN_SECONDS, limits.max_run_minutes * 60)
             why = (f"it reached the {max_seconds // 60}-minute safety limit"
-                   if time.time() - _server["started"] >= max_seconds else _danger(limits))
+                   if time.time() - _server["started"] >= max_seconds else danger)
             if why:
                 _server["tripped"], _server["tripped_at"] = why, time.time()
                 stop()
@@ -275,16 +297,13 @@ def ensure_running(wait: float = 120.0) -> str:
         if _server["proc"] is not None and _server["proc"].poll() is None:
             _server["last_used"] = time.time()
             return f"http://127.0.0.1:{_server['port']}"
-        if _server["tripped"] and time.time() - _server["tripped_at"] < COOLDOWN_SECONDS:
-            raise RuntimeError(f"the AI was stopped for safety ({_server['tripped']}); try again in a few minutes")
         if not ready():
             raise RuntimeError("the built-in AI is not downloaded yet (AI Settings)")
-        kill_stale()
         limits = ai_settings.load()
-        gpu = gpu_state()
-        if gpu and gpu["temp"] >= min(MAX_GPU_TEMP_C, limits.max_gpu_temp_c) - 8:
-            raise RuntimeError(f"the GPU is already hot ({gpu['temp']:.0f} °C): let it cool before starting the AI")
-        _server["tripped"] = ""
+        why = _danger(limits)
+        if why:
+            raise SafetyBlocked(f"Cannot start the built-in AI: {why}. Retry as soon as readings recover.")
+        kill_stale()
         first = gpu_layers()
         # start-up that dies (not enough GPU memory) is retried with fewer layers on the GPU; the rest then runs from normal RAM
         plan = [first] + ([max(0, min(first, MODEL_LAYERS) - 8), 0] if first > 0 else [])
@@ -292,12 +311,14 @@ def ensure_running(wait: float = 120.0) -> str:
         for ngl in dict.fromkeys(plan):
             ram = free_ram_mb()
             need = max(limits.min_free_ram_mb, MIN_START_RAM_MB if ngl >= 99 else 6144)
-            if ram is not None and ram < need:
-                raise RuntimeError(f"not enough free memory to start the AI safely ({ram:.0f} MB free, {need} MB needed): close other programs")
+            if not limits.override_ram_guard and ram is not None and ram < need:
+                raise SafetyBlocked(f"Cannot load the built-in model with {ram:.0f} MB of free system RAM. "
+                                    f"This configuration needs {need} MB to start. Close other programs, or review the RAM override in AI Settings.")
             port = _free_port()
             cmd = [str(server_exe()), "-m", str(model_path()), "--port", str(port), "--host", "127.0.0.1", "-ngl", str(ngl), "-c", str(CTX), "--jinja", "-t", str(max(2, (os.cpu_count() or 4) // 2))] + SERVER_EXTRA
             low = getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0)       # the desktop stays responsive
             _server["proc"] = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags | low)
+            _server["run_trip_from"] = _server["tripped_at"]
             _server["port"], _server["last_used"], _server["started"] = port, time.time(), time.time()
             try:
                 _pidfile().write_text(str(_server["proc"].pid))
@@ -330,7 +351,7 @@ def _idle_watch(proc: subprocess.Popen) -> None:
         with _lock:
             if _server["proc"] is not proc or proc.poll() is not None:
                 return
-            if time.time() - _server["last_used"] > IDLE_SECONDS:
+            if not _server["active"] and time.time() - _server["last_used"] > IDLE_SECONDS:
                 stop()
                 return
 
@@ -386,7 +407,8 @@ def chat(prompt: str, timeout: float = 300.0) -> str:
 def _post_chat(base: str, body: dict, timeout: float) -> dict:
     req = urllib.request.Request(f"{base}/v1/chat/completions", data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read())["choices"][0]["message"]
+        choice = json.loads(r.read())["choices"][0]
+        return {**choice["message"], "finish_reason": choice.get("finish_reason")}
 
 
 def chat_with_tools(messages: list[dict], tools: list[dict], run_tool, max_rounds: int = 5, timeout: float = 300.0,

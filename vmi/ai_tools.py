@@ -170,7 +170,7 @@ def web_search(query: str, n: int = 6) -> str:
             errors.append(f"{engine.__name__.strip('_')}: {exc}")
             continue
         if len(res) >= 2:
-            return "\n".join(f"- {t[:100]} ({u[:140]}): {s[:240]}" for t, u, s in res[:n])
+            return "\n".join(f"- {t[:100]} ({u[:500]}): {s[:240]}" for t, u, s in res[:n])
     return "no relevant results" + (f" ({'; '.join(errors)})" if errors else "") + ": try different, simpler words"
 
 

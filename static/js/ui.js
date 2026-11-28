@@ -95,3 +95,60 @@ export function modal(title, html) {
   document.body.appendChild(back);
   return { el: back, close };
 }
+
+// Small Markdown subset for generated answers. Escape every text node; only HTTP(S) links are accepted.
+export function answerMarkdown(text) {
+  const inline = (value) => {
+    const pattern = /`([^`\n]+)`|\*\*([^*\n]+)\*\*|\*([^*\n]+)\*|\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/gi;
+    let html = "", cursor = 0;
+    for (const m of value.matchAll(pattern)) {
+      html += esc(value.slice(cursor, m.index));
+      html += m[1] ? `<code>${esc(m[1])}</code>` : m[2] ? `<strong>${esc(m[2])}</strong>` : m[3] ? `<em>${esc(m[3])}</em>`
+        : `<a href="${esc(m[5])}" target="_blank" rel="noopener noreferrer">${esc(m[4])}</a>`;
+      cursor = m.index + m[0].length;
+    }
+    return html + esc(value.slice(cursor));
+  };
+  const lines = String(text ?? "").replace(/\r\n?/g, "\n").split("\n");
+  const listItem = /^\s*(?:([-+*])|(\d+)[.)])\s+(.+)$/;
+  const cells = (line) => line.trim().replace(/^\||\|$/g, "").split(/(?<!\\)\|/).map((c) => c.trim().replace(/\\\|/g, "|"));
+  const isTable = (i) => lines[i]?.includes("|") && lines[i + 1]?.includes("|") &&
+    cells(lines[i + 1]).length === cells(lines[i]).length && cells(lines[i + 1]).every((c) => /^:?-{2,}:?$/.test(c));
+  const out = [];
+  for (let i = 0; i < lines.length;) {
+    const line = lines[i].trim();
+    if (!line) { ++i; continue; }
+    if (line.startsWith("```")) {
+      const code = [];
+      for (++i; i < lines.length && !lines[i].trimStart().startsWith("```"); ++i) code.push(lines[i]);
+      ++i; out.push(`<pre><code>${esc(code.join("\n"))}</code></pre>`); continue;
+    }
+    if (isTable(i)) {
+      const head = cells(line);
+      const row = (data, tag) => `<tr>${head.map((_, j) => `<${tag}${tag === "th" ? ' scope="col"' : ""}>${inline(data[j] || "")}</${tag}>`).join("")}</tr>`;
+      const rows = [];
+      for (i += 2; lines[i]?.includes("|") && cells(lines[i]).length >= 2; ++i) rows.push(row(cells(lines[i]), "td"));
+      out.push(`<div class="ph-answer-table" tabindex="0"><table><thead>${row(head, "th")}</thead><tbody>${rows.join("")}</tbody></table></div>`);
+      continue;
+    }
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) { const level = Math.min(6, heading[1].length + 3); out.push(`<h${level}>${inline(heading[2])}</h${level}>`); ++i; continue; }
+    const item = line.match(listItem);
+    if (item) {
+      const tag = item[2] ? "ol" : "ul", items = [];
+      while (i < lines.length) {
+        const next = lines[i].match(listItem);
+        if (!next || Boolean(next[2]) !== Boolean(item[2])) break;
+        items.push(`<li>${inline(next[3])}</li>`); ++i;
+      }
+      out.push(`<${tag}>${items.join("")}</${tag}>`); continue;
+    }
+    if (line.startsWith("> ")) { out.push(`<blockquote>${inline(line.slice(2))}</blockquote>`); ++i; continue; }
+    const paragraph = [inline(line)];
+    while (++i < lines.length && lines[i].trim() && !/^(?:\s*(?:#|> |```))/.test(lines[i]) && !listItem.test(lines[i]) && !isTable(i)) {
+      paragraph.push(inline(lines[i].trim()));
+    }
+    out.push(`<p>${paragraph.join("<br>")}</p>`);
+  }
+  return out.join("");
+}

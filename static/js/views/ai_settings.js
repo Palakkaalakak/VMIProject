@@ -26,10 +26,12 @@ function settingsForm(s) {
       `<option ${s.overview_depth === depth ? "selected" : ""}>${depth}</option>`).join("")}</select></label>
     <label><input type="checkbox" name="cache_overviews" ${s.cache_overviews ? "checked" : ""}> Reuse locally cached overviews for up to 3 days</label></div></section>
     <section class="card"><h3>Built-in AI safety</h3>
-    <p class="small muted">These limits only govern the built-in model, not Ollama. They can make the default safeguards stricter, not disable them. A safety stop triggers a five-minute cooldown. The built-in runtime also shuts down after 10 idle minutes and reserves GPU memory for the desktop.</p>
+    <p class="small muted">Built-in model only. The guard checks about once a second. After a stop, you can retry as soon as the current readings allow it; there is no fixed cooldown. The model shuts down after 10 idle minutes.</p>
     <div class="inline">${limit("max_run_minutes", "Maximum runtime (minutes)", 5, 40)}
     ${limit("max_gpu_temp_c", "Maximum GPU temperature (°C)", 65, 85)}
-    ${limit("min_free_ram_mb", "Minimum free RAM (MB)", 1536, 8192)}</div></section>
+    ${limit("min_free_ram_mb", "Minimum free RAM (MB)", 1536, 8192)}</div>
+    <p><label><input type="checkbox" name="override_ram_guard" ${s.override_ram_guard ? "checked" : ""}> Override system RAM guard (advanced)</label></p>
+    <p class="small neg">This bypasses startup and running system RAM checks. Low memory can freeze the PC or crash the model. GPU temperature, GPU memory, and maximum runtime protections stay on.</p></section>
     <button class="primary">Save AI settings</button></form>`;
 }
 
@@ -61,9 +63,12 @@ export async function render(root) {
     e.preventDefault();
     const fields = e.currentTarget.elements;
     run(e.submitter, async () => {
+      if (fields.override_ram_guard.checked && !settings.override_ram_guard &&
+          !confirm("Bypass system RAM safeguards? The PC may freeze or the model may crash when memory is low.")) return;
       await api.saveAiSettings({ overview_depth: fields.overview_depth.value, cache_overviews: fields.cache_overviews.checked,
         max_run_minutes: fields.max_run_minutes.valueAsNumber, max_gpu_temp_c: fields.max_gpu_temp_c.valueAsNumber,
-        min_free_ram_mb: fields.min_free_ram_mb.valueAsNumber });
+        min_free_ram_mb: fields.min_free_ram_mb.valueAsNumber, override_ram_guard: fields.override_ram_guard.checked });
+      settings.override_ram_guard = fields.override_ram_guard.checked;
       toast("AI settings saved", "ok");
     });
   };

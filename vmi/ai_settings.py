@@ -21,6 +21,7 @@ class AISettings(BaseModel):
     cache_overviews: bool = True
     max_run_minutes: int = Field(40, ge=5, le=40)
     max_gpu_temp_c: int = Field(85, ge=65, le=85)
+    override_ram_guard: bool = False
     min_free_ram_mb: int = Field(1536, ge=1536, le=8192)
 
 

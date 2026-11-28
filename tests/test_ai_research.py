@@ -97,7 +97,7 @@ def test_ai_server_safeguards(monkeypatch):
     limits = AISettings()
     monkeypatch.setattr(RT, "free_ram_mb", lambda: 500.0)
     monkeypatch.setattr(RT, "gpu_state", lambda: {"temp": 60.0, "free_mb": 9000.0})
-    assert "memory" in RT._danger(limits)
+    assert "RAM" in RT._danger(limits)
     monkeypatch.setattr(RT, "free_ram_mb", lambda: 9000.0)
     monkeypatch.setattr(RT, "gpu_state", lambda: {"temp": 90.0, "free_mb": 9000.0})
     assert "°C" in RT._danger(limits)
@@ -108,4 +108,7 @@ def test_ai_server_safeguards(monkeypatch):
     monkeypatch.setattr(RT, "gpu_state", lambda: {"temp": 77.0, "free_mb": 9000.0})
     assert "°C" in RT._danger(AISettings(max_gpu_temp_c=75))
     monkeypatch.setattr(RT, "free_ram_mb", lambda: 2000.0)
-    assert "memory" in RT._danger(AISettings(min_free_ram_mb=2500))
+    assert "RAM" in RT._danger(AISettings(min_free_ram_mb=2500))
+    assert RT._danger(AISettings(min_free_ram_mb=2500, override_ram_guard=True)) == ""
+    assert "°C" in RT._danger(AISettings(override_ram_guard=True), reading=(648, {"temp": 85, "free_mb": 9000}))
+    assert "GPU memory" in RT._danger(AISettings(override_ram_guard=True), reading=(648, {"temp": 80, "free_mb": 100}))

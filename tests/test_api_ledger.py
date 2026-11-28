@@ -172,28 +172,29 @@ def test_portfolio_quick_ai_uses_one_bounded_call_and_no_price_fetch(client, mon
         pytest.fail("Quick AI must use only the displayed summary")
 
     calls = []
-    def chat(backend, messages, max_tokens, *, timeout):
-        calls.append((backend, messages, max_tokens, timeout))
+    def chat(backend, messages, tools, run_tool, *, deep):
+        calls.append((backend, messages, tools, deep))
         return "**Cash** fell while the value of positions increased."
 
     monkeypatch.setattr(market, "history", no_prices)
     monkeypatch.setattr(market, "last_price", no_prices)
     monkeypatch.setattr(ai_helper, "status", lambda *, local_only: {"backend": "builtin" if local_only else None, "model": "mock-local"})
-    monkeypatch.setattr(ai_helper, "overview_chat", chat)
+    monkeypatch.setattr(ai_helper, "assistant_chat", chat)
     pid = _pf(client)
     path = f"/api/portfolios/{pid}/history/ask"
     body = {"question": "Why did cash go down?", "context": json.dumps({"primary": {"name": "A", "last": {"cash": 500}}})}
     res = client.post(path, json=body)
-    assert res.json() == {"answer": "Cash fell while the value of positions increased.", "model": "mock-local"}
+    assert res.json() == {"answer": "**Cash** fell while the value of positions increased.", "model": "mock-local"}
     assert len(calls) == 1
-    backend, messages, tokens, timeout = calls[0]
-    assert backend == "builtin" and tokens == 420 and timeout == 90
+    backend, messages, tools, deep = calls[0]
+    assert backend == "builtin" and tools == [] and not deep
     assert "Why did cash go down?" in messages[1]["content"] and '"cash": 500' in messages[1]["content"]
     assert client.post(path, json={**body, "context": "[1]"}).status_code == 400
-    assert client.post(path, json={**body, "question": "x" * 501}).status_code == 422
+    assert client.post(path, json={**body, "question": "x" * 10001}).status_code == 200
+    assert "x" * 10001 in calls[-1][1][-1]["content"]
     monkeypatch.setattr(ai_helper, "status", lambda **kw: {"backend": None})
     assert client.post(path, json=body).status_code == 503
-    assert len(calls) == 1
+    assert len(calls) == 2
 
 
 def test_holdings_performance_and_printable_report(client, monkeypatch):
@@ -229,6 +230,17 @@ def test_holdings_performance_and_printable_report(client, monkeypatch):
     assert stock["BBB"]["pnl"] == [0, 0, -100]
     assert data["benchmark"]["price_return"][-1] == pytest.approx(.1)
     assert data["points"][-1]["equity"] == 10_195
+    import json
+    from vmi import ai_portfolio
+    run, _ = ai_portfolio.runner(pid)
+    evidence = json.loads(run("read_app_data", {"section": "performance", **params}))
+    assert evidence["benchmark"]["portfolio_minus_benchmark_pct_points"] == pytest.approx(-8.05)
+    assert evidence["attribution"]["non_stock_and_other_residual"] == 0
+    assert evidence["attribution"]["average_daily_cash_weight"] < 1
+    aaa, bbb = evidence["stocks_by_absolute_contribution"]["rows"]
+    assert aaa["symbol"] == "AAA" and aaa["opening_qty"] == 10 and aaa["closing_qty"] == 0
+    assert aaa["contribution_pct_points"] == pytest.approx(2.95)
+    assert bbb["symbol"] == "BBB" and bbb["avg_weight"] > 0
     assert client.get(base + "/history/performance", params={**params, "benchmark": "INVALID"}).status_code == 400
     report = client.get(base + "/history/report", params=params)
     assert report.status_code == 200 and report.headers["cache-control"] == "no-store"
@@ -371,3 +383,17 @@ def test_portfolio_assistant_tool_dispatch_is_bounded(temp_db, monkeypatch):
         assert '"rows": []' in app_only("read_app_data", {"section": section})
     assert "Already" in app_only("read_app_data", {"section": "portfolios"})
     assert "exhausted" in app_only("read_app_data", {"section": "rules"})
+
+
+def test_deep_research_reads_only_approved_benchmark_sources(monkeypatch):
+    from vmi import ai_portfolio, ai_tools
+
+    seen = []
+    monkeypatch.setattr(ai_tools, "read_page", lambda url, offset: seen.append((url, offset)) or "Dated evidence")
+    url = "https://www.sec.gov/Archives/edgar/data/88/filing.htm"
+    tools, run, activity = ai_portfolio.assistant_tools(1, app_data=False, web_research=True, deep=True)
+    assert "read_benchmark_source" in {t["function"]["name"] for t in tools}
+    for bad in ("https://127.0.0.1/", "https://www.sec.gov.example.com/", url + "?portfolio=private"):
+        assert "approved" in run("read_benchmark_source", {"url": bad})
+    assert "Dated evidence" in run("read_benchmark_source", {"url": url})
+    assert seen == [(url, 0)] and activity["public_research"][0]["url"] == url

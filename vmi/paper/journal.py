@@ -258,7 +258,7 @@ def _valuation(state: ledger.Replay, starting_cash: float, cutoff: datetime, clo
 
 def history(pid: int, start: date | None = None, end: date | None = None, *, history_fn: Callable | None = None,
             include_positions: bool = False, now: datetime | None = None, include_performance: bool = False,
-            benchmark: str | None = None) -> dict:
+            benchmark: str | None = None, include_attribution: bool = False) -> dict:
     """Read-only daily timeline. Replaying orders once keeps past corrections immediately visible everywhere."""
     now = (now or datetime.now(ET)).astimezone(ET)
     end = end or now.date()
@@ -284,9 +284,12 @@ def history(pid: int, start: date | None = None, end: date | None = None, *, his
     closes = _closes(symbols | ({benchmark} if benchmark else set()), history_fn)
     opening_values = {}
     opening_day = start - timedelta(days=1) if start > date.min else None
-    opening = (_valuation(state, port["starting_cash"], _end_of_day(opening_day), closes, observed,
-                          include_positions=False, stock_values=opening_values)["equity"]
-               if opening_day else port["starting_cash"])
+    opening_point = (_valuation(state, port["starting_cash"], _end_of_day(opening_day), closes, observed,
+                                include_positions=include_attribution, stock_values=opening_values)
+                     if opening_day else {"equity": port["starting_cash"], "cash": port["starting_cash"], "positions": []})
+    opening = opening_point["equity"]
+    exposure: dict[str, float] = defaultdict(float)
+    exposure_days = 0
     flows: dict[str, float] = defaultdict(float)
     stock_pnl = {sym: [] for sym in sorted(symbols)} if include_performance else {}
     peak, points = opening, []
@@ -307,6 +310,10 @@ def history(pid: int, start: date | None = None, end: date | None = None, *, his
             for sym, series in stock_pnl.items():
                 series.append(values.get(sym, 0.0) - opening_values.get(sym, 0.0) + flows[sym])
         equity = point["equity"]
+        if include_attribution and equity > 0:
+            exposure_days += 1
+            for sym, value in (values or {}).items():
+                exposure[sym] += value / equity
         peak = max(peak, equity)
         point["drawdown"] = 1 - equity / peak if peak > 0 else 0.0
         points.append(point)
@@ -322,6 +329,24 @@ def history(pid: int, start: date | None = None, end: date | None = None, *, his
         report["stocks"] = [{"symbol": sym, "pnl": series, **_price_path(closes[sym], opening_day, points)}
                             for sym, series in stock_pnl.items()]
         report["benchmark"] = {"symbol": benchmark, **_price_path(closes[benchmark], opening_day, points)} if benchmark else None
+    if include_performance and include_attribution:
+        first_positions = {p["symbol"]: p for p in opening_point.get("positions", []) if p["sec_type"] == "STK"}
+        last_positions = {p["symbol"]: p for p in points[-1]["positions"] if p["sec_type"] == "STK"}
+        for stock in report["stocks"]:
+            sym = stock["symbol"]
+            first_pos, last_pos = first_positions.get(sym), last_positions.get(sym)
+            stock.update(opening_qty=first_pos["qty"] if first_pos else 0, closing_qty=last_pos["qty"] if last_pos else 0,
+                         opening_weight=first_pos["weight"] if first_pos else 0, closing_weight=last_pos["weight"] if last_pos else 0,
+                         avg_weight=exposure[sym] / exposure_days if exposure_days else None,
+                         contribution_pct_points=100 * stock["pnl"][-1] / opening if opening else None)
+        weights = [p["cash"] / p["equity"] for p in points if p["equity"] > 0]
+        report["attribution"] = {
+            "opening_cash": opening_point["cash"], "ending_cash": points[-1]["cash"],
+            "average_daily_cash_weight": sum(weights) / len(weights) if weights else None,
+            "stock_pnl": sum(row["pnl"][-1] for row in report["stocks"]),
+            "equity_change": points[-1]["equity"] - opening,
+        }
+        report["attribution"]["non_stock_and_other_residual"] = report["attribution"]["equity_change"] - report["attribution"]["stock_pnl"]
     return report
 
 
