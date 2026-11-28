@@ -357,3 +357,43 @@ def test_backdater_keeps_user_levels_and_warns_without_plans(pid):
     for bad in (0, 999):
         with pytest.raises(autotrade.PlanError):
             autotrade.plans_from_watchlist(pid, bad)
+
+
+def test_backdater_fetches_histories_in_parallel_and_isolates_provider_errors(pid):
+    from threading import Barrier
+
+    autotrade.upsert_plan(pid, "AAA", buy_levels=[100])
+    autotrade.upsert_plan(pid, "BBB", buy_levels=[100])
+    autotrade.upsert_plan(pid, "CCC", buy_levels=[{"price": 100, "status": "skipped"}])
+    barrier = Barrier(2, timeout=5)
+    bars = _day_bars([(99, 98)])
+    calls = []
+
+    def history(sym):
+        calls.append(sym)
+        barrier.wait()
+        if sym == "AAA":
+            raise RuntimeError("provider unavailable")
+        return bars
+
+    r = autotrade.backdate(pid, 30, history_fn=history)
+    assert sorted(calls) == ["AAA", "BBB"]
+    assert [e["symbol"] for e in r["events"]] == ["BBB"]
+    assert r["reasons"]["AAA"] == ["price history failed: provider unavailable", "no price history for the period"]
+    assert r["plans_checked"] == 3
+    assert ledger.verify(pid)["ok"]
+
+
+def test_backdater_retries_after_sell_and_uses_updated_holdings(pid):
+    bars = _day_bars([(90, 88), (110, 89)])
+    initial = datetime.combine(bars.index[0].date() - timedelta(days=3), datetime.min.time(), timezone.utc)
+    ledger.add_trade(pid, {"symbol": "AAA", "side": "BUY", "qty": 700, "price": 100, "ts": initial}, reason="seed")
+    autotrade.upsert_plan(pid, "AAA", sell_levels=[{"price": 100, "fraction": 0.5}, {"price": 105, "fraction": 0.5}])
+    autotrade.upsert_plan(pid, "BBB", buy_levels=[100], allocation=50_000)
+
+    r = autotrade.backdate(pid, 30, history_fn=lambda sym: bars)
+    assert [e["event"] for e in r["events"]] == ["backfill_sell", "backfill_sell", "backfill_buy"]
+    assert all(e["day"] == str(bars.index[1].date()) for e in r["events"])
+    assert sorted(t["qty"] for t in _trades(pid) if t["side"] == "SELL") == [175, 350]
+    assert "no cash" in r["reasons"]["BBB"][0]
+    assert ledger.verify(pid)["ok"]

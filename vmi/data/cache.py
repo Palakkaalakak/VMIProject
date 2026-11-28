@@ -78,6 +78,7 @@ class TTLCache:
 
 
 _cache: TTLCache | None = None
+_init_lock = threading.Lock()
 
 
 def get_cache() -> TTLCache:
@@ -85,5 +86,7 @@ def get_cache() -> TTLCache:
     if _cache is None:
         from vmi.config import get_settings
 
-        _cache = TTLCache(get_settings().cache_dir / "cache.sqlite")
+        with _init_lock:
+            if _cache is None:
+                _cache = TTLCache(get_settings().cache_dir / "cache.sqlite")
     return _cache

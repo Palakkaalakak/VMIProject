@@ -126,6 +126,13 @@ def _rows(s, pid: int) -> list[dict]:
     return [_row(t) for t in s.scalars(select(store.Trade).where(store.Trade.portfolio_id == pid))]
 
 
+def _replay_rows(s, pid: int) -> list[dict]:
+    # Candidate validation only needs accounting fields, not journal context or notes.
+    t = store.Trade
+    q = select(t.id, t.ts, t.key, t.symbol, t.sec_type, t.side, t.qty, t.price, t.multiplier, t.fees, t.kind)
+    return [dict(row) for row in s.execute(q.where(t.portfolio_id == pid)).mappings()]
+
+
 def _row(t: store.Trade) -> dict:
     d = store.to_dict(t)
     if t.sec_type == "OPT":
@@ -254,7 +261,7 @@ def add_trade(pid: int, data: dict, reason: str, allow_negative_cash: bool = Fal
     d = _normalise({"kind": "fill", **data})
     with store.session() as s:
         p = _portfolio(s, pid)
-        _dry_run(s, p, _rows(s, pid) + [{**d, "id": None}], allow_negative_cash)
+        _dry_run(s, p, _replay_rows(s, pid) + [{**d, "id": None}], allow_negative_cash)
         t = store.Trade(portfolio_id=pid, source="admin", edited=True, liquidity="admin", slippage=0.0,
                         context=d.get("context") or {}, note=d.get("note") or "", tags=d.get("tags") or "",
                         thesis=d.get("thesis") or "", kind=d.get("kind") or "fill", key=d["key"], symbol=d["symbol"],
