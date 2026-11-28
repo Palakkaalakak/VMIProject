@@ -37,6 +37,60 @@ def latest_10k(cik: int) -> dict | None:
     return get_cache().get_or_set(f"filings:latest:{cik}", 7 * 24 * 3600, fetch)
 
 
+def annual_reports(cik: int) -> list[dict]:
+    """Original annual reports (no amendments), newest first: [{accession, form, filed, period, url}]."""
+    def fetch():
+        raw = http.get(f"https://data.sec.gov/submissions/CIK{cik:010d}.json", headers=sec._headers())
+        recent = raw.get("filings", {}).get("recent", {})
+        return [{"accession": recent["accessionNumber"][i], "form": form, "filed": recent["filingDate"][i],
+                 "period": recent["reportDate"][i],
+                 "url": f"https://www.sec.gov/Archives/edgar/data/{cik}/{recent['accessionNumber'][i].replace('-', '')}/{recent['primaryDocument'][i]}"}
+                for i, form in enumerate(recent.get("form", [])) if form in ("10-K", "20-F", "40-F")]
+
+    return get_cache().get_or_set(f"filings:annual:{cik}", 7 * 24 * 3600, fetch) or []
+
+
+# (start heading, end heading) of the business description and of management's discussion (MD&A)
+SECTION_MARKS = {
+    "10-K": {"business": (r"item\s*1\s*[.:\-—–]?\s*(?:description\s+of\s+)?business", r"item\s*1a\s*[.:\-—–]?\s*risk\s+factors"),
+             "mdna": (r"item\s*7\s*[.:\-—–]?\s*management.{0,3}s\s+discussion",
+                      r"item\s*7a\s*[.:\-—–]?\s*quantitative|item\s*8\s*[.:\-—–]?\s*(?:consolidated\s+)?financial\s+statements")},
+    "20-F": {"business": (r"item\s*4\s*[.:\-—–]?\s*information\s+on\s+the\s+company", r"item\s*4a\b|item\s*5\s*[.:\-—–]?\s*operating"),
+             "mdna": (r"item\s*5\s*[.:\-—–]?\s*operating\s+and\s+financial\s+review", r"item\s*6\s*[.:\-—–]?\s*directors")},
+}
+
+
+def _split_ok(pattern: str) -> str:
+    """Let heading words match when the filing's HTML splits them ("MAN AGEMENT", "S UPPLEMENTARY")."""
+    return re.sub(r"(?<![\\a-z])[a-z]{4,}", lambda m: r"\s?".join(m.group(0)), pattern)
+
+
+def section_text(text: str, start: str, end: str) -> str:
+    """The longest stretch from a `start` heading to the next `end` heading (so table-of-contents entries lose)."""
+    best, start, end = "", _split_ok(start), _split_ok(end)
+    for m in re.finditer(start, text, re.I):
+        if text[:m.start()].rstrip()[-1:] in ('"', "\u201c") or text[m.end():m.end() + 1] in ("\u2014", "\u201d", '"'):
+            continue                                   # a quoted cross-reference ("see Item 1. Business\u2014..."), not the heading
+        stop = re.compile(end, re.I).search(text, m.end())
+        if stop and stop.start() - m.start() > len(best):
+            best = text[m.start():stop.start()]
+    return best if len(best) > 1500 else ""
+
+
+def report_sections(filing: dict) -> dict:
+    """{business, mdna} plain text of one annual report; '' when a heading is not found (cached per filing)."""
+    def fetch():
+        html = http.get(filing["url"], headers=sec._headers(), expect_json=False)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", XMLParsedAsHTMLWarning)
+            text = BeautifulSoup(html, "lxml").get_text("\n")
+        text = re.sub(r"\n\s*\n+", "\n", re.sub(r"[ \t\xa0]+", " ", text))
+        marks = SECTION_MARKS.get(filing.get("form"), SECTION_MARKS["10-K"])
+        return {k: section_text(text, *v)[:200_000] for k, v in marks.items()}
+
+    return get_cache().get_or_set(f"filings:sections:v5:{filing['accession']}", 365 * 24 * 3600, fetch)
+
+
 def competition_passage(text: str) -> str:
     """The paragraph(s) under a 'Competition' heading (first heading that is followed by real prose)."""
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]

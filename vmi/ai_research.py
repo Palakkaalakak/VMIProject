@@ -260,15 +260,20 @@ def research(ticker: str, name: str, base_url: str | None = None, on_tool=None, 
     from vmi import ai_pipeline
     lv = _level(level)
     return ai_pipeline.research(ticker, name, lambda msgs, mt: _chat(base_url, msgs, mt), on_tool=on_tool,
-                                questions=lv["questions"], pages=lv["pages"], followups=lv["followups"], plan=lv["plan"])
+                                questions=lv["questions"], pages=lv["pages"], followups=lv["followups"], plan=lv["plan"],
+                                deep=lv.get("deep", False))
 
 
 def verdict(ticker: str, name: str, notes: str, evidence: str = "", base_url: str | None = None, level: str | None = None) -> str:
     lv = _level(level)
     system = lv["adam"] + "\n\n" + _fit(VERDICT_BODY, lv).format(name=name, ticker=ticker) + "\n\n" + _fit(lv["checklist"], lv) + "\n\n" + STYLE
+    tokens = 4000 if lv.get("deep") else 1100 if lv is LEVELS["quick"] else 1800
+    card = f"EVIDENCE CARD:\n{evidence}\n\n" if evidence else ""
+    if lv.get("deep"):
+        notes = ai_runtime.squeeze(notes, ai_runtime.room(tokens, len(system) + len(card)))
     msgs = [{"role": "system", "content": system},
-            {"role": "user", "content": (f"EVIDENCE CARD:\n{evidence}\n\n" if evidence else "") + f"RESEARCH NOTES:\n{notes}"}]
-    return _chat(base_url, msgs, 1100 if lv is LEVELS["quick"] else 1800)
+            {"role": "user", "content": card + f"RESEARCH NOTES:\n{notes}"}]
+    return _chat(base_url, msgs, tokens)
 
 
 REVIEW_BODY = """Re-read the moat verdict you wrote below, as a strict reviewer of your own work, before it goes to anyone. Fix it if:
@@ -296,8 +301,12 @@ LEVELS = {
               "claims": "the 4 most decisive claims only", "reasoning": "at most 100 words", "item": "at most 14 words", "fix": "at most 50 words"},
     "standard": {"adam": FRAMEWORK_QUICK + "\n\n" + NUANCES, "checklist": CHECKLIST, "questions": 6, "pages": 3, "followups": 2, "plan": True,
                  "claims": "the 6 most decisive claims only", "reasoning": "at most 170 words", "item": "at most 22 words", "fix": "at most 80 words"},
-    "deep": {"adam": ADAM, "checklist": CHECKLIST, "questions": 6, "pages": 3, "followups": 3, "plan": True,
-             "claims": "the 6-8 most decisive claims, each a full sentence", "reasoning": "at most 240 words", "item": "at most 28 words", "fix": "at most 110 words"},
+    "deep": {"adam": ADAM, "checklist": CHECKLIST, "questions": 6, "pages": 3, "followups": 3, "plan": True, "deep": True,
+             "claims": "the 6-8 most decisive claims, each a full sentence",
+             "reasoning": "no word limit, plain-English full sentences that first say concretely what the company sells, who pays and how each "
+                          "revenue line earns money (with examples, jargon explained) and why any big financial change happened (sourced, or "
+                          "say no sourced cause was found), then cover",
+             "item": "any length (no word limit, full sentences)", "fix": "as many full sentences as needed"},
 }
 STYLE = """WRITING STYLE (important): write clearly, in complete sentences with normal grammar, as if explaining to an intelligent reader
 who has not seen the notes. No telegraphic fragments, shorthand, arrows or stacked noun phrases. In every checklist line and in
@@ -313,6 +322,9 @@ def _level(level: str | None) -> dict:
 
 def _fit(body: str, lv: dict) -> str:
     """Scale the output-length instructions of a prompt body to the level."""
+    if lv.get("deep"):
+        body = (body.replace("in one or two full sentences", "in full sentences, as many as needed")
+                .replace("<one or two sentences>", "<full sentences, as many as needed>"))
     return (body.replace("the 6-8 most decisive claims only", lv["claims"]).replace("at most 100 words: the strong", lv["reasoning"] + ": the strong")
             .replace("at most 12 words", lv["item"]).replace("<at most 80 words>", "<" + lv["reasoning"] + ">")
             .replace("at most 40 words", lv["fix"]))
@@ -320,18 +332,26 @@ def _fit(body: str, lv: dict) -> str:
 
 def review(verdict_text: str, notes: str, base_url: str | None = None, level: str | None = None) -> str:
     lv = _level(level)
-    msgs = [{"role": "system", "content": lv["adam"] + "\n\n" + _fit(REVIEW_BODY, lv) + "\n\n" + _fit(lv["checklist"], lv) + "\n\n" + STYLE},
+    system = lv["adam"] + "\n\n" + _fit(REVIEW_BODY, lv) + "\n\n" + _fit(lv["checklist"], lv) + "\n\n" + STYLE
+    tokens = 3200 if lv.get("deep") else 800 if lv is LEVELS["quick"] else 1400
+    if lv.get("deep"):
+        notes = ai_runtime.squeeze(notes, ai_runtime.room(tokens, len(system) + len(verdict_text)))
+    msgs = [{"role": "system", "content": system},
             {"role": "user", "content": f"YOUR VERDICT:\n{verdict_text}\n\nRESEARCH NOTES IT WAS BASED ON:\n{notes}"}]
-    return _chat(base_url, msgs, 800 if lv is LEVELS["quick"] else 1400)
+    return _chat(base_url, msgs, tokens)
 
 
 def check(verdict_text: str, notes: str, figures: str, base_url: str | None = None, level: str | None = None) -> str:
     lv = _level(level)
     claims = verdict_text.split("REASONING:")[0]
     grade = _grade(verdict_text, "MOAT VERDICT") or "?"
-    msgs = [{"role": "system", "content": _fit(CHECK_RULES, lv) + "\n\n" + _fit(lv["checklist"], lv) + "\n\n" + STYLE},
+    system = _fit(CHECK_RULES, lv) + "\n\n" + _fit(lv["checklist"], lv) + "\n\n" + STYLE
+    tokens = 4000 if lv.get("deep") else 1000 if lv is LEVELS["quick"] else 1600
+    if lv.get("deep"):
+        notes = ai_runtime.squeeze(notes, ai_runtime.room(tokens, len(system) + len(claims) + len(figures)))
+    msgs = [{"role": "system", "content": system},
             {"role": "user", "content": f"ANALYST GRADE: {grade}\n\n{claims}\n\nSOURCE NOTES:\n{notes}\n\nAPP FIGURES [analysis page]:\n{figures}"}]
-    return _chat(base_url, msgs, max_tokens=1000 if lv is LEVELS["quick"] else 1600)
+    return _chat(base_url, msgs, max_tokens=tokens)
 
 
 def final_text(result: dict) -> str:

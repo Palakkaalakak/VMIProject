@@ -73,7 +73,7 @@ def _opinion(prompt: str) -> str:
     if status()["backend"] == "builtin":
         return ai_runtime.chat(prompt)
     s = get_settings()
-    body = json.dumps({"model": s.ai_model, "prompt": prompt, "stream": False, "options": {"temperature": 0.3}}).encode()
+    body = json.dumps({"model": s.ai_model, "prompt": prompt, "stream": False, "options": {"temperature": 0.3, "num_ctx": ai_runtime.CTX}}).encode()
     req = urllib.request.Request(f"{s.ai_url}/api/generate", data=body, headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=s.ai_timeout) as r:
         text = json.loads(r.read()).get("response", "")
@@ -88,7 +88,7 @@ def overview_chat(backend: str, messages: list[dict], max_tokens: int) -> str:
         raise RuntimeError("No AI model is available. See AI Settings.")
     settings = get_settings()
     body = {"model": settings.ai_model, "messages": messages, "stream": False,
-            "options": {"num_predict": max_tokens, "temperature": 0.3}}
+            "options": {"num_predict": max_tokens, "temperature": 0.3, "num_ctx": ai_runtime.CTX}}
     req = urllib.request.Request(f"{settings.ai_url}/api/chat", data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=settings.ai_timeout) as response:

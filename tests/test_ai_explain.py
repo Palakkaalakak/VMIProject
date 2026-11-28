@@ -1,4 +1,6 @@
 """Offline coverage for the independent overview and its settings."""
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -41,6 +43,9 @@ def report():
 def model(monkeypatch):
     prompts = []
     monkeypatch.setattr(ai_explain.research, "answer", lambda *a, **kw: "A filing says this. [https://example.com/filing]")
+
+    monkeypatch.setattr(ai_explain.research, "annual_reports", lambda t: [])
+    monkeypatch.setattr(ai_explain.research, "search", lambda *a: [])
 
     def chat(messages, tokens):
         prompts.append(messages[0]["content"])
@@ -128,3 +133,49 @@ def test_settings_and_overview_endpoints(company, model, report, monkeypatch, tm
     assert deep["level"] == "deep" and any(s["key"] == "chart" for s in deep["sections"])
     assert client.post("/api/analysis/TEST/ai-explain?level=quick").json()["level"] == "quick"
     assert modes == [("TEST", True, False)]
+
+
+def test_deep_reads_the_filing_and_only_keeps_sourced_causes(company, model, monkeypatch):
+    prompts = []
+    filing = {"form": "10-K", "filed": "2025-02-01", "period": "2024-12-31", "url": "https://www.sec.gov/f24.htm", "accession": "a"}
+    mdna = "Net income decreased primarily due to a one-time tax charge on revenue. " * 5
+    monkeypatch.setattr(ai_explain.research, "annual_reports", lambda t: [filing])
+    monkeypatch.setattr(ai_explain.research, "report_sections", lambda f: {"business": "We sell widgets to plumbers. " * 3000, "mdna": mdna})
+
+    def chat(messages, tokens):
+        prompt = messages[0]["content"]
+        prompts.append((prompt, tokens))
+        if prompt.startswith("Example Co (TEST), fiscal year"):
+            return "- A tax charge cut profit. [https://www.sec.gov/f24.htm]\n- Invented cause. [https://made.up/x]\n- No link."
+        return "Text."
+
+    result = ai_explain.explain(company, chat, level="deep", use_cache=False)
+    causes = next(s for s in result["sections"] if s["key"] == "causes")["text"]
+    assert "A tax charge cut profit" in causes and "Invented" not in causes and "No link" not in causes
+    assert "No sourced cause found." in causes                    # the 2025 swing has no source for that year
+    business = next(p for p, _ in prompts if "What the company does" in p)
+    assert "We sell widgets to plumbers" in business and "no word limit" in business and len(business) > 30000
+    from vmi import ai_runtime
+    assert all(len(p) / ai_runtime.CHARS_PER_TOKEN + t <= ai_runtime.CTX for p, t in prompts)
+
+
+def test_deep_moat_prompts_have_no_word_caps_and_fit_the_context(monkeypatch):
+    from vmi import ai_research as r, ai_runtime
+    seen = []
+    monkeypatch.setattr(r, "_chat", lambda base, msgs, max_tokens=1200: seen.append((msgs, max_tokens)) or "x")
+    notes = "\n\n".join(["Q: something [https://a.b]\n" + "word " * 2000] * 9)
+    r.verdict("X", "X Co", notes, level="deep")
+    r.review("claims " * 1500, notes, level="deep")
+    r.check("claims " * 500, notes, "figures " * 300, level="deep")
+    for msgs, tokens in seen:
+        assert not re.search(r"at most \d+ words|one or two", msgs[0]["content"].split("NUANCE CHECKLIST")[-1])
+        assert sum(len(m["content"]) for m in msgs) / ai_runtime.CHARS_PER_TOKEN + tokens <= ai_runtime.CTX
+
+
+def test_filing_sections_survive_split_headings_and_skip_cross_references():
+    from vmi.data import filings
+    body = "We sell widgets. " * 200
+    text = (f"ITEM 1. BUSINESS 5 ITEM 1A. RISK FACTORS 9 \nITEM 1.\nBUS\nINESS\n{body}ITEM 1A. RISK FACTORS "
+            f"see “Item 1. Business—Rules” {body * 2}Item 1A. Risk Factors")
+    out = filings.section_text(text, *filings.SECTION_MARKS["10-K"]["business"])
+    assert out.startswith("ITEM 1.\nBUS\nINESS") and len(out) < len(body) + 100

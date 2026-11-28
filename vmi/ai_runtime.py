@@ -165,6 +165,7 @@ def ready() -> bool:
 CTX = 20480                      # the deep moat prompt is ~8.6k tokens + notes + answer
 MODEL_LAYERS = 49                 # Gemma 4 12B: 48 blocks + output layer
 MB_PER_LAYER = 145                # ~7 GB of weights over 49 layers
+CHARS_PER_TOKEN = 3.3            # cautious (English prose is nearer 4): used to fit prompts inside CTX
 KV_AND_BUFFERS_MB = 3000          # KV cache for CTX tokens (about 2 GB) + compute buffers + desktop headroom
 
 
@@ -351,6 +352,23 @@ def stop() -> None:
 
 import atexit  # noqa: E402
 atexit.register(stop)          # the server never outlives the app
+
+
+def room(output_tokens: int, used_chars: int = 0) -> int:
+    """Characters of source text that still fit in CTX beside `used_chars` of prompt and an `output_tokens` answer."""
+    return max(0, int((CTX - output_tokens - 400) * CHARS_PER_TOKEN) - used_chars)
+
+
+def squeeze(text: str, limit: int) -> str:
+    """Cut `text` to `limit` characters by trimming its longest blocks, so late blocks are not simply lost."""
+    if len(text) <= limit:
+        return text
+    blocks = text.split("\n\n")
+    lo, hi = 0, max(map(len, blocks))
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        lo, hi = (mid, hi) if sum(min(len(b), mid) + 2 for b in blocks) <= limit else (lo, mid - 1)
+    return "\n\n".join(b[:lo] for b in blocks)[:limit]
 
 
 def chat(prompt: str, timeout: float = 300.0) -> str:
